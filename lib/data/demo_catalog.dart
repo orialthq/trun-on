@@ -1,0 +1,88 @@
+import '../domain/models.dart';
+
+abstract final class DemoCatalog {
+  static const products = <Product>[
+    Product(
+      id: 'baumlab-pore-balance',
+      brand: '바움랩',
+      name: '포어 밸런스 세럼',
+      category: '세럼',
+      sizeMl: 30,
+      priceWon: 28000,
+      savedSourceCount: 4,
+      sponsoredSourceCount: 2,
+      concerns: ['피지·모공', '결 정돈'],
+      overlap: OverlapLevel.high,
+      summary: '현재 쓰는 세럼과 역할이 많이 겹쳐 보류에 가까워요.',
+      reasons: [
+        '현재 루틴의 나이아신아마이드 세럼과 역할이 겹쳐요.',
+        '저장한 콘텐츠 4개 중 2개에 광고·협찬 표시가 있어요.',
+        '지금 우선순위인 붉은기보다 피지 관리 언급이 많아요.',
+      ],
+      colorValue: 0xFFB89CD9,
+      decision: Decision.hold,
+    ),
+    Product(
+      id: 'leafon-calming',
+      brand: '리프온',
+      name: '카밍 앰플',
+      category: '앰플',
+      sizeMl: 40,
+      priceWon: 25000,
+      savedSourceCount: 3,
+      sponsoredSourceCount: 1,
+      concerns: ['붉은기', '진정'],
+      overlap: OverlapLevel.low,
+      summary: '붉은기 관심과 연결되고 현재 루틴과 겹침이 적어요.',
+      reasons: [
+        '요즘 가장 중요한 붉은기 관심과 연결돼요.',
+        '현재 루틴에 같은 역할의 앰플이 없어요.',
+        '세 콘텐츠 중 한 콘텐츠에 협찬 표시가 있어요.',
+      ],
+      colorValue: 0xFF8FC6A8,
+      decision: Decision.candidate,
+    ),
+    Product(
+      id: 'slowbreeze-hydra',
+      brand: '슬로우브리즈',
+      name: '하이드라 세럼',
+      category: '세럼',
+      sizeMl: 50,
+      priceWon: 21000,
+      savedSourceCount: 2,
+      sponsoredSourceCount: 0,
+      concerns: ['속건조', '보습'],
+      overlap: OverlapLevel.medium,
+      summary: '속건조 관심과 맞지만 보유 크림과 역할이 일부 겹쳐요.',
+      reasons: [
+        '저장한 콘텐츠에서 속건조와 보습이 반복 언급됐어요.',
+        '보유 중인 배리어 크림과 보습 역할이 일부 겹쳐요.',
+        '저장한 두 콘텐츠에는 광고·협찬 표시가 없었어요.',
+      ],
+      colorValue: 0xFF89B9D5,
+    ),
+    Product(
+      id: 'daylight-sun-fluid',
+      brand: '데이라이트',
+      name: '에어리 선 플루이드',
+      category: '선케어',
+      sizeMl: 50,
+      priceWon: 24000,
+      savedSourceCount: 1,
+      sponsoredSourceCount: 0,
+      concerns: ['자외선', '가벼운 사용감'],
+      overlap: OverlapLevel.low,
+      summary: '공유된 콘텐츠 속 제품이 맞는지 확인이 필요해요.',
+      reasons: ['콘텐츠에서 제품 라벨이 일부만 보였어요.', '확인 후 비교와 결정 요약을 만들 수 있어요.'],
+      colorValue: 0xFFF0C978,
+      analysisStatus: AnalysisStatus.needsConfirmation,
+    ),
+  ];
+
+  static const criteria = UserCriteria(
+    skinType: '복합성',
+    isSensitive: true,
+    concerns: ['붉은기', '피지·모공', '속건조'],
+    routine: ['퓨어폼 나이아신 5 세럼', '노레스트 배리어 크림'],
+  );
+}
