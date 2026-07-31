@@ -46,6 +46,29 @@ void main() {
     );
   });
 
+  test('announces an incoming capture and resets the content filter', () async {
+    await controller.initialize();
+    controller.setFilter(CaptureFilter.organized);
+    final captureAdded = controller.incomingCaptureAdded.first;
+
+    service.add(
+      IncomingShare(
+        id: 'share-opened-screenshot',
+        receivedAt: DateTime(2026, 7, 31),
+        sharedText: '스크린샷에서 바로 가져온 콘텐츠',
+        discoveredUrl: null,
+      ),
+    );
+
+    final captureId = await captureAdded;
+
+    expect(controller.filter, CaptureFilter.all);
+    expect(
+      controller.captureById(captureId)?.raw.transportEventId,
+      'share-opened-screenshot',
+    );
+  });
+
   test(
     'user confirmation merges another source into an exact product',
     () async {

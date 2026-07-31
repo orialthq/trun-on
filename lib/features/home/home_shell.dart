@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../state/app_controller.dart';
@@ -15,6 +17,42 @@ final class HomeShell extends StatefulWidget {
 
 final class _HomeShellState extends State<HomeShell> {
   var _selectedIndex = 0;
+  late StreamSubscription<String> _incomingCaptureSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenForIncomingCaptures();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) {
+      return;
+    }
+    unawaited(_incomingCaptureSubscription.cancel());
+    _listenForIncomingCaptures();
+  }
+
+  void _listenForIncomingCaptures() {
+    _incomingCaptureSubscription = widget.controller.incomingCaptureAdded
+        .listen((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              return;
+            }
+            setState(() => _selectedIndex = 0);
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          });
+        });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_incomingCaptureSubscription.cancel());
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

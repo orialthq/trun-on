@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ori_beauty/app/ori_beauty_app.dart';
 import 'package:ori_beauty/data/incoming_share_service.dart';
 import 'package:ori_beauty/domain/models.dart';
+import 'package:ori_beauty/features/product/product_detail_screen.dart';
 import 'package:ori_beauty/state/app_controller.dart';
 
 void main() {
@@ -36,6 +37,51 @@ void main() {
     expect(find.text('콘텐츠에서 나온 이야기'), findsOneWidget);
     expect(find.textContaining('사용자 확인 완료'), findsNothing);
     expect(find.textContaining('베이스라인'), findsNothing);
+  });
+
+  testWidgets('collapses and expands long saved source text', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+    await controller.initialize();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProductDetailScreen(
+          controller: controller,
+          groupId: 'group-baumlab-pore-balance',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final sourceToggle = find.byKey(
+      const ValueKey('source-toggle-capture-demo-baum-1'),
+    );
+    await tester.scrollUntilVisible(
+      sourceToggle,
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    final rawSource = find.byKey(
+      const ValueKey('source-raw-capture-demo-baum-1'),
+    );
+    final collapsedText = tester.widget<Text>(rawSource);
+    expect(collapsedText.maxLines, 3);
+    expect(collapsedText.overflow, TextOverflow.ellipsis);
+
+    await tester.tap(sourceToggle);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget(rawSource), isA<SelectableText>());
+    expect(find.text('접기'), findsWidgets);
   });
 
   testWidgets('reviews extracted fields and organizes a capture', (
@@ -101,5 +147,32 @@ void main() {
     );
     expect(capture.status, CaptureStatus.needsReview);
     expect(await service.drainPending(), isEmpty);
+  });
+
+  testWidgets('incoming screenshot returns to the content tab', (tester) async {
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
+    await tester.pumpAndSettle();
+    expect(find.text('정리함'), findsWidgets);
+
+    service.add(
+      IncomingShare(
+        id: 'share-screenshot-open',
+        receivedAt: DateTime(2026, 7, 31),
+        sharedText: '방금 연 스크린샷',
+        discoveredUrl: null,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('콘텐츠'), findsWidgets);
+    expect(find.text('방금 연 스크린샷'), findsOneWidget);
   });
 }

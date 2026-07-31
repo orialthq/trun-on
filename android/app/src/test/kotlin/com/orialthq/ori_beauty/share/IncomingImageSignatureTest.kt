@@ -68,7 +68,7 @@ class IncomingImageSignatureTest {
     }
 
     @Test
-    fun stripsRouteDataOnlyForShareActions() {
+    fun stripsRouteDataForAllSupportedImportActions() {
         assertTrue(
             IncomingShareRoutePolicy.shouldStripData("android.intent.action.SEND"),
         )
@@ -77,8 +77,11 @@ class IncomingImageSignatureTest {
                 "android.intent.action.SEND_MULTIPLE",
             ),
         )
-        assertFalse(
+        assertTrue(
             IncomingShareRoutePolicy.shouldStripData("android.intent.action.VIEW"),
+        )
+        assertFalse(
+            IncomingShareRoutePolicy.shouldStripData("android.intent.action.EDIT"),
         )
         assertFalse(IncomingShareRoutePolicy.shouldStripData(null))
     }

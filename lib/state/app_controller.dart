@@ -25,6 +25,8 @@ final class AppController extends ChangeNotifier {
   final List<CaptureRecord> _captures;
   final List<ProductGroup> _groups;
   final Set<String> _durablySavedTransportIds = {};
+  final StreamController<String> _incomingCaptureController =
+      StreamController<String>.broadcast();
 
   StreamSubscription<void>? _incomingSubscription;
   Future<void> _snapshotWriteTail = Future<void>.value();
@@ -35,6 +37,7 @@ final class AppController extends ChangeNotifier {
   List<CaptureRecord> get captures => List.unmodifiable(_captures);
   List<ProductGroup> get groups => List.unmodifiable(_groups);
   CaptureFilter get filter => _filter;
+  Stream<String> get incomingCaptureAdded => _incomingCaptureController.stream;
 
   List<CaptureRecord> get filteredCaptures {
     return _captures
@@ -133,6 +136,7 @@ final class AppController extends ChangeNotifier {
           .toSet();
       final safeToAcknowledge = <String>{};
       final pendingAnalysisIds = <String>[];
+      final importedCaptureIds = <String>[];
       var changed = false;
       for (final share in shares) {
         if (knownTransportIds.contains(share.id)) {
@@ -146,6 +150,7 @@ final class AppController extends ChangeNotifier {
             : _contentAnalysisService.prepareShare(share);
         capture = await _retainAttachments(capture);
         _captures.insert(0, capture);
+        importedCaptureIds.add(capture.raw.id);
         if (capture.status == CaptureStatus.analyzing) {
           pendingAnalysisIds.add(capture.raw.id);
         }
@@ -153,6 +158,7 @@ final class AppController extends ChangeNotifier {
         changed = true;
       }
       if (changed) {
+        _filter = CaptureFilter.all;
         final saved = await _persistState();
         if (saved) {
           safeToAcknowledge.addAll(
@@ -162,6 +168,9 @@ final class AppController extends ChangeNotifier {
           );
         }
         notifyListeners();
+        for (final captureId in importedCaptureIds) {
+          _incomingCaptureController.add(captureId);
+        }
       }
       if (safeToAcknowledge.isNotEmpty) {
         await _incomingShareService.acknowledge(safeToAcknowledge);
@@ -737,6 +746,7 @@ final class AppController extends ChangeNotifier {
   void dispose() {
     unawaited(_incomingSubscription?.cancel());
     unawaited(_incomingShareService.dispose());
+    unawaited(_incomingCaptureController.close());
     super.dispose();
   }
 }

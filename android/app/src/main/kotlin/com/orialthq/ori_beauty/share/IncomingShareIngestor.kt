@@ -23,12 +23,18 @@ class IncomingShareIngestor(context: Context) {
         runCatching {
             IncomingShareIntentParser.parse(intent, sourcePackage)
         }.getOrNull()?.let { return it }
-        if (intent == null || intent.action !in IMAGE_SHARE_ACTIONS) {
+        if (intent == null || intent.action !in IMAGE_IMPORT_ACTIONS) {
             return null
         }
 
-        val declaredMimeType = normalizeMimeType(intent.type)
-        if (declaredMimeType != "image/*" && declaredMimeType !in SUPPORTED_MIME_TYPES) {
+        val resolvedMimeType =
+            normalizeMimeType(
+                runCatching { intent.resolveType(resolver) }.getOrNull(),
+            )
+        if (
+            resolvedMimeType != "image/*" &&
+            resolvedMimeType !in SUPPORTED_MIME_TYPES
+        ) {
             return null
         }
 
@@ -47,7 +53,7 @@ class IncomingShareIngestor(context: Context) {
                 val attachment =
                     copyAndValidate(
                         uri = uri,
-                        declaredMimeType = declaredMimeType,
+                        declaredMimeType = resolvedMimeType,
                         maxBytes = minOf(MAX_ATTACHMENT_BYTES, remainingTotalBytes),
                     )
                 copiedAttachments += attachment
@@ -61,7 +67,7 @@ class IncomingShareIngestor(context: Context) {
                 sharedText = parsedText.sharedText,
                 discoveredUrl = parsedText.discoveredUrl,
                 sourcePackage = sourcePackage,
-                mimeType = declaredMimeType.orEmpty(),
+                mimeType = copiedAttachments.first().mimeType,
                 wasTruncated = parsedText.wasTruncated,
                 originalLength = parsedText.originalLength,
                 shareKind = SHARE_KIND_IMAGE,
@@ -242,6 +248,7 @@ class IncomingShareIngestor(context: Context) {
                     intent
                         .getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
                         .orEmpty()
+                Intent.ACTION_VIEW -> listOfNotNull(intent.data)
                 else -> emptyList()
             }.toMutableList()
 
@@ -290,8 +297,12 @@ class IncomingShareIngestor(context: Context) {
         private const val IMAGE_HEADER_BYTES = 12
         private const val COPY_BUFFER_BYTES = 64 * 1024
 
-        private val IMAGE_SHARE_ACTIONS =
-            setOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)
+        private val IMAGE_IMPORT_ACTIONS =
+            setOf(
+                Intent.ACTION_SEND,
+                Intent.ACTION_SEND_MULTIPLE,
+                Intent.ACTION_VIEW,
+            )
         private val SUPPORTED_MIME_TYPES =
             setOf("image/jpeg", "image/png", "image/webp")
 

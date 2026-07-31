@@ -441,13 +441,21 @@ final class _SourceList extends StatelessWidget {
   }
 }
 
-final class _SourceSection extends StatelessWidget {
+final class _SourceSection extends StatefulWidget {
   const _SourceSection({required this.capture});
 
   final CaptureRecord capture;
 
   @override
+  State<_SourceSection> createState() => _SourceSectionState();
+}
+
+final class _SourceSectionState extends State<_SourceSection> {
+  var _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final capture = widget.capture;
     final platform = capture.normalized.urls.isEmpty
         ? SourcePlatform.textOnly
         : capture.normalized.urls.first.platform;
@@ -455,6 +463,13 @@ final class _SourceSection extends StatelessWidget {
         capture.analysis?.disclosure ?? DisclosureObservation.unknown;
     final hasExplicitDisclosure =
         disclosure == DisclosureObservation.explicitlyObserved;
+    final rawText = capture.raw.rawText.trim();
+    final content = rawText.isEmpty ? '공유된 내용이 없어요.' : rawText;
+    const sourceTextStyle = TextStyle(
+      color: AppTheme.ink,
+      fontSize: 14,
+      height: 1.6,
+    );
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -503,13 +518,49 @@ final class _SourceSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          SelectableText(
-            capture.raw.rawText,
-            style: const TextStyle(
-              color: AppTheme.ink,
-              fontSize: 14,
-              height: 1.6,
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final previewPainter = TextPainter(
+                text: TextSpan(text: content, style: sourceTextStyle),
+                maxLines: 3,
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+              )..layout(maxWidth: constraints.maxWidth);
+              final canExpand = previewPainter.didExceedMaxLines;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_expanded)
+                    SelectableText(
+                      content,
+                      key: ValueKey('source-raw-${capture.raw.id}'),
+                      style: sourceTextStyle,
+                    )
+                  else
+                    Text(
+                      content,
+                      key: ValueKey('source-raw-${capture.raw.id}'),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: sourceTextStyle,
+                    ),
+                  if (canExpand) ...[
+                    const SizedBox(height: 2),
+                    TextButton(
+                      key: ValueKey('source-toggle-${capture.raw.id}'),
+                      onPressed: () => setState(() => _expanded = !_expanded),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 40),
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(_expanded ? '접기' : '원문 전체 보기'),
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
           Row(
