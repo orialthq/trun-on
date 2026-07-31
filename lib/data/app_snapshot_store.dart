@@ -10,6 +10,214 @@ abstract interface class AppSnapshotStore {
   Future<void> save(List<PersistedCapture> captures);
 }
 
+abstract final class _AnalysisRunCodec {
+  static Map<String, Object?> toJson(AnalysisRun analysis) {
+    return {
+      'id': analysis.id,
+      'inputId': analysis.inputId,
+      'normalizerVersion': analysis.normalizerVersion,
+      'analyzerVersion': analysis.analyzerVersion,
+      'status': analysis.status.name,
+      'startedAtEpochMs': analysis.startedAt?.millisecondsSinceEpoch,
+      'completedAtEpochMs': analysis.completedAt.millisecondsSinceEpoch,
+      'attempt': analysis.attempt,
+      'model': analysis.model,
+      'failureCode': analysis.failureCode,
+      'disclosure': analysis.disclosure.name,
+      'evidence': analysis.evidence
+          .map(
+            (item) => {
+              'id': item.id,
+              'captureId': item.captureId,
+              'kind': item.kind.name,
+              'quote': item.quote,
+              'startOffset': item.startOffset,
+              'endOffset': item.endOffset,
+              'attachmentId': item.attachmentId,
+              'region': item.region,
+            },
+          )
+          .toList(),
+      'productMentions': analysis.productMentions
+          .map(
+            (item) => {
+              'id': item.id,
+              'brand': _fieldToJson(item.brand),
+              'name': _fieldToJson(item.name),
+              'category': _fieldToJson(item.category),
+              'amount': _fieldToJson(item.amount),
+              'overallConfidence': item.overallConfidence,
+              'missingFields': item.missingFields
+                  .map((field) => field.name)
+                  .toList(),
+            },
+          )
+          .toList(),
+      'statements': analysis.statements
+          .map(
+            (item) => {
+              'id': item.id,
+              'captureId': item.captureId,
+              'mentionId': item.mentionId,
+              'type': item.type.name,
+              'topic': item.topic,
+              'originalExpression': item.originalExpression,
+              'evidenceIds': item.evidenceIds,
+            },
+          )
+          .toList(),
+      'structuredContent': analysis.structuredContent?.toJson(),
+    };
+  }
+
+  static AnalysisRun fromJson(Map<String, Object?> json) {
+    final id = json['id'];
+    final inputId = json['inputId'];
+    final completedAtEpochMs = json['completedAtEpochMs'];
+    if (id is! String || inputId is! String || completedAtEpochMs is! int) {
+      throw const FormatException('Persisted analysis fields are invalid.');
+    }
+    final structuredJson = json['structuredContent'];
+    return AnalysisRun(
+      id: id,
+      inputId: inputId,
+      normalizerVersion:
+          json['normalizerVersion'] as String? ?? 'unknown-normalizer',
+      analyzerVersion: json['analyzerVersion'] as String? ?? 'unknown-analyzer',
+      status: _enumByName(
+        AnalysisRunStatus.values,
+        json['status'],
+        AnalysisRunStatus.failed,
+      ),
+      startedAt: json['startedAtEpochMs'] is int
+          ? DateTime.fromMillisecondsSinceEpoch(
+              json['startedAtEpochMs']! as int,
+            )
+          : null,
+      completedAt: DateTime.fromMillisecondsSinceEpoch(completedAtEpochMs),
+      attempt: json['attempt'] as int? ?? 1,
+      model: json['model'] as String?,
+      failureCode: json['failureCode'] as String?,
+      disclosure: _enumByName(
+        DisclosureObservation.values,
+        json['disclosure'],
+        DisclosureObservation.unknown,
+      ),
+      evidence: _jsonMapList(json['evidence'])
+          .map(
+            (item) => EvidenceRef(
+              id: item['id'] as String? ?? '',
+              captureId: item['captureId'] as String? ?? inputId,
+              kind: _enumByName(
+                EvidenceKind.values,
+                item['kind'],
+                EvidenceKind.sharedText,
+              ),
+              quote: item['quote'] as String? ?? '',
+              startOffset: item['startOffset'] as int?,
+              endOffset: item['endOffset'] as int?,
+              attachmentId: item['attachmentId'] as String?,
+              region: item['region'] as String?,
+            ),
+          )
+          .toList(growable: false),
+      productMentions: _jsonMapList(
+        json['productMentions'],
+      ).map(_mentionFromJson).toList(growable: false),
+      statements: _jsonMapList(json['statements'])
+          .map(
+            (item) => ContentStatement(
+              id: item['id'] as String? ?? '',
+              captureId: item['captureId'] as String? ?? inputId,
+              mentionId: item['mentionId'] as String?,
+              type: _enumByName(
+                StatementType.values,
+                item['type'],
+                StatementType.creatorClaim,
+              ),
+              topic: item['topic'] as String? ?? '',
+              originalExpression: item['originalExpression'] as String? ?? '',
+              evidenceIds: _jsonStringList(item['evidenceIds']),
+            ),
+          )
+          .toList(growable: false),
+      structuredContent: structuredJson is Map<String, Object?>
+          ? StructuredContentAnalysis.fromJson(structuredJson)
+          : null,
+    );
+  }
+
+  static Map<String, Object?> _fieldToJson(ExtractedField<String> field) => {
+    'value': field.value,
+    'confidence': field.confidence,
+    'origin': field.origin.name,
+    'evidenceIds': field.evidenceIds,
+  };
+
+  static ExtractedField<String> _fieldFromJson(Object? value) {
+    final json = value is Map<String, Object?>
+        ? value
+        : const <String, Object?>{};
+    return ExtractedField(
+      value: json['value'] as String?,
+      confidence: (json['confidence'] as num?)?.toDouble() ?? 0,
+      origin: _enumByName(
+        FieldOrigin.values,
+        json['origin'],
+        FieldOrigin.deterministicRule,
+      ),
+      evidenceIds: _jsonStringList(json['evidenceIds']),
+    );
+  }
+
+  static ProductMention _mentionFromJson(Map<String, Object?> json) {
+    return ProductMention(
+      id: json['id'] as String? ?? '',
+      brand: _fieldFromJson(json['brand']),
+      name: _fieldFromJson(json['name']),
+      category: _fieldFromJson(json['category']),
+      amount: _fieldFromJson(json['amount']),
+      overallConfidence: (json['overallConfidence'] as num?)?.toDouble() ?? 0,
+      missingFields: _jsonStringList(json['missingFields'])
+          .map(
+            (name) => _enumByName(
+              MissingField.values,
+              name,
+              MissingField.productName,
+            ),
+          )
+          .toSet(),
+    );
+  }
+
+  static List<Map<String, Object?>> _jsonMapList(Object? value) {
+    return value is List<Object?>
+        ? value.whereType<Map<String, Object?>>().toList(growable: false)
+        : const [];
+  }
+
+  static List<String> _jsonStringList(Object? value) {
+    return value is List<Object?>
+        ? value.whereType<String>().toList(growable: false)
+        : const [];
+  }
+
+  static T _enumByName<T extends Enum>(
+    List<T> values,
+    Object? raw,
+    T fallback,
+  ) {
+    if (raw is String) {
+      for (final value in values) {
+        if (value.name == raw) {
+          return value;
+        }
+      }
+    }
+    return fallback;
+  }
+}
+
 final class MethodChannelAppSnapshotStore implements AppSnapshotStore {
   const MethodChannelAppSnapshotStore();
 
@@ -56,7 +264,7 @@ final class InMemoryAppSnapshotStore implements AppSnapshotStore {
 }
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 1;
+  static const schemaVersion = 2;
 
   static String encode(List<PersistedCapture> captures) {
     return jsonEncode({
@@ -67,8 +275,11 @@ abstract final class AppSnapshotCodec {
 
   static List<PersistedCapture> decode(String snapshot) {
     final decoded = jsonDecode(snapshot);
-    if (decoded is! Map<String, Object?> ||
-        decoded['schemaVersion'] != schemaVersion) {
+    if (decoded is! Map<String, Object?>) {
+      throw const FormatException('Unsupported app snapshot schema.');
+    }
+    final decodedVersion = decoded['schemaVersion'];
+    if (decodedVersion != 1 && decodedVersion != schemaVersion) {
       throw const FormatException('Unsupported app snapshot schema.');
     }
     final captures = decoded['captures'];
@@ -103,6 +314,8 @@ final class PersistedCapture {
     required this.reviewedAt,
     required this.confirmedIdentity,
     required this.groupId,
+    this.attachments = const [],
+    this.analysis,
   });
 
   factory PersistedCapture.fromRecord(
@@ -125,6 +338,8 @@ final class PersistedCapture {
       reviewedAt: capture.review?.reviewedAt,
       confirmedIdentity: capture.review?.confirmedIdentity ?? group?.identity,
       groupId: capture.groupId,
+      attachments: capture.raw.attachments,
+      analysis: capture.analysis,
     );
   }
 
@@ -141,6 +356,8 @@ final class PersistedCapture {
     }
 
     final identityJson = json['confirmedIdentity'];
+    final rawAttachments = json['attachments'];
+    final rawAnalysis = json['analysis'];
     return PersistedCapture(
       transportEventId: transportEventId,
       receivedAt: DateTime.fromMillisecondsSinceEpoch(receivedAtEpochMs),
@@ -182,6 +399,15 @@ final class PersistedCapture {
             )
           : null,
       groupId: json['groupId'] as String?,
+      attachments: rawAttachments is List<Object?>
+          ? rawAttachments
+                .whereType<Map<String, Object?>>()
+                .map(IncomingAttachment.fromJson)
+                .toList(growable: false)
+          : const [],
+      analysis: rawAnalysis is Map<String, Object?>
+          ? _AnalysisRunCodec.fromJson(rawAnalysis)
+          : null,
     );
   }
 
@@ -200,6 +426,8 @@ final class PersistedCapture {
   final DateTime? reviewedAt;
   final ConfirmedProductIdentity? confirmedIdentity;
   final String? groupId;
+  final List<IncomingAttachment> attachments;
+  final AnalysisRun? analysis;
 
   IncomingShare toIncomingShare() {
     return IncomingShare(
@@ -211,6 +439,8 @@ final class PersistedCapture {
       mimeType: mimeType,
       wasTruncated: wasTruncated,
       originalLength: originalLength,
+      shareKind: attachments.isEmpty ? ShareKind.text : ShareKind.image,
+      attachments: attachments,
     );
   }
 
@@ -239,6 +469,8 @@ final class PersistedCapture {
               'amount': identity.amount,
             },
       'groupId': groupId,
+      'attachments': attachments.map((item) => item.toJson()).toList(),
+      'analysis': analysis == null ? null : _AnalysisRunCodec.toJson(analysis!),
     };
   }
 

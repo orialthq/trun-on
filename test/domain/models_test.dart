@@ -46,6 +46,32 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('decodes a validated private image attachment payload', () {
+      final share = IncomingShare.fromPlatformMap({
+        'id': 'share-image-1',
+        'receivedAtEpochMs': 1785402000000,
+        'sharedText': '',
+        'discoveredUrl': null,
+        'mimeType': 'image/jpeg',
+        'shareKind': 'image',
+        'attachments': [
+          {
+            'id': 'attachment-1',
+            'filePath': '/private/app/incoming_share_attachments/a.jpg',
+            'mimeType': 'image/jpeg',
+            'byteSize': 1200,
+            'width': 1080,
+            'height': 1920,
+            'sha256': List.filled(64, 'a').join(),
+          },
+        ],
+      });
+
+      expect(share.shareKind, ShareKind.image);
+      expect(share.attachments.single.mimeType, 'image/jpeg');
+      expect(share.attachments.single.width, 1080);
+    });
   });
 
   test('normalizes product identity only for grouping keys', () {

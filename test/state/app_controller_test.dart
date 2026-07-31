@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ori_beauty/data/app_snapshot_store.dart';
@@ -102,6 +104,37 @@ void main() {
     },
   );
 
+  test(
+    'acknowledges a native share after durable save before review',
+    () async {
+      final snapshotStore = InMemoryAppSnapshotStore();
+      final nativeService = InMemoryIncomingShareService()
+        ..add(
+          IncomingShare(
+            id: 'share-durable-before-review',
+            receivedAt: DateTime(2026, 7, 31),
+            sharedText: '저장 후 확인할 콘텐츠',
+            discoveredUrl: null,
+          ),
+        );
+      final durableController = AppController(
+        nativeService,
+        const BaselineContentAnalysisService(),
+        snapshotStore,
+      );
+      addTearDown(durableController.dispose);
+
+      await durableController.initialize();
+
+      final capture = durableController.captures.firstWhere(
+        (item) => item.raw.transportEventId == 'share-durable-before-review',
+      );
+      expect(capture.review, isNull);
+      expect(snapshotStore.snapshot, contains('share-durable-before-review'));
+      expect(await nativeService.drainPending(), isEmpty);
+    },
+  );
+
   test('restores a confirmed organization after app restart', () async {
     final snapshotStore = InMemoryAppSnapshotStore();
     final firstService = InMemoryIncomingShareService();
@@ -141,7 +174,7 @@ void main() {
   });
 
   test(
-    'acknowledges a reviewed pending share recovered after restart',
+    'acknowledges a durably saved pending share recovered before review',
     () async {
       final snapshotStore = InMemoryAppSnapshotStore();
       final share = IncomingShare(
@@ -157,18 +190,10 @@ void main() {
         snapshotStore,
       );
       await firstController.initialize();
-      final capture = firstController.captures.firstWhere(
+      final originalCapture = firstController.captures.firstWhere(
         (item) => item.raw.transportEventId == share.id,
       );
-      await firstController.confirmAndOrganize(
-        captureId: capture.raw.id,
-        identity: const ConfirmedProductIdentity(
-          brand: '오로라랩',
-          name: '워터리 선 세럼',
-          category: '선케어',
-          amount: '50mL',
-        ),
-      );
+      expect(originalCapture.review, isNull);
       firstController.dispose();
 
       final recoveredPendingService = InMemoryIncomingShareService()
@@ -187,6 +212,12 @@ void main() {
           (item) => item.raw.transportEventId == share.id,
         ),
         hasLength(1),
+      );
+      expect(
+        restoredController.captures
+            .firstWhere((item) => item.raw.transportEventId == share.id)
+            .review,
+        isNull,
       );
     },
   );
@@ -218,6 +249,129 @@ void main() {
     await failingController.keepUnresolved(capture.raw.id);
 
     expect(await nativeService.drainPending(), hasLength(1));
+  });
+
+  test('retains an incoming image outside the native ack directory', () async {
+    final temporaryRoot = await Directory.systemTemp.createTemp(
+      'ori-image-retention-',
+    );
+    addTearDown(() async {
+      if (await temporaryRoot.exists()) {
+        await temporaryRoot.delete(recursive: true);
+      }
+    });
+    final incomingDirectory = Directory(
+      '${temporaryRoot.path}${Platform.pathSeparator}'
+      'incoming_share_attachments',
+    );
+    await incomingDirectory.create();
+    final source = File(
+      '${incomingDirectory.path}${Platform.pathSeparator}source.jpg',
+    );
+    await source.writeAsBytes([0xff, 0xd8, 0xff], flush: true);
+
+    final snapshotStore = InMemoryAppSnapshotStore();
+    final imageService = InMemoryIncomingShareService()
+      ..add(
+        IncomingShare(
+          id: 'share-image',
+          receivedAt: DateTime(2026, 7, 31),
+          sharedText: '',
+          discoveredUrl: null,
+          mimeType: 'image/jpeg',
+          shareKind: ShareKind.image,
+          attachments: [
+            IncomingAttachment(
+              id: 'attachment-1',
+              filePath: source.path,
+              mimeType: 'image/jpeg',
+              byteSize: 3,
+              width: 1,
+              height: 1,
+              sha256: List.filled(64, 'a').join(),
+            ),
+          ],
+        ),
+      );
+    final imageController = AppController(
+      imageService,
+      const BaselineContentAnalysisService(),
+      snapshotStore,
+    );
+    addTearDown(imageController.dispose);
+
+    await imageController.initialize();
+
+    final capture = imageController.captures.firstWhere(
+      (item) => item.raw.transportEventId == 'share-image',
+    );
+    final retainedPath = capture.raw.attachments.single.filePath;
+    expect(retainedPath, contains('ori_library_attachments'));
+    expect(retainedPath, isNot(source.path));
+    expect(await File(retainedPath).readAsBytes(), [0xff, 0xd8, 0xff]);
+    expect(snapshotStore.snapshot, contains('ori_library_attachments'));
+    expect(await imageService.drainPending(), isEmpty);
+  });
+
+  test('keeps a native image pending when retained size is invalid', () async {
+    final originalDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) {};
+    addTearDown(() => debugPrint = originalDebugPrint);
+    final temporaryRoot = await Directory.systemTemp.createTemp(
+      'ori-image-invalid-retention-',
+    );
+    addTearDown(() async {
+      if (await temporaryRoot.exists()) {
+        await temporaryRoot.delete(recursive: true);
+      }
+    });
+    final incomingDirectory = Directory(
+      '${temporaryRoot.path}${Platform.pathSeparator}'
+      'incoming_share_attachments',
+    );
+    await incomingDirectory.create();
+    final source = File(
+      '${incomingDirectory.path}${Platform.pathSeparator}source.jpg',
+    );
+    await source.writeAsBytes([0xff, 0xd8, 0xff], flush: true);
+    final imageService = InMemoryIncomingShareService()
+      ..add(
+        IncomingShare(
+          id: 'share-invalid-image-size',
+          receivedAt: DateTime(2026, 7, 31),
+          sharedText: '',
+          discoveredUrl: null,
+          mimeType: 'image/jpeg',
+          shareKind: ShareKind.image,
+          attachments: [
+            IncomingAttachment(
+              id: 'attachment-invalid-size',
+              filePath: source.path,
+              mimeType: 'image/jpeg',
+              byteSize: 4,
+              width: 1,
+              height: 1,
+              sha256: List.filled(64, 'b').join(),
+            ),
+          ],
+        ),
+      );
+    final imageController = AppController(
+      imageService,
+      const BaselineContentAnalysisService(),
+      InMemoryAppSnapshotStore(),
+    );
+    addTearDown(imageController.dispose);
+
+    await imageController.initialize();
+
+    expect(
+      imageController.captures.where(
+        (capture) => capture.raw.transportEventId == 'share-invalid-image-size',
+      ),
+      isEmpty,
+    );
+    expect(await imageService.drainPending(), hasLength(1));
   });
 }
 

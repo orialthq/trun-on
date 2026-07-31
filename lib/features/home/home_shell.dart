@@ -63,11 +63,11 @@ final class _HomeShellState extends State<HomeShell> {
               ),
               NavigationDestination(
                 icon: Icon(
-                  Icons.inventory_2_outlined,
+                  Icons.bookmark_border_rounded,
                   color: Color(0xFF8B95A1),
                 ),
-                selectedIcon: Icon(Icons.inventory_2),
-                label: '제품별',
+                selectedIcon: Icon(Icons.bookmark_rounded),
+                label: '정리함',
               ),
             ],
           ),

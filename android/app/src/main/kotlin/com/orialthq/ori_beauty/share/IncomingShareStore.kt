@@ -1,15 +1,18 @@
 package com.orialthq.ori_beauty.share
 
 import android.content.Context
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
 class IncomingShareStore(context: Context) {
+    private val attachmentDirectory =
+        File(context.noBackupFilesDir, IncomingShareIngestor.ATTACHMENT_DIRECTORY_NAME)
     private val preferences =
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     @Synchronized
-    fun append(payload: IncomingSharePayload) {
+    fun append(payload: IncomingSharePayload): Boolean {
         val pending = readArray()
         val item =
             JSONObject()
@@ -21,9 +24,27 @@ class IncomingShareStore(context: Context) {
                 .put("mimeType", payload.mimeType)
                 .put("wasTruncated", payload.wasTruncated)
                 .put("originalLength", payload.originalLength)
+                .put("shareKind", payload.shareKind)
+                .put(
+                    "attachments",
+                    JSONArray().apply {
+                        payload.attachments.forEach { attachment ->
+                            put(
+                                JSONObject()
+                                    .put("id", attachment.id)
+                                    .put("filePath", attachment.filePath)
+                                    .put("mimeType", attachment.mimeType)
+                                    .put("byteSize", attachment.byteSize)
+                                    .put("width", attachment.width)
+                                    .put("height", attachment.height)
+                                    .put("sha256", attachment.sha256),
+                            )
+                        }
+                    },
+                )
 
         pending.put(item)
-        writeArray(pending)
+        return writeArray(pending)
     }
 
     @Synchronized
@@ -32,6 +53,8 @@ class IncomingShareStore(context: Context) {
         return buildList {
             for (index in 0 until pending.length()) {
                 val item = pending.getJSONObject(index)
+                val attachments =
+                    item.optJSONArray("attachments")?.toAttachmentMaps().orEmpty()
                 add(
                     mapOf(
                         "id" to item.getString("id"),
@@ -47,6 +70,11 @@ class IncomingShareStore(context: Context) {
                                 "originalLength",
                                 item.getString("sharedText").length,
                             ),
+                        "shareKind" to
+                            item.optString("shareKind").ifBlank {
+                                if (attachments.isEmpty()) SHARE_KIND_TEXT else SHARE_KIND_IMAGE
+                            },
+                        "attachments" to attachments,
                     ),
                 )
             }
@@ -68,19 +96,35 @@ class IncomingShareStore(context: Context) {
     }
 
     @Synchronized
-    fun acknowledge(ids: Collection<String>) {
+    fun acknowledge(ids: Collection<String>): Boolean {
         if (ids.isEmpty()) {
-            return
+            return true
         }
         val pending = readArray()
         val remaining = JSONArray()
+        val acknowledgedAttachmentPaths = mutableListOf<String>()
         for (index in 0 until pending.length()) {
             val item = pending.getJSONObject(index)
             if (item.getString("id") !in ids) {
                 remaining.put(item)
+            } else {
+                val attachments = item.optJSONArray("attachments")
+                if (attachments != null) {
+                    for (attachmentIndex in 0 until attachments.length()) {
+                        attachments
+                            .optJSONObject(attachmentIndex)
+                            ?.optString("filePath")
+                            ?.takeIf(String::isNotBlank)
+                            ?.let(acknowledgedAttachmentPaths::add)
+                    }
+                }
             }
         }
-        writeArray(remaining)
+        if (!writeArray(remaining)) {
+            return false
+        }
+        acknowledgedAttachmentPaths.forEach(::deleteManagedAttachment)
+        return true
     }
 
     private fun readArray(): JSONArray {
@@ -89,8 +133,38 @@ class IncomingShareStore(context: Context) {
             .getOrDefault(JSONArray())
     }
 
-    private fun writeArray(value: JSONArray) {
-        preferences.edit().putString(KEY_PENDING_SHARES, value.toString()).apply()
+    private fun writeArray(value: JSONArray): Boolean {
+        return preferences
+            .edit()
+            .putString(KEY_PENDING_SHARES, value.toString())
+            .commit()
+    }
+
+    private fun JSONArray.toAttachmentMaps(): List<Map<String, Any?>> {
+        return buildList {
+            for (index in 0 until length()) {
+                val attachment = optJSONObject(index) ?: continue
+                add(
+                    mapOf(
+                        "id" to attachment.optString("id"),
+                        "filePath" to attachment.optString("filePath"),
+                        "mimeType" to attachment.optString("mimeType"),
+                        "byteSize" to attachment.optLong("byteSize"),
+                        "width" to attachment.optInt("width"),
+                        "height" to attachment.optInt("height"),
+                        "sha256" to attachment.optString("sha256"),
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun deleteManagedAttachment(filePath: String) {
+        val root = runCatching { attachmentDirectory.canonicalFile }.getOrNull() ?: return
+        val file = runCatching { File(filePath).canonicalFile }.getOrNull() ?: return
+        if (file.parentFile == root) {
+            file.delete()
+        }
     }
 
     companion object {

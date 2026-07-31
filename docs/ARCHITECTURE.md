@@ -27,18 +27,19 @@ Android Share / App Paste
 
 ### 현재 구현 수준
 
-현재 pre-alpha는 Android `text/plain` 입력을 native pending queue에
-먼저 기록하고, Dart에서 분석한 뒤 원본·검토·제품 묶음을 versioned JSON
-snapshot으로 `SharedPreferences`에 동기 commit합니다. commit 성공
-뒤에만 pending 입력을 acknowledge합니다. 이는 입력 유실을 막기 위한
-초기 영속 계층이며, 아래의 repository·로컬 DB·append-only correction
-모델은 다음 구현 목표입니다.
+현재 pre-alpha는 Android `text/plain`과 단일 JPEG·PNG·WebP 공유를
+native pending queue에 먼저 기록합니다. 이미지는 MIME signature,
+크기·해상도를 검증해 앱 전용 임시 경로에 복사하고, Dart가 보존 경로로
+다시 옮긴 뒤 원본·분석·검토 상태를 versioned JSON snapshot으로
+`SharedPreferences`에 동기 commit합니다. commit 성공 뒤에만 pending
+입력을 acknowledge합니다. Android Auto Backup은 비활성화합니다.
 
-현재 분석기는 동기 deterministic rule이며 입력당 단일
-`ProductMention`만 만듭니다. `semanticFingerprint`는 계산·저장하지만
-서로 다른 transport event의 중복 판정에는 아직 사용하지 않습니다.
-진술의 공유 텍스트 인용은 구현됐지만 제품 필드 evidence 탐색,
-스크린샷 영역, 외부 원본 하이라이트는 부분 또는 미구현입니다.
+텍스트는 deterministic rule을 사용하고, 이미지는 로컬 중계 서버가
+`gpt-5.6-luna`의 strict Structured Outputs로 비동기 분석합니다. 완료된
+분석 결과를 snapshot에 함께 저장하므로 재시작만으로 같은 이미지를 다시
+과금하지 않습니다. `semanticFingerprint`는 계산·저장하지만 서로 다른
+transport event의 중복 판정에는 아직 사용하지 않습니다. 사용자 삭제,
+다중 이미지 분석, 로컬 DB·append-only correction은 다음 구현 목표입니다.
 
 ## 2. 현재 플랫폼 입력 기반
 
@@ -63,9 +64,11 @@ Android → Dart:
 신호입니다. cold start에서 Dart handler가 준비되기 전에 공유 이벤트가
 사라지지 않도록 Android가 먼저 로컬 pending queue에 저장합니다.
 
-현재는 `text/plain`만 노출합니다. 이미지 공유는 임시 URI 권한이
-사라지기 전에 MIME, 크기, 파일 수를 검증하고 앱 전용 저장소로 복사한
-뒤에 추가합니다.
+현재는 `text/plain`, `image/jpeg`, `image/png`, `image/webp`를
+노출합니다. 이미지 공유는 임시 URI 권한이 사라지기 전에 MIME signature,
+12 MiB 크기, 해상도, 파일 수를 검증하고 앱 전용 저장소로 복사합니다.
+수신 자체는 여러 장을 안전하게 보존하지만 현재 분석기는 한 장만
+지원하며, 여러 장은 일부를 무시하지 않고 명시적인 실패 상태로 둡니다.
 
 플랫폼 pending queue는 최종 콘텐츠 보관소가 아닙니다. 현재는 Flutter
 app snapshot의 동기 commit이 성공한 뒤에만 acknowledge합니다. 이후
@@ -243,21 +246,20 @@ received
 1. 입력 형식과 크기를 검증합니다.
 2. URL을 정규화하되 원본 URL을 유지합니다.
 3. 플랫폼을 식별합니다.
-4. 텍스트, 접근 가능한 metadata, OCR block을 서로 다른 자료로 만듭니다.
+4. 텍스트와 Luna가 읽은 이미지 evidence를 서로 다른 자료로 만듭니다.
 5. 각 자료가 어느 RawCapture에서 왔는지 기록합니다.
 
 사용자 메모는 콘텐츠 원문과 별도 material type으로 유지합니다.
 
 ### 7.2 Structured extraction
 
-분석 출력은 자유 형식 문장이 아니라 versioned schema로 받습니다.
+분석 출력은 자유 형식 문장이 아니라 versioned strict schema로 받습니다.
 
-- source metadata
-- 0개 이상의 product mentions
-- 0개 이상의 statements
-- explicit disclosure
-- field-level uncertainty
-- evidence references
+- 콘텐츠 domain·kind·completeness
+- 관찰·추정·누락 상태가 있는 title과 짧은 summary
+- 재료 그룹·조리 단계 또는 콘텐츠 facts
+- 충돌·경고
+- 모든 파생 필드가 참조하는 이미지 evidence
 
 schema를 통과하지 못한 결과는 보관함에 반영하지 않습니다.
 

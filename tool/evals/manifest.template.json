@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "samples": [
+    {
+      "sampleId": "holdout-01",
+      "scenario": "recipe_partial_mixed_text",
+      "input": {
+        "imageFile": "holdout-01.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-02",
+      "scenario": "recipe_conflicted_quantity",
+      "input": {
+        "imageFile": "holdout-02.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "needs_review",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": ["quantity_conflict"],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-03",
+      "scenario": "recipe_ratio_units",
+      "input": {
+        "imageFile": "holdout-03.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "complete",
+        "allowedCompleteness": ["partial"],
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-04",
+      "scenario": "recipe_partial_no_steps",
+      "input": {
+        "imageFile": "holdout-04.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": ["missing_steps"],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-05",
+      "scenario": "recipe_grouped_seasoning",
+      "input": {
+        "imageFile": "holdout-05.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-06",
+      "scenario": "recipe_missing_title",
+      "input": {
+        "imageFile": "holdout-06.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "sauce_recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": ["missing_title"],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-07",
+      "scenario": "commerce_product",
+      "input": {
+        "imageFile": "holdout-07.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "commerce_product",
+        "completeness": "complete",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-08",
+      "scenario": "infographic_recipe",
+      "input": {
+        "imageFile": "holdout-08.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-09",
+      "scenario": "product_review",
+      "input": {
+        "imageFile": "holdout-09.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "product_review",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-10",
+      "scenario": "bilingual_duplicate_recipe",
+      "input": {
+        "imageFile": "holdout-10.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "complete",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": ["duplicate_content"],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-11",
+      "scenario": "recipe_partial_sauce_only",
+      "input": {
+        "imageFile": "holdout-11.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "sauce_recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": ["missing_main_recipe"],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-12",
+      "scenario": "recipe_unit_missing",
+      "input": {
+        "imageFile": "holdout-12.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "sauce_recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": ["missing_unit"],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-13",
+      "scenario": "menu_comparison",
+      "input": {
+        "imageFile": "holdout-13.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "menu_comparison",
+        "completeness": "complete",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-14",
+      "scenario": "recipe_substitution",
+      "input": {
+        "imageFile": "holdout-14.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-15",
+      "scenario": "recipe_affiliate_partial",
+      "input": {
+        "imageFile": "holdout-15.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "partial",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": ["affiliate_context"],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-16",
+      "scenario": "sauce_recipe_fractional",
+      "input": {
+        "imageFile": "holdout-16.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "sauce_recipe",
+        "completeness": "complete",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": [],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    },
+    {
+      "sampleId": "holdout-17",
+      "scenario": "recipe_ui_number_noise",
+      "input": {
+        "imageFile": "holdout-17.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "expected": {
+        "domain": "food",
+        "kind": "recipe",
+        "completeness": "needs_review",
+        "requiredErrorCodes": [],
+        "allowedErrorCodes": ["numeric_noise"],
+        "forbiddenErrorCodes": ["internal_error", "invalid_schema", "raw_content_exposed"]
+      }
+    }
+  ]
+}

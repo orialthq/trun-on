@@ -24,10 +24,10 @@ void main() {
     expect(find.text('비교'), findsNothing);
     expect(find.text('내 기준'), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.inventory_2_outlined).last);
+    await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
     await tester.pumpAndSettle();
 
-    expect(find.text('제품별 정리'), findsOneWidget);
+    expect(find.text('정리함'), findsWidgets);
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
 
     await tester.tap(find.text('포어 밸런스 세럼'));
@@ -100,6 +100,6 @@ void main() {
       (item) => item.raw.transportEventId == 'share-android',
     );
     expect(capture.status, CaptureStatus.needsReview);
-    expect(await service.drainPending(), isNotEmpty);
+    expect(await service.drainPending(), isEmpty);
   });
 }

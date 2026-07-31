@@ -5,6 +5,13 @@ abstract interface class ContentAnalysisService {
     IncomingShare share, {
     CaptureOrigin origin = CaptureOrigin.androidShare,
   });
+
+  CaptureRecord prepareShare(
+    IncomingShare share, {
+    CaptureOrigin origin = CaptureOrigin.androidShare,
+  });
+
+  Future<AnalysisRun> analyze(CaptureRecord capture);
 }
 
 final class BaselineContentAnalysisService implements ContentAnalysisService {
@@ -15,6 +22,19 @@ final class BaselineContentAnalysisService implements ContentAnalysisService {
 
   @override
   CaptureRecord analyzeShare(
+    IncomingShare share, {
+    CaptureOrigin origin = CaptureOrigin.androidShare,
+  }) {
+    final prepared = prepareShare(share, origin: origin);
+    final analysis = _analyzePrepared(prepared);
+    return prepared.copyWith(
+      status: _statusAfterAnalysis(prepared, analysis),
+      analysis: analysis,
+    );
+  }
+
+  @override
+  CaptureRecord prepareShare(
     IncomingShare share, {
     CaptureOrigin origin = CaptureOrigin.androidShare,
   }) {
@@ -45,6 +65,7 @@ final class BaselineContentAnalysisService implements ContentAnalysisService {
     final fingerprintSource = [
       materialText.toLowerCase(),
       ...urls.map((url) => url.canonicalValue),
+      ...share.attachments.map((attachment) => attachment.sha256),
     ].join('|');
     final fingerprint = semanticFingerprint(fingerprintSource);
 
@@ -60,6 +81,7 @@ final class BaselineContentAnalysisService implements ContentAnalysisService {
       wasTruncated: share.wasTruncated,
       originalLength: share.originalLength ?? share.sharedText.length,
       sourcePackage: share.sourcePackage,
+      attachments: share.attachments,
     );
     final warnings = <String>[
       if (completeness == MaterialCompleteness.linkOnly)
@@ -76,7 +98,7 @@ final class BaselineContentAnalysisService implements ContentAnalysisService {
       warnings: warnings,
     );
 
-    if (normalizedText.isEmpty && urls.isEmpty) {
+    if (normalizedText.isEmpty && urls.isEmpty && share.attachments.isEmpty) {
       return CaptureRecord(
         raw: raw,
         normalized: normalized,
@@ -97,34 +119,70 @@ final class BaselineContentAnalysisService implements ContentAnalysisService {
       );
     }
 
-    final extraction = _extract(
-      captureId: raw.id,
-      text: normalizedText,
-      completedAt: share.receivedAt,
-    );
-    final status = completeness == MaterialCompleteness.linkOnly
-        ? CaptureStatus.sourceLimited
-        : CaptureStatus.needsReview;
-
     return CaptureRecord(
       raw: raw,
       normalized: normalized,
-      status: status,
-      analysis: AnalysisRun(
-        id: 'analysis-${share.id}',
-        inputId: raw.id,
+      status: CaptureStatus.analyzing,
+      analysis: null,
+    );
+  }
+
+  @override
+  Future<AnalysisRun> analyze(CaptureRecord capture) async {
+    return _analyzePrepared(capture);
+  }
+
+  AnalysisRun _analyzePrepared(CaptureRecord capture) {
+    if (capture.analysis case final existing?) {
+      return existing;
+    }
+    if (capture.raw.attachments.isNotEmpty) {
+      return AnalysisRun(
+        id: 'analysis-${capture.raw.transportEventId}',
+        inputId: capture.raw.id,
         normalizerVersion: normalizerVersion,
         analyzerVersion: analyzerVersion,
-        status: AnalysisRunStatus.succeeded,
-        completedAt: share.receivedAt,
-        evidence: extraction.evidence,
-        productMentions: [extraction.mention],
-        statements: extraction.statements,
-        disclosure: completeness == MaterialCompleteness.linkOnly
-            ? DisclosureObservation.unknown
-            : extraction.disclosure,
-      ),
+        status: AnalysisRunStatus.failed,
+        completedAt: DateTime.now(),
+        evidence: const [],
+        productMentions: const [],
+        statements: const [],
+        disclosure: DisclosureObservation.unknown,
+        failureCode: 'image_analysis_unavailable',
+      );
+    }
+    final extraction = _extract(
+      captureId: capture.raw.id,
+      text: capture.normalized.normalizedText,
+      completedAt: capture.raw.receivedAt,
     );
+    return AnalysisRun(
+      id: 'analysis-${capture.raw.transportEventId}',
+      inputId: capture.raw.id,
+      normalizerVersion: normalizerVersion,
+      analyzerVersion: analyzerVersion,
+      status: AnalysisRunStatus.succeeded,
+      completedAt: capture.raw.receivedAt,
+      evidence: extraction.evidence,
+      productMentions: [extraction.mention],
+      statements: extraction.statements,
+      disclosure:
+          capture.normalized.completeness == MaterialCompleteness.linkOnly
+          ? DisclosureObservation.unknown
+          : extraction.disclosure,
+    );
+  }
+
+  static CaptureStatus _statusAfterAnalysis(
+    CaptureRecord capture,
+    AnalysisRun analysis,
+  ) {
+    if (analysis.status == AnalysisRunStatus.failed) {
+      return CaptureStatus.failed;
+    }
+    return capture.normalized.completeness == MaterialCompleteness.linkOnly
+        ? CaptureStatus.sourceLimited
+        : CaptureStatus.needsReview;
   }
 
   static String canonicalizeUrl(String rawValue) {

@@ -97,13 +97,14 @@ input → 원본 보존 → 분석 → 확인·수정 → 제품별 정리
 
 ## Week 3 — 분석 자료와 Golden Set
 
-- [ ] 이미지 URI의 안전한 앱 전용 저장소 복사
-- [ ] 이미지 MIME, 크기, 파일 수 제한
-- [ ] 스크린샷 OCR과 OCR block 위치 보존
+- [x] 이미지 URI의 안전한 앱 전용 저장소 복사
+- [x] 이미지 MIME signature, 크기, 해상도, 파일 수 제한
+- [x] Luna 이미지 텍스트 추출과 evidence 영역 보존
 - [x] URL 정규화와 플랫폼 식별
 - [ ] 접근 가능한 metadata와 사용자 입력 분리
 - [ ] 사용자 메모와 콘텐츠 원문 분리
-- [ ] 100~200개의 실제 입력 golden set 수집
+- [x] 개인정보를 저장소와 보고서에서 제외한 실제 입력 17개 holdout 구축
+- [ ] 100~200개의 동의 기반 golden set으로 확대
 - [ ] 제품 언급, 진술, 광고 표시, 제품 묶음 정답 라벨 작성
 - [ ] 다제품·불명확·유사 이름·자료 부족 사례를 평가 세트에 포함
 
@@ -114,7 +115,7 @@ input → 원본 보존 → 분석 → 확인·수정 → 제품별 정리
 ## Week 4 — 구조화 분석과 근거
 
 - [x] `AnalysisRun`과 versioned output schema
-- [ ] 분석 작업의 비동기 queue와 재개
+- [x] 단일 프로세스 비동기 분석 직렬화와 재시작 후 재개
 - [x] `ProductMention`, `Statement`, `EvidenceRef` 구현
 - [ ] 별도 `SourceDocument` material 계층
 - [x] 브랜드·제품·카테고리·용량 단일 후보 추출
@@ -125,9 +126,9 @@ input → 원본 보존 → 분석 → 확인·수정 → 제품별 정리
 - [x] 필드별 confidence band와 unknown 지원
 - [ ] 필드별 alternatives
 - [x] 공유 텍스트 span `EvidenceRef`
-- [ ] 이미지 영역 `EvidenceRef`
-- [ ] evidence 없는 진술의 노출 차단
-- [ ] schema 오류와 분석 재시도 처리
+- [x] 이미지 영역 `EvidenceRef`
+- [x] strict schema의 dangling evidence 참조 차단
+- [x] schema 오류와 분석 재시도 처리
 
 **완료 기준:** 평가 세트의 입력이 versioned schema로 분석되고, 사용자에게
 보이는 모든 제품 필드와 진술에서 원본 근거를 열 수 있다.

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
@@ -6,6 +7,7 @@ import '../data/app_snapshot_store.dart';
 import '../data/content_analysis_service.dart';
 import '../data/demo_catalog.dart';
 import '../data/incoming_share_service.dart';
+import '../data/remote_content_analysis_service.dart';
 import '../domain/models.dart';
 
 final class AppController extends ChangeNotifier {
@@ -22,9 +24,11 @@ final class AppController extends ChangeNotifier {
   final AppSnapshotStore _snapshotStore;
   final List<CaptureRecord> _captures;
   final List<ProductGroup> _groups;
+  final Set<String> _durablySavedTransportIds = {};
 
   StreamSubscription<void>? _incomingSubscription;
   Future<void> _snapshotWriteTail = Future<void>.value();
+  Future<void> _incomingDrainTail = Future<void>.value();
   CaptureFilter _filter = CaptureFilter.all;
   bool _initialized = false;
 
@@ -51,6 +55,10 @@ final class AppController extends ChangeNotifier {
 
   int get needsReviewCount => _captures
       .where((capture) => capture.status == CaptureStatus.needsReview)
+      .length;
+
+  int get analyzingCount => _captures
+      .where((capture) => capture.status == CaptureStatus.analyzing)
       .length;
 
   int get organizedCount => _captures
@@ -89,6 +97,14 @@ final class AppController extends ChangeNotifier {
         .toList(growable: false);
   }
 
+  List<CaptureRecord> get organizedStructuredCaptures => _captures
+      .where(
+        (capture) =>
+            capture.status == CaptureStatus.organized &&
+            capture.analysis?.structuredContent != null,
+      )
+      .toList(growable: false);
+
   Future<void> initialize() async {
     if (_initialized) {
       return;
@@ -101,46 +117,237 @@ final class AppController extends ChangeNotifier {
     await _drainIncomingShares();
   }
 
-  Future<void> _drainIncomingShares() async {
+  Future<void> _drainIncomingShares() {
+    final operation = _incomingDrainTail.then(
+      (_) => _drainIncomingSharesOnce(),
+    );
+    _incomingDrainTail = operation;
+    return operation;
+  }
+
+  Future<void> _drainIncomingSharesOnce() async {
     try {
       final shares = await _incomingShareService.drainPending();
       final knownTransportIds = _captures
           .map((capture) => capture.raw.transportEventId)
           .toSet();
-      final safeToAcknowledge = <String>[];
+      final safeToAcknowledge = <String>{};
+      final pendingAnalysisIds = <String>[];
       var changed = false;
       for (final share in shares) {
         if (knownTransportIds.contains(share.id)) {
-          final persistedCapture = _captureByTransportId(share.id);
-          if (persistedCapture?.raw.origin == CaptureOrigin.androidShare &&
-              persistedCapture?.review != null) {
+          if (_durablySavedTransportIds.contains(share.id)) {
             safeToAcknowledge.add(share.id);
           }
           continue;
         }
-        _captures.insert(0, _contentAnalysisService.analyzeShare(share));
+        var capture = share.attachments.isEmpty
+            ? _contentAnalysisService.analyzeShare(share)
+            : _contentAnalysisService.prepareShare(share);
+        capture = await _retainAttachments(capture);
+        _captures.insert(0, capture);
+        if (capture.status == CaptureStatus.analyzing) {
+          pendingAnalysisIds.add(capture.raw.id);
+        }
         knownTransportIds.add(share.id);
         changed = true;
       }
       if (changed) {
-        await _persistState();
+        final saved = await _persistState();
+        if (saved) {
+          safeToAcknowledge.addAll(
+            shares
+                .where((share) => _durablySavedTransportIds.contains(share.id))
+                .map((share) => share.id),
+          );
+        }
         notifyListeners();
       }
       if (safeToAcknowledge.isNotEmpty) {
         await _incomingShareService.acknowledge(safeToAcknowledge);
+      }
+      for (final captureId in pendingAnalysisIds) {
+        await _analyzeCapture(captureId);
       }
     } catch (error, stackTrace) {
       debugPrint('Incoming share drain failed: $error\n$stackTrace');
     }
   }
 
-  CaptureRecord? _captureByTransportId(String transportEventId) {
-    for (final capture in _captures) {
-      if (capture.raw.transportEventId == transportEventId) {
-        return capture;
-      }
+  Future<void> _analyzeCapture(String captureId) async {
+    final initial = captureById(captureId);
+    if (initial == null || initial.status != CaptureStatus.analyzing) {
+      return;
     }
-    return null;
+    try {
+      final analysis = await _contentAnalysisService.analyze(initial);
+      final index = _captures.indexWhere(
+        (capture) => capture.raw.id == captureId,
+      );
+      if (index == -1) {
+        return;
+      }
+      final current = _captures[index];
+      _captures[index] = current.copyWith(
+        status: _statusForCompletedAnalysis(current, analysis),
+        analysis: analysis,
+      );
+    } catch (error) {
+      final index = _captures.indexWhere(
+        (capture) => capture.raw.id == captureId,
+      );
+      if (index == -1) {
+        return;
+      }
+      final current = _captures[index];
+      final code = error is AnalysisServiceException
+          ? error.code
+          : 'analysis_failed';
+      _captures[index] = current.copyWith(
+        status: CaptureStatus.failed,
+        analysis: AnalysisRun(
+          id: 'analysis-${current.raw.transportEventId}-failed',
+          inputId: current.raw.id,
+          normalizerVersion: current.normalized.normalizerVersion,
+          analyzerVersion: 'remote-analysis-v1',
+          status: AnalysisRunStatus.failed,
+          completedAt: DateTime.now(),
+          evidence: const [],
+          productMentions: const [],
+          statements: const [],
+          disclosure: DisclosureObservation.unknown,
+          failureCode: code,
+        ),
+      );
+      debugPrint('Content analysis failed with code: $code');
+    }
+    await _persistState();
+    notifyListeners();
+  }
+
+  static CaptureStatus _statusForCompletedAnalysis(
+    CaptureRecord capture,
+    AnalysisRun analysis,
+  ) {
+    if (analysis.status == AnalysisRunStatus.failed) {
+      return CaptureStatus.failed;
+    }
+    final structured = analysis.structuredContent;
+    if (structured?.completeness == StructuredCompleteness.unsupported) {
+      return CaptureStatus.sourceLimited;
+    }
+    return capture.normalized.completeness == MaterialCompleteness.linkOnly
+        ? CaptureStatus.sourceLimited
+        : CaptureStatus.needsReview;
+  }
+
+  Future<CaptureRecord> _retainAttachments(CaptureRecord capture) async {
+    if (capture.raw.attachments.isEmpty) {
+      return capture;
+    }
+    final retained = <IncomingAttachment>[];
+    for (final attachment in capture.raw.attachments) {
+      final source = File(attachment.filePath);
+      if (source.parent.path.split(Platform.pathSeparator).last !=
+          'incoming_share_attachments') {
+        retained.add(attachment);
+        continue;
+      }
+      if (!await source.exists()) {
+        throw const FileSystemException('Incoming attachment is missing.');
+      }
+
+      final extension = switch (attachment.mimeType) {
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        _ => throw const FileSystemException(
+          'Incoming attachment type is unsupported.',
+        ),
+      };
+      final libraryDirectory = Directory(
+        '${source.parent.parent.path}${Platform.pathSeparator}'
+        'ori_library_attachments',
+      );
+      await libraryDirectory.create(recursive: true);
+      final destination = File(
+        '${libraryDirectory.path}${Platform.pathSeparator}'
+        '${attachment.sha256}.$extension',
+      );
+      if (await destination.exists()) {
+        if (await destination.length() != attachment.byteSize) {
+          throw const FileSystemException(
+            'Retained attachment does not match its metadata.',
+          );
+        }
+      } else {
+        final temporary = File(
+          '${libraryDirectory.path}${Platform.pathSeparator}'
+          '.${attachment.sha256}.${attachment.id}.part',
+        );
+        RandomAccessFile? input;
+        RandomAccessFile? output;
+        try {
+          input = await source.open();
+          output = await temporary.open(mode: FileMode.write);
+          while (true) {
+            final bytes = await input.read(64 * 1024);
+            if (bytes.isEmpty) {
+              break;
+            }
+            await output.writeFrom(bytes);
+          }
+          await output.flush();
+          await output.close();
+          output = null;
+          if (await temporary.length() != attachment.byteSize) {
+            throw const FileSystemException(
+              'Retained attachment does not match its metadata.',
+            );
+          }
+          await temporary.rename(destination.path);
+        } finally {
+          await input?.close();
+          await output?.close();
+          if (await temporary.exists()) {
+            await temporary.delete();
+          }
+        }
+      }
+      retained.add(
+        IncomingAttachment(
+          id: attachment.id,
+          filePath: destination.path,
+          mimeType: attachment.mimeType,
+          byteSize: attachment.byteSize,
+          width: attachment.width,
+          height: attachment.height,
+          sha256: attachment.sha256,
+        ),
+      );
+    }
+    return CaptureRecord(
+      raw: RawCapture(
+        id: capture.raw.id,
+        transportEventId: capture.raw.transportEventId,
+        receivedAt: capture.raw.receivedAt,
+        origin: capture.raw.origin,
+        mimeType: capture.raw.mimeType,
+        rawText: capture.raw.rawText,
+        rawUrl: capture.raw.rawUrl,
+        semanticFingerprint: capture.raw.semanticFingerprint,
+        wasTruncated: capture.raw.wasTruncated,
+        originalLength: capture.raw.originalLength,
+        sourcePackage: capture.raw.sourcePackage,
+        userNote: capture.raw.userNote,
+        attachments: retained,
+      ),
+      normalized: capture.normalized,
+      status: capture.status,
+      analysis: capture.analysis,
+      review: capture.review,
+      groupId: capture.groupId,
+    );
   }
 
   void setFilter(CaptureFilter value) {
@@ -295,6 +502,37 @@ final class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> confirmStructured(String captureId) async {
+    final captureIndex = _captures.indexWhere(
+      (capture) => capture.raw.id == captureId,
+    );
+    if (captureIndex == -1) {
+      return;
+    }
+    final capture = _captures[captureIndex];
+    final analysis = capture.analysis;
+    if (analysis?.structuredContent == null) {
+      return;
+    }
+
+    _captures[captureIndex] = capture.copyWith(
+      status: CaptureStatus.organized,
+      review: UserReview(
+        id: 'review-${capture.raw.id}-${DateTime.now().microsecondsSinceEpoch}',
+        captureId: capture.raw.id,
+        analysisRunId: analysis!.id,
+        resolution: ReviewResolution.confirmed,
+        reviewedAt: DateTime.now(),
+      ),
+    );
+    notifyListeners();
+
+    final saved = await _persistState();
+    if (saved && capture.raw.origin == CaptureOrigin.androidShare) {
+      await _incomingShareService.acknowledge([capture.raw.transportEventId]);
+    }
+  }
+
   void retryAnalysis(String captureId) {
     final index = _captures.indexWhere(
       (capture) => capture.raw.id == captureId,
@@ -303,22 +541,35 @@ final class AppController extends ChangeNotifier {
       return;
     }
     final capture = _captures[index];
-    final reanalyzed = _contentAnalysisService.analyzeShare(
-      IncomingShare(
-        id: capture.raw.transportEventId,
-        receivedAt: capture.raw.receivedAt,
-        sharedText: capture.raw.rawText,
-        discoveredUrl: capture.raw.rawUrl,
-        sourcePackage: capture.raw.sourcePackage,
-        mimeType: capture.raw.mimeType,
-        wasTruncated: capture.raw.wasTruncated,
-        originalLength: capture.raw.originalLength,
-      ),
-      origin: capture.raw.origin,
+    final share = IncomingShare(
+      id: capture.raw.transportEventId,
+      receivedAt: capture.raw.receivedAt,
+      sharedText: capture.raw.rawText,
+      discoveredUrl: capture.raw.rawUrl,
+      sourcePackage: capture.raw.sourcePackage,
+      mimeType: capture.raw.mimeType,
+      wasTruncated: capture.raw.wasTruncated,
+      originalLength: capture.raw.originalLength,
+      shareKind: capture.raw.attachments.isEmpty
+          ? ShareKind.text
+          : ShareKind.image,
+      attachments: capture.raw.attachments,
     );
+    final reanalyzed = capture.raw.attachments.isEmpty
+        ? _contentAnalysisService.analyzeShare(
+            share,
+            origin: capture.raw.origin,
+          )
+        : _contentAnalysisService.prepareShare(
+            share,
+            origin: capture.raw.origin,
+          );
     _captures[index] = reanalyzed;
     unawaited(_persistState());
     notifyListeners();
+    if (reanalyzed.status == CaptureStatus.analyzing) {
+      unawaited(_analyzeCapture(reanalyzed.raw.id));
+    }
   }
 
   Future<void> _restoreSnapshot() async {
@@ -328,14 +579,31 @@ final class AppController extends ChangeNotifier {
           .map((capture) => capture.raw.transportEventId)
           .toSet();
       final restored = <CaptureRecord>[];
+      final pendingAnalysisIds = <String>[];
       for (final persisted in persistedCaptures) {
         if (!knownTransportIds.add(persisted.transportEventId)) {
           continue;
         }
-        final analyzed = _contentAnalysisService.analyzeShare(
-          persisted.toIncomingShare(),
+        final share = persisted.toIncomingShare();
+        final prepared = _contentAnalysisService.prepareShare(
+          share,
           origin: persisted.origin,
         );
+        final analyzed = switch (persisted.analysis) {
+          final analysis? => prepared.copyWith(
+            status: persisted.status,
+            analysis: analysis,
+          ),
+          null when persisted.attachments.isEmpty =>
+            _contentAnalysisService.analyzeShare(
+              share,
+              origin: persisted.origin,
+            ),
+          null => prepared,
+        };
+        if (analyzed.status == CaptureStatus.analyzing) {
+          pendingAnalysisIds.add(analyzed.raw.id);
+        }
         final reviewResolution = persisted.reviewResolution;
         final identity = persisted.confirmedIdentity;
         final groupId = persisted.groupId;
@@ -359,9 +627,7 @@ final class AppController extends ChangeNotifier {
         if (reviewResolution != null) {
           restored.add(
             analyzed.copyWith(
-              status: persisted.status == CaptureStatus.organized
-                  ? CaptureStatus.needsReview
-                  : persisted.status,
+              status: persisted.status,
               review: _restoredReview(
                 persisted: persisted,
                 analyzed: analyzed,
@@ -376,7 +642,13 @@ final class AppController extends ChangeNotifier {
       }
       if (restored.isNotEmpty) {
         _captures.insertAll(0, restored);
+        _durablySavedTransportIds.addAll(
+          restored.map((capture) => capture.raw.transportEventId),
+        );
         notifyListeners();
+      }
+      for (final captureId in pendingAnalysisIds) {
+        await _analyzeCapture(captureId);
       }
     } catch (error, stackTrace) {
       debugPrint('App snapshot restore failed: $error\n$stackTrace');
@@ -437,10 +709,16 @@ final class AppController extends ChangeNotifier {
           ),
         )
         .toList(growable: false);
+    final persistedTransportIds = persisted
+        .map((capture) => capture.transportEventId)
+        .toSet();
     var saved = false;
     _snapshotWriteTail = _snapshotWriteTail.then((_) async {
       try {
         await _snapshotStore.save(persisted);
+        _durablySavedTransportIds
+          ..clear()
+          ..addAll(persistedTransportIds);
         saved = true;
       } catch (error, stackTrace) {
         debugPrint('App snapshot save failed: $error\n$stackTrace');

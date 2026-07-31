@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
@@ -5,6 +7,7 @@ import '../../core/formatters.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
 import '../analysis/analysis_review_screen.dart';
+import '../analysis/structured_review_screen.dart';
 import '../common/product_ui.dart';
 import '../product/product_detail_screen.dart';
 
@@ -140,6 +143,23 @@ final class InboxScreen extends StatelessWidget {
   }
 
   void _openCapture(BuildContext context, CaptureRecord capture) {
+    if (capture.status == CaptureStatus.analyzing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미지를 읽고 있어요. 잠시만 기다려 주세요.')),
+      );
+      return;
+    }
+    if (capture.analysis?.structuredContent != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StructuredReviewScreen(
+            controller: controller,
+            captureId: capture.raw.id,
+          ),
+        ),
+      );
+      return;
+    }
     final groupId = capture.groupId;
     if (capture.status == CaptureStatus.organized && groupId != null) {
       Navigator.of(context).push(
@@ -188,7 +208,10 @@ final class _CaptureSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final needsReview = controller.needsReviewCount;
-    final headline = needsReview == 0
+    final analyzing = controller.analyzingCount;
+    final headline = analyzing > 0
+        ? '콘텐츠 $analyzing개를 정리하고 있어요'
+        : needsReview == 0
         ? '들어온 콘텐츠를 모두 확인했어요'
         : '확인할 콘텐츠가 $needsReview개 있어요';
 
@@ -214,7 +237,7 @@ final class _CaptureSummaryCard extends StatelessWidget {
             Text(
               '전체 ${controller.captures.length}개  ·  '
               '정리 완료 ${controller.organizedCount}개  ·  '
-              '제품 ${controller.groups.length}개',
+              '분석 중 ${controller.analyzingCount}개',
               style: const TextStyle(
                 color: AppTheme.muted,
                 fontSize: 14,
@@ -322,10 +345,31 @@ final class _CaptureCard extends StatelessWidget {
         ? SourcePlatform.textOnly
         : capture.normalized.urls.first.platform;
     final mention = capture.primaryMention;
+    final structured = capture.analysis?.structuredContent;
     final productLabel = [
       mention?.brand.value,
       mention?.name.value,
     ].whereType<String>().where((value) => value.isNotEmpty).join(' ');
+    final title = structured?.title.value?.trim().isNotEmpty == true
+        ? structured!.title.value!
+        : capture.status == CaptureStatus.analyzing
+        ? '이미지에서 내용을 읽는 중이에요'
+        : capture.status == CaptureStatus.failed
+        ? '분석을 완료하지 못했어요'
+        : productLabel.isEmpty
+        ? capture.raw.attachments.isNotEmpty
+              ? '이미지 내용을 확인해 주세요'
+              : '제품을 특정하지 못했어요'
+        : productLabel;
+    final description = structured?.summary.trim().isNotEmpty == true
+        ? structured!.summary
+        : capture.status == CaptureStatus.failed
+        ? _failureMessage(capture.analysis?.failureCode)
+        : capture.raw.rawText.isNotEmpty
+        ? capture.raw.rawText
+        : capture.status == CaptureStatus.analyzing
+        ? '원본을 보존한 채 재료와 순서를 나누고 있어요.'
+        : '공유된 이미지';
 
     return InkWell(
       onTap: capture.status == CaptureStatus.failed
@@ -336,6 +380,10 @@ final class _CaptureCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            if (capture.raw.attachments.isNotEmpty) ...[
+              _CaptureThumbnail(attachment: capture.raw.attachments.first),
+              const SizedBox(width: 14),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,13 +391,17 @@ final class _CaptureCard extends StatelessWidget {
                   Row(
                     children: [
                       Icon(
-                        sourcePlatformIcon(platform),
+                        capture.raw.attachments.isNotEmpty
+                            ? Icons.image_outlined
+                            : sourcePlatformIcon(platform),
                         color: AppTheme.muted,
                         size: 16,
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        sourcePlatformLabel(platform),
+                        capture.raw.attachments.isNotEmpty
+                            ? '이미지'
+                            : sourcePlatformLabel(platform),
                         style: const TextStyle(
                           color: AppTheme.muted,
                           fontSize: 13,
@@ -379,7 +431,7 @@ final class _CaptureCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 11),
                   Text(
-                    productLabel.isEmpty ? '제품을 특정하지 못했어요' : productLabel,
+                    title,
                     style: const TextStyle(
                       color: AppTheme.ink,
                       fontSize: 17,
@@ -390,9 +442,7 @@ final class _CaptureCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    capture.raw.rawText.isEmpty
-                        ? '공유된 텍스트가 없어요.'
-                        : capture.raw.rawText,
+                    description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -406,7 +456,9 @@ final class _CaptureCard extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Icon(
-              capture.status == CaptureStatus.failed
+              capture.status == CaptureStatus.analyzing
+                  ? Icons.more_horiz
+                  : capture.status == CaptureStatus.failed
                   ? Icons.refresh
                   : Icons.chevron_right,
               color: capture.status == CaptureStatus.failed
@@ -415,6 +467,47 @@ final class _CaptureCard extends StatelessWidget {
               size: 22,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  static String _failureMessage(String? code) {
+    return switch (code) {
+      'multiple_images_not_supported' => '여러 장은 아직 분석할 수 없어요. 한 장씩 공유해 주세요.',
+      'analysis_server_unreachable' => '로컬 분석 서버를 확인한 뒤 다시 눌러 주세요.',
+      'rate_limited' => '요청이 잠시 몰렸어요. 조금 뒤 다시 눌러 주세요.',
+      'image_too_large' => '이미지 용량이 커서 읽지 못했어요.',
+      'invalid_image' || 'source_file_changed' => '원본 이미지를 확인하지 못했어요.',
+      'analysis_timed_out' => '분석 시간이 길어졌어요. 다시 시도해 주세요.',
+      _ => '오른쪽 새로고침을 눌러 다시 시도할 수 있어요.',
+    };
+  }
+}
+
+final class _CaptureThumbnail extends StatelessWidget {
+  const _CaptureThumbnail({required this.attachment});
+
+  final IncomingAttachment attachment;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        width: 64,
+        height: 80,
+        child: ColoredBox(
+          color: const Color(0xFFF1F3F5),
+          child: Image.file(
+            File(attachment.filePath),
+            fit: BoxFit.cover,
+            cacheWidth: 192,
+            errorBuilder: (_, _, _) => const Icon(
+              Icons.image_not_supported_outlined,
+              color: AppTheme.subtle,
+            ),
+          ),
         ),
       ),
     );

@@ -2,7 +2,8 @@ package com.orialthq.ori_beauty
 
 import android.content.Intent
 import android.os.Bundle
-import com.orialthq.ori_beauty.share.IncomingShareIntentParser
+import com.orialthq.ori_beauty.share.IncomingShareIngestor
+import com.orialthq.ori_beauty.share.IncomingShareRoutePolicy
 import com.orialthq.ori_beauty.share.IncomingShareStore
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -12,6 +13,9 @@ class MainActivity : FlutterActivity() {
     private var incomingChannel: MethodChannel? = null
     private val incomingStore: IncomingShareStore by lazy {
         IncomingShareStore(applicationContext)
+    }
+    private val incomingShareIngestor: IncomingShareIngestor by lazy {
+        IncomingShareIngestor(applicationContext)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -50,8 +54,15 @@ class MainActivity : FlutterActivity() {
                                 (arguments?.get("ids") as? List<*>)
                                     ?.filterIsInstance<String>()
                                     .orEmpty()
-                            incomingStore.acknowledge(ids)
-                            result.success(null)
+                            if (incomingStore.acknowledge(ids)) {
+                                result.success(null)
+                            } else {
+                                result.error(
+                                    "share_acknowledge_failed",
+                                    "Pending shares could not be committed to durable storage.",
+                                    null,
+                                )
+                            }
                         }
                         else -> result.notImplemented()
                     }
@@ -60,24 +71,40 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val incomingIntent = intent
+        setIntent(intentForFlutter(incomingIntent))
         super.onCreate(savedInstanceState)
-        stageIncomingShare(intent)
+        stageIncomingShare(incomingIntent)
     }
 
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        stageIncomingShare(intent)
+        val incomingIntent = intent
+        val flutterIntent = intentForFlutter(incomingIntent)
+        super.onNewIntent(flutterIntent)
+        setIntent(flutterIntent)
+        stageIncomingShare(incomingIntent)
+    }
+
+    private fun intentForFlutter(intent: Intent): Intent {
+        if (!IncomingShareRoutePolicy.shouldStripData(intent.action)) {
+            return intent
+        }
+        return Intent(intent).apply {
+            data = null
+        }
     }
 
     private fun stageIncomingShare(intent: Intent?) {
         val sourcePackage = referrer?.host
         val payload =
-            IncomingShareIntentParser.parse(
+            incomingShareIngestor.ingest(
                 intent = intent,
                 sourcePackage = sourcePackage,
             ) ?: return
-        incomingStore.append(payload)
+        if (!incomingStore.append(payload)) {
+            incomingShareIngestor.deleteAttachments(payload.attachments)
+            return
+        }
         incomingChannel?.invokeMethod("pendingSharesChanged", null)
     }
 
