@@ -18,7 +18,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('콘텐츠'), findsWidgets);
-    expect(find.text('INPUT → 정리'), findsOneWidget);
+    expect(find.text('확인할 콘텐츠가 1개 있어요'), findsOneWidget);
+    expect(find.text('INPUT → 정리'), findsNothing);
+    expect(find.byIcon(Icons.auto_awesome_outlined), findsNothing);
     expect(find.text('비교'), findsNothing);
     expect(find.text('내 기준'), findsNothing);
 
@@ -27,6 +29,13 @@ void main() {
 
     expect(find.text('제품별 정리'), findsOneWidget);
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
+
+    await tester.tap(find.text('포어 밸런스 세럼'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('콘텐츠에서 나온 이야기'), findsOneWidget);
+    expect(find.textContaining('사용자 확인 완료'), findsNothing);
+    expect(find.textContaining('베이스라인'), findsNothing);
   });
 
   testWidgets('reviews extracted fields and organizes a capture', (
@@ -43,8 +52,10 @@ void main() {
     await tester.tap(find.text('데이라이트 에어리 선 플루이드'));
     await tester.pumpAndSettle();
 
-    expect(find.text('분석 확인'), findsOneWidget);
-    expect(find.text('원본과 추출 결과를\n나란히 확인하세요'), findsOneWidget);
+    expect(find.text('제품 정보를 확인해 주세요'), findsOneWidget);
+    expect(find.text('잘못된 부분만 고치면 돼요.'), findsOneWidget);
+    expect(find.textContaining('정규화된 URL'), findsNothing);
+    expect(find.textContaining('신뢰도'), findsNothing);
 
     await tester.drag(find.byType(ListView).last, const Offset(0, -500));
     await tester.pumpAndSettle();
@@ -52,7 +63,7 @@ void main() {
         .byKey(const ValueKey('analysis-field-용량·규격'))
         .first;
     await tester.enterText(amountField, '50mL');
-    final organizeButton = find.widgetWithText(FilledButton, '확인하고 제품별로 정리');
+    final organizeButton = find.widgetWithText(FilledButton, '이 제품으로 정리하기');
     await tester.ensureVisible(organizeButton);
     await tester.pumpAndSettle();
     await tester.tap(organizeButton);
@@ -84,7 +95,7 @@ void main() {
     await controller.initialize();
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('리프온 카밍 앰플 40ml'), findsOneWidget);
+    expect(find.text('리프온 카밍 앰플 40ml가 촉촉하다고 했어요.'), findsOneWidget);
     final capture = controller.captures.firstWhere(
       (item) => item.raw.transportEventId == 'share-android',
     );

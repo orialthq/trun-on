@@ -22,10 +22,10 @@ final class InboxScreen extends StatelessWidget {
 
         return ListView(
           key: const PageStorageKey('content-inbox'),
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Column(
@@ -37,43 +37,59 @@ final class InboxScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'SNS에서 받은 원본과 분석 상태를 확인해요',
-                        style: TextStyle(color: AppTheme.muted),
+                        '모아둔 콘텐츠를 확인하고 정리해요',
+                        style: TextStyle(color: AppTheme.muted, fontSize: 15),
                       ),
                     ],
                   ),
                 ),
-                IconButton.filledTonal(
-                  tooltip: '링크나 텍스트 붙여넣기',
+                const SizedBox(width: 16),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(82, 46),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
                   onPressed: () => _showManualInput(context),
-                  icon: const Icon(Icons.add_link),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: const Text('추가'),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             _CaptureSummaryCard(controller: controller),
-            const SizedBox(height: 24),
+            const SizedBox(height: 22),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
               child: Row(
-                children: CaptureFilter.values
-                    .map((filter) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(
-                            '${_filterLabel(filter)} '
-                            '${_countForFilter(controller, filter)}',
+                children: [
+                  for (
+                    var index = 0;
+                    index < CaptureFilter.values.length;
+                    index++
+                  )
+                    Builder(
+                      builder: (context) {
+                        final filter = CaptureFilter.values[index];
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            right: index == CaptureFilter.values.length - 1
+                                ? 0
+                                : 4,
                           ),
-                          selected: controller.filter == filter,
-                          onSelected: (_) => controller.setFilter(filter),
-                        ),
-                      );
-                    })
-                    .toList(growable: false),
+                          child: _FilterButton(
+                            label: _filterLabel(filter),
+                            count: _countForFilter(controller, filter),
+                            selected: controller.filter == filter,
+                            onPressed: () => controller.setFilter(filter),
+                          ),
+                        );
+                      },
+                    ),
+                ],
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
             if (captures.isEmpty)
               _EmptyInbox(
                 onShowAll: () {
@@ -81,14 +97,22 @@ final class InboxScreen extends StatelessWidget {
                 },
               )
             else
-              ...captures.map(
-                (capture) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _CaptureCard(
-                    capture: capture,
-                    controller: controller,
-                    onTap: () => _openCapture(context, capture),
-                  ),
+              Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    for (var index = 0; index < captures.length; index++) ...[
+                      _CaptureCard(
+                        capture: captures[index],
+                        controller: controller,
+                        onTap: () => _openCapture(context, captures[index]),
+                      ),
+                      if (index != captures.length - 1)
+                        const Divider(height: 1, indent: 18, endIndent: 18),
+                    ],
+                  ],
                 ),
               ),
           ],
@@ -151,7 +175,7 @@ final class InboxScreen extends StatelessWidget {
       CaptureFilter.all => '전체',
       CaptureFilter.needsReview => '확인 필요',
       CaptureFilter.organized => '정리 완료',
-      CaptureFilter.limitedOrFailed => '자료 부족',
+      CaptureFilter.limitedOrFailed => '내용 부족',
     };
   }
 }
@@ -163,88 +187,120 @@ final class _CaptureSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF292032),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'INPUT → 정리',
-            style: TextStyle(
-              color: Color(0xFFD6CDE0),
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
+    final needsReview = controller.needsReviewCount;
+    final headline = needsReview == 0
+        ? '들어온 콘텐츠를 모두 확인했어요'
+        : '확인할 콘텐츠가 $needsReview개 있어요';
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 21),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              headline,
+              style: const TextStyle(
+                color: AppTheme.ink,
+                fontSize: 20,
+                height: 1.4,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '현재 원본 ${controller.captures.length}개,\n'
-            '${controller.organizedCount}개를 제품별로 정리했어요.',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              height: 1.35,
-              fontWeight: FontWeight.w700,
+            const SizedBox(height: 7),
+            Text(
+              '전체 ${controller.captures.length}개  ·  '
+              '정리 완료 ${controller.organizedCount}개  ·  '
+              '제품 ${controller.groups.length}개',
+              style: const TextStyle(
+                color: AppTheme.muted,
+                fontSize: 14,
+                height: 1.4,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _SummaryBadge(
-                icon: Icons.help_outline,
-                label: '확인 필요 ${controller.needsReviewCount}',
-              ),
-              _SummaryBadge(
-                icon: Icons.link_off,
-                label: '자료 부족 ${controller.limitedOrFailedCount}',
-              ),
-              _SummaryBadge(
-                icon: Icons.inventory_2_outlined,
-                label: '제품 ${controller.groups.length}',
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-final class _SummaryBadge extends StatelessWidget {
-  const _SummaryBadge({required this.icon, required this.label});
+final class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onPressed,
+  });
 
-  final IconData icon;
   final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+    return Material(
+      color: selected
+          ? AppTheme.primary.withValues(alpha: 0.1)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Text(
+            '$label $count',
+            style: TextStyle(
+              color: selected ? AppTheme.primary : AppTheme.muted,
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
             ),
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+final class _CaptureStatusLabel extends StatelessWidget {
+  const _CaptureStatusLabel({required this.capture});
+
+  final CaptureRecord capture;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (capture.status) {
+      CaptureStatus.received ||
+      CaptureStatus.analyzing => ('분석 중', AppTheme.primary),
+      CaptureStatus.sourceLimited => ('내용 부족', const Color(0xFFB26A00)),
+      CaptureStatus.needsReview => ('확인 필요', const Color(0xFFB26A00)),
+      CaptureStatus.organized => ('정리 완료', const Color(0xFF16815D)),
+      CaptureStatus.failed => ('분석 실패', const Color(0xFFD14343)),
+    };
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -271,118 +327,94 @@ final class _CaptureCard extends StatelessWidget {
       mention?.name.value,
     ].whereType<String>().where((value) => value.isNotEmpty).join(' ');
 
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return InkWell(
+      onTap: capture.status == CaptureStatus.failed
+          ? () => controller.retryAnalysis(capture.raw.id)
+          : onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 12, 18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEEE9FA),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      sourcePlatformIcon(platform),
-                      color: AppTheme.primary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          sourcePlatformLabel(platform),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        Text(
-                          formatCaptureTime(capture.raw.receivedAt),
-                          style: const TextStyle(
-                            color: AppTheme.muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  StatusPill.forCapture(capture),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                capture.raw.rawText.isEmpty
-                    ? '공유된 텍스트가 없어요.'
-                    : capture.raw.rawText,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppTheme.muted, height: 1.45),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.background,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      productLabel.isEmpty
-                          ? Icons.search_off
-                          : Icons.auto_awesome_outlined,
-                      size: 18,
-                      color: AppTheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        productLabel.isEmpty ? '제품을 특정하지 못했어요' : productLabel,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                  Row(
+                    children: [
+                      Icon(
+                        sourcePlatformIcon(platform),
+                        color: AppTheme.muted,
+                        size: 16,
                       ),
-                    ),
-                    if (mention != null)
+                      const SizedBox(width: 6),
                       Text(
-                        confidenceBandLabel(mention.confidenceBand),
+                        sourcePlatformLabel(platform),
+                        style: const TextStyle(
+                          color: AppTheme.muted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Container(
+                        width: 2,
+                        height: 2,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.muted,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        formatCaptureTime(capture.raw.receivedAt),
                         style: const TextStyle(
                           color: AppTheme.muted,
                           fontSize: 12,
-                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                  ],
-                ),
+                      const Spacer(),
+                      _CaptureStatusLabel(capture: capture),
+                    ],
+                  ),
+                  const SizedBox(height: 11),
+                  Text(
+                    productLabel.isEmpty ? '제품을 특정하지 못했어요' : productLabel,
+                    style: const TextStyle(
+                      color: AppTheme.ink,
+                      fontSize: 17,
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    capture.raw.rawText.isEmpty
+                        ? '공유된 텍스트가 없어요.'
+                        : capture.raw.rawText,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.muted,
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: switch (capture.status) {
-                  CaptureStatus.failed => TextButton.icon(
-                    onPressed: () => controller.retryAnalysis(capture.raw.id),
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('다시 분석'),
-                  ),
-                  CaptureStatus.organized => TextButton(
-                    onPressed: onTap,
-                    child: const Text('제품별 정리 보기'),
-                  ),
-                  _ => TextButton(
-                    onPressed: onTap,
-                    child: const Text('분석 결과 확인'),
-                  ),
-                },
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              capture.status == CaptureStatus.failed
+                  ? Icons.refresh
+                  : Icons.chevron_right,
+              color: capture.status == CaptureStatus.failed
+                  ? const Color(0xFFD14343)
+                  : const Color(0xFFB0B8C1),
+              size: 22,
+            ),
+          ],
         ),
       ),
     );
@@ -409,10 +441,12 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final canSubmit = _textController.text.trim().isNotEmpty;
+
     return Padding(
       padding: EdgeInsets.fromLTRB(
         20,
-        20,
+        10,
         20,
         20 + MediaQuery.viewInsetsOf(context).bottom,
       ),
@@ -420,51 +454,66 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('링크나 공유 텍스트 추가', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          const Text(
-            '입력한 원문은 그대로 보존하고, 정규화·추출 결과는 별도로 만들어요.',
-            style: TextStyle(color: AppTheme.muted),
-          ),
-          const SizedBox(height: 18),
-          TextField(
-            controller: _textController,
-            autofocus: true,
-            minLines: 4,
-            maxLines: 7,
-            decoration: const InputDecoration(
-              hintText: 'SNS 공유 텍스트와 URL을 붙여넣어보세요.',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(14)),
+          Align(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFD1D6DB),
+                borderRadius: BorderRadius.circular(999),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          Text('콘텐츠 추가', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 7),
+          const Text(
+            'SNS에서 공유한 텍스트나 링크를 붙여넣어 주세요.\n원문은 수정하지 않고 그대로 보관해요.',
+            style: TextStyle(color: AppTheme.muted, height: 1.5),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _textController,
+            autofocus: true,
+            minLines: 5,
+            maxLines: 8,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: '텍스트 또는 URL을 입력해 주세요',
+              hintStyle: const TextStyle(color: Color(0xFFADB5BD)),
+              filled: true,
+              fillColor: AppTheme.background,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: AppTheme.primary.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+              ),
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+          const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () {
-                final text = _textController.text;
-                if (text.trim().isEmpty) {
-                  return;
-                }
-                final captureId = widget.controller.addManualInput(text);
-                Navigator.of(context).pop(captureId);
-              },
-              child: const Text('저장하고 분석하기'),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: () {
-                _textController.text =
-                    '데이라이트 에어리 선 플루이드 50ml. 백탁이 적고 '
-                    '가볍다고 소개했어요. #제품제공 '
-                    'https://instagram.com/reel/daylight';
-              },
-              child: const Text('샘플 입력 채우기'),
+              onPressed: canSubmit
+                  ? () {
+                      final captureId = widget.controller.addManualInput(
+                        _textController.text,
+                      );
+                      Navigator.of(context).pop(captureId);
+                    }
+                  : null,
+              child: const Text('콘텐츠 추가하기'),
             ),
           ),
         ],
@@ -481,21 +530,33 @@ final class _EmptyInbox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 64),
+      padding: const EdgeInsets.symmetric(vertical: 72),
       child: Column(
         children: [
-          const Icon(Icons.inbox_outlined, size: 48, color: AppTheme.muted),
-          const SizedBox(height: 16),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.inbox_outlined,
+              size: 24,
+              color: AppTheme.muted,
+            ),
+          ),
+          const SizedBox(height: 18),
           Text(
             '이 상태의 콘텐츠가 없어요',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
-            '다른 상태를 확인하거나 새 입력을 추가해보세요.',
+            '다른 상태를 확인하거나 새 콘텐츠를 추가해 보세요.',
             style: TextStyle(color: AppTheme.muted),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           TextButton(onPressed: onShowAll, child: const Text('전체 보기')),
         ],
       ),

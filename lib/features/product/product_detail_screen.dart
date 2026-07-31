@@ -23,71 +23,45 @@ final class ProductDetailScreen extends StatelessWidget {
       builder: (context, _) {
         final group = controller.groupById(groupId);
         if (group == null) {
-          return const Scaffold(body: Center(child: Text('제품 묶음을 찾지 못했어요.')));
+          return const Scaffold(body: Center(child: Text('제품을 찾지 못했어요.')));
         }
+
         final captures = controller.capturesForGroup(groupId);
-        final topics = _topicGroups(group.statements);
+        final captureById = {
+          for (final capture in captures) capture.raw.id: capture,
+        };
+        final evidenceGroups = _evidenceGroups(group.statements);
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('제품별 정리'),
-            backgroundColor: AppTheme.background,
-          ),
+          appBar: AppBar(title: const Text('제품별 정리')),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 44),
             children: [
               _ProductHeader(group: group),
-              const SizedBox(height: 24),
-              const InfoBanner(
-                icon: Icons.fact_check_outlined,
-                title: '원문에 나온 내용만 모았어요',
-                body:
-                    '아래 내용은 여러 콘텐츠의 표현을 출처별로 정리한 것이며, '
-                    '제품 효능이나 사실을 검증한 결과가 아니에요.',
+              const SizedBox(height: 36),
+              _SectionHeading(
+                title: '콘텐츠에서 나온 이야기',
+                description: '저장한 원문의 표현을 주제별로 모았어요.',
               ),
-              const SizedBox(height: 28),
-              const SectionTitle('반복해서 언급된 주제'),
-              const SizedBox(height: 6),
-              const Text(
-                '같은 주제라도 출처마다 표현과 맥락이 다를 수 있어요.',
-                style: TextStyle(color: AppTheme.muted, fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-              if (topics.isEmpty)
+              const SizedBox(height: 14),
+              if (evidenceGroups.isEmpty)
                 const _EmptyTopics()
               else
-                ...topics.entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _TopicCard(
-                      topic: entry.key,
-                      statements: entry.value,
-                    ),
-                  ),
+                _EvidenceList(
+                  evidenceGroups: evidenceGroups,
+                  captureById: captureById,
                 ),
-              const SizedBox(height: 20),
-              const SectionTitle('광고·협찬 표시 현황'),
-              const SizedBox(height: 12),
+              const SizedBox(height: 36),
+              const _SectionHeading(title: '광고·협찬 표시'),
+              const SizedBox(height: 14),
               _DisclosureSummary(captures: captures),
-              const SizedBox(height: 28),
-              SectionTitle('연결된 원본 ${captures.length}개'),
-              const SizedBox(height: 12),
-              ...captures.map(
-                (capture) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _SourceCard(capture: capture),
-                ),
+              const SizedBox(height: 36),
+              _SectionHeading(
+                title: '저장한 원문',
+                description: '${captures.length}개의 콘텐츠가 연결되어 있어요.',
               ),
-              const SizedBox(height: 12),
-              const Text(
-                '제품 정보가 잘못 묶였거나 원문과 다른 내용이 있다면 다음 단계에서 '
-                '분리·수정 기능을 연결합니다. 현재는 분석 계약과 근거 추적을 검증하는 베이스라인입니다.',
-                style: TextStyle(
-                  color: AppTheme.muted,
-                  fontSize: 12,
-                  height: 1.5,
-                ),
-              ),
+              const SizedBox(height: 14),
+              _SourceList(captures: captures),
             ],
           ),
         );
@@ -95,28 +69,34 @@ final class ProductDetailScreen extends StatelessWidget {
     );
   }
 
-  Map<String, List<ContentStatement>> _topicGroups(
-    List<ContentStatement> statements,
-  ) {
-    final grouped = <String, List<ContentStatement>>{};
+  List<_EvidenceGroup> _evidenceGroups(List<ContentStatement> statements) {
+    final grouped = <String, _EvidenceGroupBuilder>{};
     for (final statement in statements) {
       if (statement.type == StatementType.disclosure) {
         continue;
       }
-      grouped.putIfAbsent(statement.topic, () => []).add(statement);
+      final key = '${statement.captureId}\u0000${statement.originalExpression}';
+      grouped
+          .putIfAbsent(
+            key,
+            () => _EvidenceGroupBuilder(
+              captureId: statement.captureId,
+              expression: statement.originalExpression,
+            ),
+          )
+          .topics
+          .add(statement.topic);
     }
-    final entries = grouped.entries.toList()
-      ..sort((left, right) {
-        final countOrder = right.value
-            .map((statement) => statement.captureId)
-            .toSet()
-            .length
-            .compareTo(
-              left.value.map((statement) => statement.captureId).toSet().length,
-            );
-        return countOrder != 0 ? countOrder : left.key.compareTo(right.key);
-      });
-    return Map.fromEntries(entries);
+
+    return grouped.values
+        .map(
+          (group) => _EvidenceGroup(
+            captureId: group.captureId,
+            expression: group.expression,
+            topics: group.topics.toList(growable: false)..sort(),
+          ),
+        )
+        .toList(growable: false);
   }
 }
 
@@ -127,125 +107,196 @@ final class _ProductHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ProductArt.forGroup(group, width: 104, height: 126),
-        const SizedBox(width: 18),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const StatusPill(
-                label: '사용자 확인 완료',
-                icon: Icons.verified_outlined,
-                foreground: Color(0xFF176B4D),
-                background: Color(0xFFE6F5EE),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                group.identity.brand,
-                style: const TextStyle(
-                  color: AppTheme.muted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                group.identity.name,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                [
-                  group.identity.category,
-                  group.identity.amount,
-                ].where((value) => value.isNotEmpty).join(' · '),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '콘텐츠 ${group.sourceCount}개가 연결됨',
-                style: const TextStyle(color: AppTheme.muted),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
+    final meta = [
+      group.identity.category,
+      group.identity.amount,
+    ].where((value) => value.trim().isNotEmpty).join(' · ');
 
-final class _TopicCard extends StatelessWidget {
-  const _TopicCard({required this.topic, required this.statements});
-
-  final String topic;
-  final List<ContentStatement> statements;
-
-  @override
-  Widget build(BuildContext context) {
-    final sourceCount = statements
-        .map((statement) => statement.captureId)
-        .toSet()
-        .length;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          ProductArt.forGroup(group, width: 88, height: 88),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    topic,
-                    style: Theme.of(context).textTheme.titleMedium,
+                Text(
+                  group.identity.brand,
+                  style: const TextStyle(
+                    color: AppTheme.muted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+                const SizedBox(height: 3),
                 Text(
-                  '$sourceCount개 출처',
+                  group.identity.name,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                if (meta.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    meta,
+                    style: const TextStyle(color: AppTheme.muted, fontSize: 14),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Text(
+                  '콘텐츠 ${group.sourceCount}개',
                   style: const TextStyle(
                     color: AppTheme.primary,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            ...statements
-                .take(3)
-                .map(
-                  (statement) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 3),
-                          child: Icon(
-                            Icons.format_quote,
-                            size: 16,
-                            color: AppTheme.muted,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            statement.originalExpression,
-                            style: const TextStyle(
-                              color: AppTheme.muted,
-                              height: 1.45,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
+
+final class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title, this.description});
+
+  final String title;
+  final String? description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        if (description != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            description!,
+            style: const TextStyle(
+              color: AppTheme.muted,
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+final class _EvidenceList extends StatelessWidget {
+  const _EvidenceList({
+    required this.evidenceGroups,
+    required this.captureById,
+  });
+
+  final List<_EvidenceGroup> evidenceGroups;
+  final Map<String, CaptureRecord> captureById;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < evidenceGroups.length; index++) ...[
+            _EvidenceRow(
+              evidence: evidenceGroups[index],
+              capture: captureById[evidenceGroups[index].captureId],
+            ),
+            if (index != evidenceGroups.length - 1)
+              const Divider(indent: 20, endIndent: 20),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+final class _EvidenceRow extends StatelessWidget {
+  const _EvidenceRow({required this.evidence, required this.capture});
+
+  final _EvidenceGroup evidence;
+  final CaptureRecord? capture;
+
+  @override
+  Widget build(BuildContext context) {
+    final platform = capture == null
+        ? null
+        : capture!.normalized.urls.isEmpty
+        ? SourcePlatform.textOnly
+        : capture!.normalized.urls.first.platform;
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            evidence.topics.join(' · '),
+            style: const TextStyle(
+              color: AppTheme.primary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.only(left: 12),
+            decoration: const BoxDecoration(
+              border: Border(
+                left: BorderSide(color: AppTheme.primarySoft, width: 3),
+              ),
+            ),
+            child: Text(
+              evidence.expression,
+              style: const TextStyle(
+                color: AppTheme.ink,
+                fontSize: 15,
+                height: 1.55,
+              ),
+            ),
+          ),
+          if (capture != null && platform != null) ...[
+            const SizedBox(height: 9),
+            Text(
+              '${sourcePlatformLabel(platform)} · '
+              '${formatCaptureTime(capture!.raw.receivedAt)}',
+              style: const TextStyle(color: AppTheme.subtle, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+final class _EvidenceGroupBuilder {
+  _EvidenceGroupBuilder({required this.captureId, required this.expression});
+
+  final String captureId;
+  final String expression;
+  final Set<String> topics = {};
+}
+
+final class _EvidenceGroup {
+  const _EvidenceGroup({
+    required this.captureId,
+    required this.expression,
+    required this.topics,
+  });
+
+  final String captureId;
+  final String expression;
+  final List<String> topics;
 }
 
 final class _DisclosureSummary extends StatelessWidget {
@@ -271,34 +322,45 @@ final class _DisclosureSummary extends StatelessWidget {
         .length;
     final unknown = captures.length - observed - notObserved;
 
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
         child: Column(
           children: [
             _DisclosureRow(
-              icon: Icons.campaign_outlined,
-              label: '명시적 표시 발견',
+              label: '표시가 있는 콘텐츠',
               count: observed,
+              color: AppTheme.positive,
             ),
-            const Divider(height: 24),
+            const Divider(),
             _DisclosureRow(
-              icon: Icons.search,
-              label: '캡처 자료에서 표시 미발견',
+              label: '표시를 찾지 못한 콘텐츠',
               count: notObserved,
+              color: AppTheme.subtle,
             ),
             if (unknown > 0) ...[
-              const Divider(height: 24),
+              const Divider(),
               _DisclosureRow(
-                icon: Icons.help_outline,
-                label: '확인 불가',
+                label: '확인할 수 없는 콘텐츠',
                 count: unknown,
+                color: AppTheme.subtle,
               ),
             ],
-            const SizedBox(height: 12),
-            const Text(
-              '표시 미발견은 비광고 판정이 아니에요.',
-              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+            const SizedBox(height: 8),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '표시가 보이지 않는다고 해서 비광고라는 뜻은 아니에요.',
+                style: TextStyle(
+                  color: AppTheme.subtle,
+                  fontSize: 12,
+                  height: 1.45,
+                ),
+              ),
             ),
           ],
         ),
@@ -309,30 +371,78 @@ final class _DisclosureSummary extends StatelessWidget {
 
 final class _DisclosureRow extends StatelessWidget {
   const _DisclosureRow({
-    required this.icon,
     required this.label,
     required this.count,
+    required this.color,
   });
 
-  final IconData icon;
   final String label;
   final int count;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label)),
-        Text('$count개', style: const TextStyle(fontWeight: FontWeight.w700)),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: AppTheme.ink, fontSize: 14),
+            ),
+          ),
+          Text(
+            '$count개',
+            style: const TextStyle(
+              color: AppTheme.ink,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-final class _SourceCard extends StatelessWidget {
-  const _SourceCard({required this.capture});
+final class _SourceList extends StatelessWidget {
+  const _SourceList({required this.captures});
+
+  final List<CaptureRecord> captures;
+
+  @override
+  Widget build(BuildContext context) {
+    if (captures.isEmpty) {
+      return const _EmptySources();
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < captures.length; index++) ...[
+            _SourceSection(capture: captures[index]),
+            if (index != captures.length - 1)
+              const Divider(indent: 20, endIndent: 20),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+final class _SourceSection extends StatelessWidget {
+  const _SourceSection({required this.capture});
 
   final CaptureRecord capture;
 
@@ -341,39 +451,94 @@ final class _SourceCard extends StatelessWidget {
     final platform = capture.normalized.urls.isEmpty
         ? SourcePlatform.textOnly
         : capture.normalized.urls.first.platform;
-    return Card(
-      child: ExpansionTile(
-        leading: Icon(sourcePlatformIcon(platform), color: AppTheme.primary),
-        title: Text(
-          sourcePlatformLabel(platform),
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text(formatCaptureTime(capture.raw.receivedAt)),
-        trailing: const Icon(Icons.expand_more),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+    final disclosure =
+        capture.analysis?.disclosure ?? DisclosureObservation.unknown;
+    final hasExplicitDisclosure =
+        disclosure == DisclosureObservation.explicitlyObserved;
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Divider(),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SelectableText(
-              capture.raw.rawText,
-              style: const TextStyle(color: AppTheme.muted, height: 1.5),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: AppTheme.fill,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  sourcePlatformIcon(platform),
+                  color: AppTheme.muted,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      sourcePlatformLabel(platform),
+                      style: const TextStyle(
+                        color: AppTheme.ink,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatCaptureTime(capture.raw.receivedAt),
+                      style: const TextStyle(
+                        color: AppTheme.subtle,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SelectableText(
+            capture.raw.rawText,
+            style: const TextStyle(
+              color: AppTheme.ink,
+              fontSize: 14,
+              height: 1.6,
             ),
           ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              disclosureLabel(
-                capture.analysis?.disclosure ?? DisclosureObservation.unknown,
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                hasExplicitDisclosure
+                    ? Icons.check_circle_outline_rounded
+                    : Icons.info_outline_rounded,
+                color: hasExplicitDisclosure
+                    ? AppTheme.positive
+                    : AppTheme.subtle,
+                size: 16,
               ),
-              style: const TextStyle(
-                color: AppTheme.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  disclosureLabel(disclosure),
+                  style: TextStyle(
+                    color: hasExplicitDisclosure
+                        ? AppTheme.positive
+                        : AppTheme.muted,
+                    fontSize: 12,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -386,13 +551,34 @@ final class _EmptyTopics extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(18),
-        child: Text(
-          '연결된 원본에서 공통 주제를 찾지 못했어요.',
-          style: TextStyle(color: AppTheme.muted),
-        ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Text(
+        '아직 함께 묶을 만한 이야기가 없어요.',
+        style: TextStyle(color: AppTheme.muted, fontSize: 14),
+      ),
+    );
+  }
+}
+
+final class _EmptySources extends StatelessWidget {
+  const _EmptySources();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Text(
+        '연결된 원문이 없어요.',
+        style: TextStyle(color: AppTheme.muted, fontSize: 14),
       ),
     );
   }

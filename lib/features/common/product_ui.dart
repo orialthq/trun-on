@@ -8,7 +8,6 @@ final class ProductArt extends StatelessWidget {
     required this.brand,
     required this.name,
     required this.category,
-    required this.colorValue,
     this.width = 76,
     this.height = 92,
     super.key,
@@ -23,7 +22,6 @@ final class ProductArt extends StatelessWidget {
       brand: group.identity.brand,
       name: group.identity.name,
       category: group.identity.category,
-      colorValue: group.colorValue,
       width: width,
       height: height,
     );
@@ -32,148 +30,35 @@ final class ProductArt extends StatelessWidget {
   final String brand;
   final String name;
   final String category;
-  final int colorValue;
   final double width;
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    final color = Color(colorValue);
+    final color = switch (category) {
+      '선케어' => const Color(0xFFE8A020),
+      '클렌저' => const Color(0xFF3182F6),
+      '크림' || '로션' => const Color(0xFF8B6CE0),
+      _ => const Color(0xFF20A17A),
+    };
+    final icon = switch (category) {
+      '선케어' => Icons.wb_sunny_outlined,
+      '클렌저' => Icons.waves_outlined,
+      '크림' || '로션' => Icons.spa_outlined,
+      _ => Icons.water_drop_outlined,
+    };
     return Semantics(
-      label: '$brand $name 제품 이미지 자리',
-      image: true,
+      label: '$brand $name, $category',
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(18),
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Center(
-          child: Container(
-            width: width * 0.48,
-            height: height * 0.66,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.28),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Icon(
-              category == '선케어'
-                  ? Icons.wb_sunny_outlined
-                  : Icons.water_drop_outlined,
-              color: Colors.white,
-              size: width * 0.25,
-            ),
-          ),
+          child: Icon(icon, color: color, size: width * 0.34),
         ),
-      ),
-    );
-  }
-}
-
-final class StatusPill extends StatelessWidget {
-  const StatusPill({
-    required this.label,
-    required this.icon,
-    required this.foreground,
-    required this.background,
-    super.key,
-  });
-
-  factory StatusPill.forCapture(CaptureRecord capture) {
-    return switch (capture.status) {
-      CaptureStatus.received || CaptureStatus.analyzing => const StatusPill(
-        label: '분석 중',
-        icon: Icons.autorenew,
-        foreground: Color(0xFF1A5E99),
-        background: Color(0xFFEAF3FC),
-      ),
-      CaptureStatus.sourceLimited => const StatusPill(
-        label: '자료 부족',
-        icon: Icons.link_off,
-        foreground: Color(0xFF8A5700),
-        background: Color(0xFFFFF1D2),
-      ),
-      CaptureStatus.needsReview => const StatusPill(
-        label: '확인 필요',
-        icon: Icons.help_outline,
-        foreground: Color(0xFF8A5700),
-        background: Color(0xFFFFF1D2),
-      ),
-      CaptureStatus.organized => const StatusPill(
-        label: '정리 완료',
-        icon: Icons.inventory_2_outlined,
-        foreground: Color(0xFF176B4D),
-        background: Color(0xFFE6F5EE),
-      ),
-      CaptureStatus.failed => const StatusPill(
-        label: '분석 실패',
-        icon: Icons.error_outline,
-        foreground: Color(0xFFB42318),
-        background: Color(0xFFFFE9E6),
-      ),
-    };
-  }
-
-  factory StatusPill.forConfidence(double confidence) {
-    if (confidence >= 0.85) {
-      return const StatusPill(
-        label: '신뢰도 높음',
-        icon: Icons.verified_outlined,
-        foreground: Color(0xFF176B4D),
-        background: Color(0xFFE6F5EE),
-      );
-    }
-    if (confidence >= 0.6) {
-      return const StatusPill(
-        label: '확인 권장',
-        icon: Icons.manage_search,
-        foreground: Color(0xFF8A5700),
-        background: Color(0xFFFFF1D2),
-      );
-    }
-    return const StatusPill(
-      label: '확인 필요',
-      icon: Icons.help_outline,
-      foreground: Color(0xFFB42318),
-      background: Color(0xFFFFE9E6),
-    );
-  }
-
-  final String label;
-  final IconData icon;
-  final Color foreground;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: foreground),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -209,31 +94,12 @@ String disclosureLabel(DisclosureObservation disclosure) {
   };
 }
 
-String confidenceBandLabel(ConfidenceBand band) {
-  return switch (band) {
-    ConfidenceBand.high => '높은 신뢰',
-    ConfidenceBand.reviewRecommended => '확인 권장',
-    ConfidenceBand.reviewRequired => '확인 필요',
-  };
-}
-
-final class SectionTitle extends StatelessWidget {
-  const SectionTitle(this.text, {super.key});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(text, style: Theme.of(context).textTheme.titleMedium);
-  }
-}
-
 final class InfoBanner extends StatelessWidget {
   const InfoBanner({
     required this.icon,
     required this.title,
     required this.body,
-    this.background = const Color(0xFFEEE9FA),
+    this.background = AppTheme.fill,
     super.key,
   });
 
@@ -245,15 +111,23 @@ final class InfoBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppTheme.primary),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppTheme.muted, size: 17),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -262,12 +136,19 @@ final class InfoBanner extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(body, style: const TextStyle(color: AppTheme.muted)),
+                const SizedBox(height: 4),
+                Text(
+                  body,
+                  style: const TextStyle(
+                    color: AppTheme.muted,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
               ],
             ),
           ),

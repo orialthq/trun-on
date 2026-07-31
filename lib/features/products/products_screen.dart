@@ -20,39 +20,37 @@ final class ProductsScreen extends StatelessWidget {
 
         return ListView(
           key: const PageStorageKey('products'),
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
           children: [
             Text('제품별 정리', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 4),
-            const Text(
-              '확인한 콘텐츠를 같은 제품끼리 모았어요',
-              style: TextStyle(color: AppTheme.muted),
+            const SizedBox(height: 8),
+            Text(
+              groups.isEmpty
+                  ? '확인한 제품이 이곳에 차곡차곡 모여요'
+                  : '확인한 제품 ${groups.length}개를 모아봤어요',
+              style: const TextStyle(
+                color: AppTheme.muted,
+                fontSize: 15,
+                height: 1.45,
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             if (groups.isEmpty)
               const _EmptyProducts()
-            else ...[
-              _ProductsSummary(groups: groups),
-              const SizedBox(height: 18),
-              ...groups.map(
-                (group) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _ProductGroupCard(
-                    group: group,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => ProductDetailScreen(
-                            controller: controller,
-                            groupId: group.id,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+            else
+              _ProductList(
+                groups: groups,
+                onSelected: (group) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ProductDetailScreen(
+                        controller: controller,
+                        groupId: group.id,
+                      ),
+                    ),
+                  );
+                },
               ),
-            ],
           ],
         );
       },
@@ -60,161 +58,125 @@ final class ProductsScreen extends StatelessWidget {
   }
 }
 
-final class _ProductsSummary extends StatelessWidget {
-  const _ProductsSummary({required this.groups});
+final class _ProductList extends StatelessWidget {
+  const _ProductList({required this.groups, required this.onSelected});
 
   final List<ProductGroup> groups;
+  final ValueChanged<ProductGroup> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final sourceCount = groups.fold<int>(
-      0,
-      (total, group) => total + group.sourceCount,
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(18),
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFF292032),
-        borderRadius: BorderRadius.circular(22),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 22,
-            backgroundColor: Color(0xFF44364F),
-            child: Icon(Icons.inventory_2_outlined, color: Colors.white),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '정리된 결과',
-                  style: TextStyle(
-                    color: Color(0xFFD6CDE0),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '콘텐츠 $sourceCount개를 제품 ${groups.length}개로 묶었어요',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    height: 1.4,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          children: [
+            for (var index = 0; index < groups.length; index++) ...[
+              _ProductRow(
+                group: groups[index],
+                onTap: () => onSelected(groups[index]),
+              ),
+              if (index != groups.length - 1)
+                const Divider(indent: 100, endIndent: 20),
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
-final class _ProductGroupCard extends StatelessWidget {
-  const _ProductGroupCard({required this.group, required this.onTap});
+final class _ProductRow extends StatelessWidget {
+  const _ProductRow({required this.group, required this.onTap});
 
   final ProductGroup group;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final topics = _topicSummaries(group);
+    final repeatedTopic = _mostRepeatedTopic(group);
+    final meta = [
+      group.identity.category,
+      group.identity.amount,
+    ].where((value) => value.trim().isNotEmpty).join(' · ');
 
-    return Card(
+    return Semantics(
+      button: true,
+      label: '${group.identity.brand} ${group.identity.name}',
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ProductArt.forGroup(group),
-              const SizedBox(width: 14),
+              ProductArt.forGroup(group, width: 68, height: 68),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       group.identity.brand,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppTheme.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       group.identity.name,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      _productMeta(group.identity),
-                      style: const TextStyle(color: AppTheme.muted),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.collections_bookmark_outlined,
-                          size: 17,
-                          color: AppTheme.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '출처 ${group.sourceCount}개',
-                          style: const TextStyle(
-                            color: AppTheme.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    if (topics.isEmpty)
-                      const Text(
-                        '아직 반복해서 언급된 주제가 없어요',
-                        style: TextStyle(color: AppTheme.muted, fontSize: 12),
-                      )
-                    else ...[
-                      const Text(
-                        '반복 언급',
-                        style: TextStyle(
-                          color: AppTheme.muted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      style: const TextStyle(
+                        color: AppTheme.ink,
+                        fontSize: 17,
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
                       ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: topics
-                            .map(
-                              (topic) => _TopicChip(
-                                label: topic.label,
-                                sourceCount: topic.sourceCount,
-                              ),
-                            )
-                            .toList(growable: false),
+                    ),
+                    if (meta.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppTheme.subtle,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
+                    const SizedBox(height: 9),
+                    Text(
+                      repeatedTopic == null
+                          ? '콘텐츠 ${group.sourceCount}개'
+                          : '콘텐츠 ${group.sourceCount}개 · ${repeatedTopic.label}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: repeatedTopic == null
+                            ? AppTheme.muted
+                            : AppTheme.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.only(top: 26),
-                child: Icon(Icons.chevron_right, color: AppTheme.muted),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.subtle,
+                size: 22,
               ),
             ],
           ),
@@ -223,66 +185,37 @@ final class _ProductGroupCard extends StatelessWidget {
     );
   }
 
-  String _productMeta(ConfirmedProductIdentity identity) {
-    return [
-      identity.category,
-      identity.amount,
-    ].where((value) => value.trim().isNotEmpty).join(' · ');
-  }
-
-  List<_TopicSummary> _topicSummaries(ProductGroup group) {
-    final sourceIdsByTopic = <String, Set<String>>{};
+  _TopicSummary? _mostRepeatedTopic(ProductGroup group) {
+    final sourcesByTopic = <String, Set<String>>{};
     for (final statement in group.statements) {
       if (statement.type == StatementType.disclosure) {
         continue;
       }
-      sourceIdsByTopic
+      sourcesByTopic
           .putIfAbsent(statement.topic, () => <String>{})
           .add(statement.captureId);
     }
 
-    final repeated =
-        sourceIdsByTopic.entries
-            .where((entry) => entry.value.length >= 2)
+    final topics =
+        sourcesByTopic.entries
             .map(
               (entry) => _TopicSummary(
                 label: entry.key,
                 sourceCount: entry.value.length,
               ),
             )
-            .toList(growable: true)
-          ..sort((a, b) {
-            final countOrder = b.sourceCount.compareTo(a.sourceCount);
-            return countOrder != 0 ? countOrder : a.label.compareTo(b.label);
+            .toList(growable: false)
+          ..sort((left, right) {
+            final countOrder = right.sourceCount.compareTo(left.sourceCount);
+            return countOrder != 0
+                ? countOrder
+                : left.label.compareTo(right.label);
           });
 
-    return repeated.take(3).toList(growable: false);
-  }
-}
-
-final class _TopicChip extends StatelessWidget {
-  const _TopicChip({required this.label, required this.sourceCount});
-
-  final String label;
-  final int sourceCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEEE9FA),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '$label · $sourceCount',
-        style: const TextStyle(
-          color: AppTheme.primary,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
+    if (topics.isEmpty || topics.first.sourceCount < 2) {
+      return null;
+    }
+    return topics.first;
   }
 }
 
@@ -299,33 +232,33 @@ final class _EmptyProducts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 76, horizontal: 24),
+      padding: const EdgeInsets.fromLTRB(16, 72, 16, 40),
       child: Column(
         children: [
           Container(
-            width: 72,
-            height: 72,
+            width: 68,
+            height: 68,
             decoration: const BoxDecoration(
-              color: Color(0xFFEEE9FA),
+              color: AppTheme.primarySoft,
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.inventory_2_outlined,
-              size: 34,
+              size: 30,
               color: AppTheme.primary,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           Text(
-            '아직 제품별로 정리된 내용이 없어요',
+            '아직 정리된 제품이 없어요',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           const Text(
-            '콘텐츠에서 찾은 제품을 확인하면\n같은 제품끼리 이곳에 모아드려요.',
+            '콘텐츠에서 찾은 제품을 확인하면\n같은 제품끼리 모아서 보여드려요.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.muted, height: 1.5),
+            style: TextStyle(color: AppTheme.muted, fontSize: 14, height: 1.55),
           ),
         ],
       ),
