@@ -168,11 +168,11 @@ void main() {
             originalLength: capture.raw.originalLength,
             sourcePackage: capture.raw.sourcePackage,
             attachments: [attachment],
-        ),
-        normalized: capture.normalized,
-        status: capture.status,
-        analysis: null,
-      );
+          ),
+          normalized: capture.normalized,
+          status: capture.status,
+          analysis: null,
+        );
         final service = RemoteContentAnalysisService(
           baseUrl: 'http://127.0.0.1:${server.port}',
         );
