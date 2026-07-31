@@ -5,21 +5,42 @@ import '../../domain/models.dart';
 
 final class ProductArt extends StatelessWidget {
   const ProductArt({
-    required this.product,
+    required this.brand,
+    required this.name,
+    required this.category,
+    required this.colorValue,
     this.width = 76,
     this.height = 92,
     super.key,
   });
 
-  final Product product;
+  factory ProductArt.forGroup(
+    ProductGroup group, {
+    double width = 76,
+    double height = 92,
+  }) {
+    return ProductArt(
+      brand: group.identity.brand,
+      name: group.identity.name,
+      category: group.identity.category,
+      colorValue: group.colorValue,
+      width: width,
+      height: height,
+    );
+  }
+
+  final String brand;
+  final String name;
+  final String category;
+  final int colorValue;
   final double width;
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    final color = Color(product.colorValue);
+    final color = Color(colorValue);
     return Semantics(
-      label: '${product.brand} ${product.name} 제품 이미지',
+      label: '$brand $name 제품 이미지 자리',
       image: true,
       child: Container(
         width: width,
@@ -44,7 +65,7 @@ final class ProductArt extends StatelessWidget {
               ],
             ),
             child: Icon(
-              product.category == '선케어'
+              category == '선케어'
                   ? Icons.wb_sunny_outlined
                   : Icons.water_drop_outlined,
               color: Colors.white,
@@ -66,41 +87,64 @@ final class StatusPill extends StatelessWidget {
     super.key,
   });
 
-  factory StatusPill.forProduct(Product product) {
-    if (product.analysisStatus == AnalysisStatus.needsConfirmation) {
-      return const StatusPill(
+  factory StatusPill.forCapture(CaptureRecord capture) {
+    return switch (capture.status) {
+      CaptureStatus.received || CaptureStatus.analyzing => const StatusPill(
+        label: '분석 중',
+        icon: Icons.autorenew,
+        foreground: Color(0xFF1A5E99),
+        background: Color(0xFFEAF3FC),
+      ),
+      CaptureStatus.sourceLimited => const StatusPill(
+        label: '자료 부족',
+        icon: Icons.link_off,
+        foreground: Color(0xFF8A5700),
+        background: Color(0xFFFFF1D2),
+      ),
+      CaptureStatus.needsReview => const StatusPill(
         label: '확인 필요',
         icon: Icons.help_outline,
         foreground: Color(0xFF8A5700),
         background: Color(0xFFFFF1D2),
-      );
-    }
-    return switch (product.decision) {
-      Decision.candidate => const StatusPill(
-        label: '구매 후보',
-        icon: Icons.check_circle_outline,
+      ),
+      CaptureStatus.organized => const StatusPill(
+        label: '정리 완료',
+        icon: Icons.inventory_2_outlined,
         foreground: Color(0xFF176B4D),
         background: Color(0xFFE6F5EE),
       ),
-      Decision.hold => const StatusPill(
-        label: '보류',
-        icon: Icons.pause_circle_outline,
-        foreground: Color(0xFF8A5700),
-        background: Color(0xFFFFF1D2),
-      ),
-      Decision.excluded => const StatusPill(
-        label: '제외',
-        icon: Icons.remove_circle_outline,
-        foreground: Color(0xFF6C6461),
-        background: Color(0xFFF0ECEA),
-      ),
-      Decision.undecided => const StatusPill(
-        label: '결정 전',
-        icon: Icons.pending_outlined,
-        foreground: Color(0xFF1A5E99),
-        background: Color(0xFFEAF3FC),
+      CaptureStatus.failed => const StatusPill(
+        label: '분석 실패',
+        icon: Icons.error_outline,
+        foreground: Color(0xFFB42318),
+        background: Color(0xFFFFE9E6),
       ),
     };
+  }
+
+  factory StatusPill.forConfidence(double confidence) {
+    if (confidence >= 0.85) {
+      return const StatusPill(
+        label: '신뢰도 높음',
+        icon: Icons.verified_outlined,
+        foreground: Color(0xFF176B4D),
+        background: Color(0xFFE6F5EE),
+      );
+    }
+    if (confidence >= 0.6) {
+      return const StatusPill(
+        label: '확인 권장',
+        icon: Icons.manage_search,
+        foreground: Color(0xFF8A5700),
+        background: Color(0xFFFFF1D2),
+      );
+    }
+    return const StatusPill(
+      label: '확인 필요',
+      icon: Icons.help_outline,
+      foreground: Color(0xFFB42318),
+      background: Color(0xFFFFE9E6),
+    );
   }
 
   final String label;
@@ -135,19 +179,41 @@ final class StatusPill extends StatelessWidget {
   }
 }
 
-String overlapLabel(OverlapLevel level) {
-  return switch (level) {
-    OverlapLevel.low => '루틴 중복 낮음',
-    OverlapLevel.medium => '루틴 일부 중복',
-    OverlapLevel.high => '루틴 중복 높음',
+String sourcePlatformLabel(SourcePlatform platform) {
+  return switch (platform) {
+    SourcePlatform.instagram => 'Instagram',
+    SourcePlatform.youtube => 'YouTube',
+    SourcePlatform.tiktok => 'TikTok',
+    SourcePlatform.x => 'X',
+    SourcePlatform.web => '웹 링크',
+    SourcePlatform.textOnly => '붙여넣은 텍스트',
   };
 }
 
-Color overlapColor(OverlapLevel level) {
-  return switch (level) {
-    OverlapLevel.low => const Color(0xFF176B4D),
-    OverlapLevel.medium => const Color(0xFF8A5700),
-    OverlapLevel.high => const Color(0xFFB42318),
+IconData sourcePlatformIcon(SourcePlatform platform) {
+  return switch (platform) {
+    SourcePlatform.youtube => Icons.play_circle_outline,
+    SourcePlatform.instagram || SourcePlatform.tiktok => Icons.smart_display,
+    SourcePlatform.x => Icons.alternate_email,
+    SourcePlatform.web => Icons.language,
+    SourcePlatform.textOnly => Icons.notes,
+  };
+}
+
+String disclosureLabel(DisclosureObservation disclosure) {
+  return switch (disclosure) {
+    DisclosureObservation.explicitlyObserved => '명시적 광고·협찬 표시 발견',
+    DisclosureObservation.notObservedInCapturedMaterial =>
+      '캡처한 자료에서 광고·협찬 표시 미발견',
+    DisclosureObservation.unknown => '광고·협찬 표시 확인 불가',
+  };
+}
+
+String confidenceBandLabel(ConfidenceBand band) {
+  return switch (band) {
+    ConfidenceBand.high => '높은 신뢰',
+    ConfidenceBand.reviewRecommended => '확인 권장',
+    ConfidenceBand.reviewRequired => '확인 필요',
   };
 }
 

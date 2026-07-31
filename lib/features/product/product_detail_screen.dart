@@ -9,107 +9,79 @@ import '../common/product_ui.dart';
 final class ProductDetailScreen extends StatelessWidget {
   const ProductDetailScreen({
     required this.controller,
-    required this.productId,
+    required this.groupId,
     super.key,
   });
 
   final AppController controller;
-  final String productId;
+  final String groupId;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
-        final product = controller.productById(productId);
-        if (product == null) {
-          return const Scaffold(body: Center(child: Text('제품을 찾지 못했어요.')));
+        final group = controller.groupById(groupId);
+        if (group == null) {
+          return const Scaffold(body: Center(child: Text('제품 묶음을 찾지 못했어요.')));
         }
+        final captures = controller.capturesForGroup(groupId);
+        final topics = _topicGroups(group.statements);
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('제품 정리'),
+            title: const Text('제품별 정리'),
             backgroundColor: AppTheme.background,
           ),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
             children: [
-              _ProductHeader(product: product),
+              _ProductHeader(group: group),
               const SizedBox(height: 24),
-              InfoBanner(
-                icon: _decisionIcon(product.decision),
-                title: _decisionTitle(product),
-                body: product.summary,
+              const InfoBanner(
+                icon: Icons.fact_check_outlined,
+                title: '원문에 나온 내용만 모았어요',
+                body:
+                    '아래 내용은 여러 콘텐츠의 표현을 출처별로 정리한 것이며, '
+                    '제품 효능이나 사실을 검증한 결과가 아니에요.',
               ),
               const SizedBox(height: 28),
-              const SectionTitle('내 기준으로 정리'),
-              const SizedBox(height: 12),
-              ...product.reasons.map(
-                (reason) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _ReasonRow(reason),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const SectionTitle('현재 루틴과 겹치는 점'),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.layers_outlined,
-                        color: overlapColor(product.overlap),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              overlapLabel(product.overlap),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              '성분 안전성 판정이 아니라 등록한 제품의 목적과 역할을 비교한 결과예요.',
-                              style: TextStyle(color: AppTheme.muted),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-              const SectionTitle('콘텐츠에서 확인한 표시'),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.campaign_outlined),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          product.sponsoredSourceCount == 0
-                              ? '저장한 콘텐츠에는 광고·협찬 표시가 없었어요.'
-                              : '콘텐츠 ${product.savedSourceCount}개 중 '
-                                    '${product.sponsoredSourceCount}개에 광고·협찬 표시가 있었어요.',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
+              const SectionTitle('반복해서 언급된 주제'),
+              const SizedBox(height: 6),
               const Text(
-                '콘텐츠와 입력한 기준을 정리한 참고 정보이며, 의학적 진단이 아니에요.',
+                '같은 주제라도 출처마다 표현과 맥락이 다를 수 있어요.',
+                style: TextStyle(color: AppTheme.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              if (topics.isEmpty)
+                const _EmptyTopics()
+              else
+                ...topics.entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _TopicCard(
+                      topic: entry.key,
+                      statements: entry.value,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 20),
+              const SectionTitle('광고·협찬 표시 현황'),
+              const SizedBox(height: 12),
+              _DisclosureSummary(captures: captures),
+              const SizedBox(height: 28),
+              SectionTitle('연결된 원본 ${captures.length}개'),
+              const SizedBox(height: 12),
+              ...captures.map(
+                (capture) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _SourceCard(capture: capture),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '제품 정보가 잘못 묶였거나 원문과 다른 내용이 있다면 다음 단계에서 '
+                '분리·수정 기능을 연결합니다. 현재는 분석 계약과 근거 추적을 검증하는 베이스라인입니다.',
                 style: TextStyle(
                   color: AppTheme.muted,
                   fontSize: 12,
@@ -118,129 +90,80 @@ final class ProductDetailScreen extends StatelessWidget {
               ),
             ],
           ),
-          bottomNavigationBar: SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: AppTheme.border)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _DecisionButton(
-                      label: '구매 후보',
-                      icon: Icons.check_circle_outline,
-                      selected: product.decision == Decision.candidate,
-                      onPressed: () =>
-                          _decide(context, product, Decision.candidate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _DecisionButton(
-                      label: '보류',
-                      icon: Icons.pause_circle_outline,
-                      selected: product.decision == Decision.hold,
-                      onPressed: () => _decide(context, product, Decision.hold),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _DecisionButton(
-                      label: '제외',
-                      icon: Icons.remove_circle_outline,
-                      selected: product.decision == Decision.excluded,
-                      onPressed: () =>
-                          _decide(context, product, Decision.excluded),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         );
       },
     );
   }
 
-  IconData _decisionIcon(Decision decision) {
-    return switch (decision) {
-      Decision.candidate => Icons.check_circle_outline,
-      Decision.hold => Icons.pause_circle_outline,
-      Decision.excluded => Icons.remove_circle_outline,
-      Decision.undecided => Icons.auto_awesome_outlined,
-    };
-  }
-
-  String _decisionTitle(Product product) {
-    return switch (product.decision) {
-      Decision.candidate => '내 결정: 구매 후보',
-      Decision.hold => '내 결정: 보류',
-      Decision.excluded => '내 결정: 제외',
-      Decision.undecided => '아직 결정 전이에요',
-    };
-  }
-
-  void _decide(BuildContext context, Product product, Decision decision) {
-    controller.setDecision(product.id, decision);
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('${_decisionLabel(decision)}로 정리했어요.'),
-          action: SnackBarAction(
-            label: '실행 취소',
-            onPressed: () {
-              controller.setDecision(product.id, product.decision);
-            },
-          ),
-        ),
-      );
-  }
-
-  String _decisionLabel(Decision decision) {
-    return switch (decision) {
-      Decision.candidate => '구매 후보',
-      Decision.hold => '보류',
-      Decision.excluded => '제외',
-      Decision.undecided => '결정 전',
-    };
+  Map<String, List<ContentStatement>> _topicGroups(
+    List<ContentStatement> statements,
+  ) {
+    final grouped = <String, List<ContentStatement>>{};
+    for (final statement in statements) {
+      if (statement.type == StatementType.disclosure) {
+        continue;
+      }
+      grouped.putIfAbsent(statement.topic, () => []).add(statement);
+    }
+    final entries = grouped.entries.toList()
+      ..sort((left, right) {
+        final countOrder = right.value
+            .map((statement) => statement.captureId)
+            .toSet()
+            .length
+            .compareTo(
+              left.value.map((statement) => statement.captureId).toSet().length,
+            );
+        return countOrder != 0 ? countOrder : left.key.compareTo(right.key);
+      });
+    return Map.fromEntries(entries);
   }
 }
 
 final class _ProductHeader extends StatelessWidget {
-  const _ProductHeader({required this.product});
+  const _ProductHeader({required this.group});
 
-  final Product product;
+  final ProductGroup group;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ProductArt(product: product, width: 104, height: 126),
+        ProductArt.forGroup(group, width: 104, height: 126),
         const SizedBox(width: 18),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              StatusPill.forProduct(product),
+              const StatusPill(
+                label: '사용자 확인 완료',
+                icon: Icons.verified_outlined,
+                foreground: Color(0xFF176B4D),
+                background: Color(0xFFE6F5EE),
+              ),
               const SizedBox(height: 12),
               Text(
-                product.brand,
+                group.identity.brand,
                 style: const TextStyle(
                   color: AppTheme.muted,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              Text(product.name, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 6),
-              Text('${product.sizeMl}mL · ${formatWon(product.priceWon)}'),
+              Text(
+                group.identity.name,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 6),
               Text(
-                '콘텐츠 ${product.savedSourceCount}개에서 발견',
+                [
+                  group.identity.category,
+                  group.identity.amount,
+                ].where((value) => value.isNotEmpty).join(' · '),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '콘텐츠 ${group.sourceCount}개가 연결됨',
                 style: const TextStyle(color: AppTheme.muted),
               ),
             ],
@@ -251,53 +174,226 @@ final class _ProductHeader extends StatelessWidget {
   }
 }
 
-final class _ReasonRow extends StatelessWidget {
-  const _ReasonRow(this.reason);
+final class _TopicCard extends StatelessWidget {
+  const _TopicCard({required this.topic, required this.statements});
 
-  final String reason;
+  final String topic;
+  final List<ContentStatement> statements;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceCount = statements
+        .map((statement) => statement.captureId)
+        .toSet()
+        .length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    topic,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Text(
+                  '$sourceCount개 출처',
+                  style: const TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...statements
+                .take(3)
+                .map(
+                  (statement) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 3),
+                          child: Icon(
+                            Icons.format_quote,
+                            size: 16,
+                            color: AppTheme.muted,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            statement.originalExpression,
+                            style: const TextStyle(
+                              color: AppTheme.muted,
+                              height: 1.45,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _DisclosureSummary extends StatelessWidget {
+  const _DisclosureSummary({required this.captures});
+
+  final List<CaptureRecord> captures;
+
+  @override
+  Widget build(BuildContext context) {
+    final observed = captures
+        .where(
+          (capture) =>
+              capture.analysis?.disclosure ==
+              DisclosureObservation.explicitlyObserved,
+        )
+        .length;
+    final notObserved = captures
+        .where(
+          (capture) =>
+              capture.analysis?.disclosure ==
+              DisclosureObservation.notObservedInCapturedMaterial,
+        )
+        .length;
+    final unknown = captures.length - observed - notObserved;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _DisclosureRow(
+              icon: Icons.campaign_outlined,
+              label: '명시적 표시 발견',
+              count: observed,
+            ),
+            const Divider(height: 24),
+            _DisclosureRow(
+              icon: Icons.search,
+              label: '캡처 자료에서 표시 미발견',
+              count: notObserved,
+            ),
+            if (unknown > 0) ...[
+              const Divider(height: 24),
+              _DisclosureRow(
+                icon: Icons.help_outline,
+                label: '확인 불가',
+                count: unknown,
+              ),
+            ],
+            const SizedBox(height: 12),
+            const Text(
+              '표시 미발견은 비광고 판정이 아니에요.',
+              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _DisclosureRow extends StatelessWidget {
+  const _DisclosureRow({
+    required this.icon,
+    required this.label,
+    required this.count,
+  });
+
+  final IconData icon;
+  final String label;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 3),
-          child: Icon(Icons.check_circle, size: 19, color: AppTheme.primary),
-        ),
+        Icon(icon, size: 20),
         const SizedBox(width: 10),
-        Expanded(child: Text(reason)),
+        Expanded(child: Text(label)),
+        Text('$count개', style: const TextStyle(fontWeight: FontWeight.w700)),
       ],
     );
   }
 }
 
-final class _DecisionButton extends StatelessWidget {
-  const _DecisionButton({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onPressed,
-  });
+final class _SourceCard extends StatelessWidget {
+  const _SourceCard({required this.capture});
 
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onPressed;
+  final CaptureRecord capture;
 
   @override
   Widget build(BuildContext context) {
-    if (selected) {
-      return FilledButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 18),
-        label: Text(label),
-      );
-    }
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
+    final platform = capture.normalized.urls.isEmpty
+        ? SourcePlatform.textOnly
+        : capture.normalized.urls.first.platform;
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(sourcePlatformIcon(platform), color: AppTheme.primary),
+        title: Text(
+          sourcePlatformLabel(platform),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(formatCaptureTime(capture.raw.receivedAt)),
+        trailing: const Icon(Icons.expand_more),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          const Divider(),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SelectableText(
+              capture.raw.rawText,
+              style: const TextStyle(color: AppTheme.muted, height: 1.5),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              disclosureLabel(
+                capture.analysis?.disclosure ?? DisclosureObservation.unknown,
+              ),
+              style: const TextStyle(
+                color: AppTheme.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _EmptyTopics extends StatelessWidget {
+  const _EmptyTopics();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(18),
+        child: Text(
+          '연결된 원본에서 공통 주제를 찾지 못했어요.',
+          style: TextStyle(color: AppTheme.muted),
+        ),
+      ),
     );
   }
 }

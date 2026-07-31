@@ -4,28 +4,24 @@ import '../../core/app_theme.dart';
 import '../../core/formatters.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
+import '../analysis/analysis_review_screen.dart';
 import '../common/product_ui.dart';
 import '../product/product_detail_screen.dart';
 
 final class InboxScreen extends StatelessWidget {
-  const InboxScreen({
-    required this.controller,
-    required this.onOpenCompare,
-    super.key,
-  });
+  const InboxScreen({required this.controller, super.key});
 
   final AppController controller;
-  final VoidCallback onOpenCompare;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
-        final products = controller.filteredProducts;
+        final captures = controller.filteredCaptures;
 
         return ListView(
-          key: const PageStorageKey('inbox'),
+          key: const PageStorageKey('content-inbox'),
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
             Row(
@@ -36,42 +32,39 @@ final class InboxScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '수집함',
+                        '콘텐츠',
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'SNS에서 발견한 제품을 결정할 차례예요',
+                        'SNS에서 받은 원본과 분석 상태를 확인해요',
                         style: TextStyle(color: AppTheme.muted),
                       ),
                     ],
                   ),
                 ),
                 IconButton.filledTonal(
-                  tooltip: '공유 받기 데모',
-                  onPressed: controller.simulateShare,
+                  tooltip: '링크나 텍스트 붙여넣기',
+                  onPressed: () => _showManualInput(context),
                   icon: const Icon(Icons.add_link),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            _DecisionSummaryCard(
-              productCount: controller.products.length,
-              decidedCount: controller.decidedCount,
-              comparedCount: controller.comparedProducts.length,
-              onCompare: onOpenCompare,
-            ),
+            _CaptureSummaryCard(controller: controller),
             const SizedBox(height: 24),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: InboxFilter.values
+                children: CaptureFilter.values
                     .map((filter) {
-                      final count = _countForFilter(controller, filter);
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
-                          label: Text('${_filterLabel(filter)} $count'),
+                          label: Text(
+                            '${_filterLabel(filter)} '
+                            '${_countForFilter(controller, filter)}',
+                          ),
                           selected: controller.filter == filter,
                           onSelected: (_) => controller.setFilter(filter),
                         ),
@@ -81,33 +74,20 @@ final class InboxScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            if (products.isEmpty)
-              const _EmptyInbox()
+            if (captures.isEmpty)
+              _EmptyInbox(
+                onShowAll: () {
+                  controller.setFilter(CaptureFilter.all);
+                },
+              )
             else
-              ...products.map(
-                (product) => Padding(
+              ...captures.map(
+                (capture) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: _ProductCard(
-                    product: product,
-                    isCompared: controller.isCompared(product.id),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => ProductDetailScreen(
-                            controller: controller,
-                            productId: product.id,
-                          ),
-                        ),
-                      );
-                    },
-                    onToggleCompare: () {
-                      final accepted = controller.toggleComparison(product.id);
-                      if (!accepted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('제품은 3개까지 비교할 수 있어요.')),
-                        );
-                      }
-                    },
+                  child: _CaptureCard(
+                    capture: capture,
+                    controller: controller,
+                    onTap: () => _openCapture(context, capture),
                   ),
                 ),
               ),
@@ -117,48 +97,72 @@ final class InboxScreen extends StatelessWidget {
     );
   }
 
-  int _countForFilter(AppController controller, InboxFilter filter) {
+  Future<void> _showManualInput(BuildContext context) async {
+    final captureId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _ManualInputSheet(controller: controller),
+    );
+    if (captureId == null || !context.mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            AnalysisReviewScreen(controller: controller, captureId: captureId),
+      ),
+    );
+  }
+
+  void _openCapture(BuildContext context, CaptureRecord capture) {
+    final groupId = capture.groupId;
+    if (capture.status == CaptureStatus.organized && groupId != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              ProductDetailScreen(controller: controller, groupId: groupId),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AnalysisReviewScreen(
+          controller: controller,
+          captureId: capture.raw.id,
+        ),
+      ),
+    );
+  }
+
+  static int _countForFilter(AppController controller, CaptureFilter filter) {
     return switch (filter) {
-      InboxFilter.all => controller.products.length,
-      InboxFilter.needsConfirmation => controller.needsConfirmationCount,
-      InboxFilter.undecided =>
-        controller.products
-            .where(
-              (product) =>
-                  product.analysisStatus == AnalysisStatus.ready &&
-                  product.decision == Decision.undecided,
-            )
-            .length,
-      InboxFilter.decided => controller.decidedCount,
+      CaptureFilter.all => controller.captures.length,
+      CaptureFilter.needsReview => controller.needsReviewCount,
+      CaptureFilter.organized => controller.organizedCount,
+      CaptureFilter.limitedOrFailed => controller.limitedOrFailedCount,
     };
   }
 
-  String _filterLabel(InboxFilter filter) {
+  static String _filterLabel(CaptureFilter filter) {
     return switch (filter) {
-      InboxFilter.all => '전체',
-      InboxFilter.needsConfirmation => '확인 필요',
-      InboxFilter.undecided => '결정 전',
-      InboxFilter.decided => '결정 완료',
+      CaptureFilter.all => '전체',
+      CaptureFilter.needsReview => '확인 필요',
+      CaptureFilter.organized => '정리 완료',
+      CaptureFilter.limitedOrFailed => '자료 부족',
     };
   }
 }
 
-final class _DecisionSummaryCard extends StatelessWidget {
-  const _DecisionSummaryCard({
-    required this.productCount,
-    required this.decidedCount,
-    required this.comparedCount,
-    required this.onCompare,
-  });
+final class _CaptureSummaryCard extends StatelessWidget {
+  const _CaptureSummaryCard({required this.controller});
 
-  final int productCount;
-  final int decidedCount;
-  final int comparedCount;
-  final VoidCallback onCompare;
+  final AppController controller;
 
   @override
   Widget build(BuildContext context) {
-    final undecidedCount = productCount - decidedCount;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -169,15 +173,17 @@ final class _DecisionSummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '이번 주 결정 현황',
+            'INPUT → 정리',
             style: TextStyle(
               color: Color(0xFFD6CDE0),
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            '$productCount개를 모았고,\n$undecidedCount개는 결정만 남았어요.',
+            '현재 원본 ${controller.captures.length}개,\n'
+            '${controller.organizedCount}개를 제품별로 정리했어요.',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 22,
@@ -185,15 +191,24 @@ final class _DecisionSummaryCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: comparedCount >= 2 ? onCompare : null,
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF292032),
-            ),
-            icon: const Icon(Icons.compare_arrows),
-            label: Text('$comparedCount개 제품 비교하기'),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _SummaryBadge(
+                icon: Icons.help_outline,
+                label: '확인 필요 ${controller.needsReviewCount}',
+              ),
+              _SummaryBadge(
+                icon: Icons.link_off,
+                label: '자료 부족 ${controller.limitedOrFailedCount}',
+              ),
+              _SummaryBadge(
+                icon: Icons.inventory_2_outlined,
+                label: '제품 ${controller.groups.length}',
+              ),
+            ],
           ),
         ],
       ),
@@ -201,96 +216,170 @@ final class _DecisionSummaryCard extends StatelessWidget {
   }
 }
 
-final class _ProductCard extends StatelessWidget {
-  const _ProductCard({
-    required this.product,
-    required this.isCompared,
-    required this.onTap,
-    required this.onToggleCompare,
-  });
+final class _SummaryBadge extends StatelessWidget {
+  const _SummaryBadge({required this.icon, required this.label});
 
-  final Product product;
-  final bool isCompared;
-  final VoidCallback onTap;
-  final VoidCallback onToggleCompare;
+  final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _CaptureCard extends StatelessWidget {
+  const _CaptureCard({
+    required this.capture,
+    required this.controller,
+    required this.onTap,
+  });
+
+  final CaptureRecord capture;
+  final AppController controller;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final platform = capture.normalized.urls.isEmpty
+        ? SourcePlatform.textOnly
+        : capture.normalized.urls.first.platform;
+    final mention = capture.primaryMention;
+    final productLabel = [
+      mention?.brand.value,
+      mention?.name.value,
+    ].whereType<String>().where((value) => value.isNotEmpty).join(' ');
+
     return Card(
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
+          padding: const EdgeInsets.all(16),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ProductArt(product: product),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    StatusPill.forProduct(product),
-                    const SizedBox(height: 10),
-                    Text(
-                      product.brand,
-                      style: const TextStyle(
-                        color: AppTheme.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEE9FA),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    Text(
-                      product.name,
-                      style: Theme.of(context).textTheme.titleMedium,
+                    child: Icon(
+                      sourcePlatformIcon(platform),
+                      color: AppTheme.primary,
+                      size: 20,
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${product.sizeMl}mL · ${formatWon(product.priceWon)}',
-                      style: const TextStyle(color: AppTheme.muted),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.layers_outlined,
-                          size: 17,
-                          color: overlapColor(product.overlap),
+                        Text(
+                          sourcePlatformLabel(platform),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            overlapLabel(product.overlap),
-                            style: TextStyle(
-                              color: overlapColor(product.overlap),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
+                        Text(
+                          formatCaptureTime(capture.raw.receivedAt),
+                          style: const TextStyle(
+                            color: AppTheme.muted,
+                            fontSize: 12,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '콘텐츠 ${product.savedSourceCount}개에서 발견',
-                      style: const TextStyle(
-                        color: AppTheme.muted,
-                        fontSize: 12,
+                  ),
+                  StatusPill.forCapture(capture),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                capture.raw.rawText.isEmpty
+                    ? '공유된 텍스트가 없어요.'
+                    : capture.raw.rawText,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppTheme.muted, height: 1.45),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.background,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      productLabel.isEmpty
+                          ? Icons.search_off
+                          : Icons.auto_awesome_outlined,
+                      size: 18,
+                      color: AppTheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        productLabel.isEmpty ? '제품을 특정하지 못했어요' : productLabel,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
+                    if (mention != null)
+                      Text(
+                        confidenceBandLabel(mention.confidenceBand),
+                        style: const TextStyle(
+                          color: AppTheme.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: isCompared ? '비교에서 빼기' : '비교에 담기',
-                onPressed: product.analysisStatus == AnalysisStatus.ready
-                    ? onToggleCompare
-                    : null,
-                icon: Icon(
-                  isCompared ? Icons.check_box : Icons.add_box_outlined,
-                  color: isCompared ? AppTheme.primary : AppTheme.muted,
-                ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: switch (capture.status) {
+                  CaptureStatus.failed => TextButton.icon(
+                    onPressed: () => controller.retryAnalysis(capture.raw.id),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('다시 분석'),
+                  ),
+                  CaptureStatus.organized => TextButton(
+                    onPressed: onTap,
+                    child: const Text('제품별 정리 보기'),
+                  ),
+                  _ => TextButton(
+                    onPressed: onTap,
+                    child: const Text('분석 결과 확인'),
+                  ),
+                },
               ),
             ],
           ),
@@ -300,8 +389,94 @@ final class _ProductCard extends StatelessWidget {
   }
 }
 
+final class _ManualInputSheet extends StatefulWidget {
+  const _ManualInputSheet({required this.controller});
+
+  final AppController controller;
+
+  @override
+  State<_ManualInputSheet> createState() => _ManualInputSheetState();
+}
+
+final class _ManualInputSheetState extends State<_ManualInputSheet> {
+  final _textController = TextEditingController();
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('링크나 공유 텍스트 추가', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          const Text(
+            '입력한 원문은 그대로 보존하고, 정규화·추출 결과는 별도로 만들어요.',
+            style: TextStyle(color: AppTheme.muted),
+          ),
+          const SizedBox(height: 18),
+          TextField(
+            controller: _textController,
+            autofocus: true,
+            minLines: 4,
+            maxLines: 7,
+            decoration: const InputDecoration(
+              hintText: 'SNS 공유 텍스트와 URL을 붙여넣어보세요.',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () {
+                final text = _textController.text;
+                if (text.trim().isEmpty) {
+                  return;
+                }
+                final captureId = widget.controller.addManualInput(text);
+                Navigator.of(context).pop(captureId);
+              },
+              child: const Text('저장하고 분석하기'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () {
+                _textController.text =
+                    '데이라이트 에어리 선 플루이드 50ml. 백탁이 적고 '
+                    '가볍다고 소개했어요. #제품제공 '
+                    'https://instagram.com/reel/daylight';
+              },
+              child: const Text('샘플 입력 채우기'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 final class _EmptyInbox extends StatelessWidget {
-  const _EmptyInbox();
+  const _EmptyInbox({required this.onShowAll});
+
+  final VoidCallback onShowAll;
 
   @override
   Widget build(BuildContext context) {
@@ -312,11 +487,16 @@ final class _EmptyInbox extends StatelessWidget {
           const Icon(Icons.inbox_outlined, size: 48, color: AppTheme.muted),
           const SizedBox(height: 16),
           Text(
-            '이 조건에 맞는 제품이 없어요',
+            '이 상태의 콘텐츠가 없어요',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          const Text('다른 필터를 선택해보세요.', style: TextStyle(color: AppTheme.muted)),
+          const Text(
+            '다른 상태를 확인하거나 새 입력을 추가해보세요.',
+            style: TextStyle(color: AppTheme.muted),
+          ),
+          const SizedBox(height: 12),
+          TextButton(onPressed: onShowAll, child: const Text('전체 보기')),
         ],
       ),
     );

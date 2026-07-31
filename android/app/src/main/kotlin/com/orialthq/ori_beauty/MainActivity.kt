@@ -25,6 +25,25 @@ class MainActivity : FlutterActivity() {
                 channel.setMethodCallHandler { call, result ->
                     when (call.method) {
                         "drainPendingShares" -> result.success(incomingStore.pending())
+                        "loadAppSnapshot" -> result.success(incomingStore.loadAppSnapshot())
+                        "saveAppSnapshot" -> {
+                            val snapshot = call.arguments as? String
+                            if (snapshot.isNullOrBlank()) {
+                                result.error(
+                                    "invalid_snapshot",
+                                    "App snapshot must be a non-empty string.",
+                                    null,
+                                )
+                            } else if (incomingStore.saveAppSnapshot(snapshot)) {
+                                result.success(true)
+                            } else {
+                                result.error(
+                                    "snapshot_save_failed",
+                                    "App snapshot could not be committed to durable storage.",
+                                    null,
+                                )
+                            }
+                        }
                         "acknowledgeShares" -> {
                             val arguments = call.arguments as? Map<*, *>
                             val ids =
@@ -52,7 +71,12 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun stageIncomingShare(intent: Intent?) {
-        val payload = IncomingShareIntentParser.parse(intent) ?: return
+        val sourcePackage = referrer?.host
+        val payload =
+            IncomingShareIntentParser.parse(
+                intent = intent,
+                sourcePackage = sourcePackage,
+            ) ?: return
         incomingStore.append(payload)
         incomingChannel?.invokeMethod("pendingSharesChanged", null)
     }

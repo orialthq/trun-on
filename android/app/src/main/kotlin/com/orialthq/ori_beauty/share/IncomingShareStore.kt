@@ -17,14 +17,13 @@ class IncomingShareStore(context: Context) {
                 .put("receivedAtEpochMs", payload.receivedAtEpochMs)
                 .put("sharedText", payload.sharedText)
                 .put("discoveredUrl", payload.discoveredUrl)
+                .put("sourcePackage", payload.sourcePackage)
+                .put("mimeType", payload.mimeType)
+                .put("wasTruncated", payload.wasTruncated)
+                .put("originalLength", payload.originalLength)
 
         pending.put(item)
-        val trimmed = JSONArray()
-        val start = maxOf(0, pending.length() - MAX_PENDING_SHARES)
-        for (index in start until pending.length()) {
-            trimmed.put(pending.getJSONObject(index))
-        }
-        writeArray(trimmed)
+        writeArray(pending)
     }
 
     @Synchronized
@@ -39,10 +38,33 @@ class IncomingShareStore(context: Context) {
                         "receivedAtEpochMs" to item.getLong("receivedAtEpochMs"),
                         "sharedText" to item.getString("sharedText"),
                         "discoveredUrl" to item.optString("discoveredUrl").ifBlank { null },
+                        "sourcePackage" to
+                            item.optString("sourcePackage").ifBlank { null },
+                        "mimeType" to item.optString("mimeType", "text/plain"),
+                        "wasTruncated" to item.optBoolean("wasTruncated", false),
+                        "originalLength" to
+                            item.optInt(
+                                "originalLength",
+                                item.getString("sharedText").length,
+                            ),
                     ),
                 )
             }
         }
+    }
+
+    @Synchronized
+    fun loadAppSnapshot(): String? = preferences.getString(KEY_APP_SNAPSHOT, null)
+
+    @Synchronized
+    fun saveAppSnapshot(snapshot: String): Boolean {
+        if (snapshot.isBlank()) {
+            return false
+        }
+        return preferences
+            .edit()
+            .putString(KEY_APP_SNAPSHOT, snapshot)
+            .commit()
     }
 
     @Synchronized
@@ -74,6 +96,6 @@ class IncomingShareStore(context: Context) {
     companion object {
         private const val PREFERENCES_NAME = "incoming_share_store"
         private const val KEY_PENDING_SHARES = "pending_shares_v1"
-        private const val MAX_PENDING_SHARES = 50
+        private const val KEY_APP_SNAPSHOT = "app_snapshot_v1"
     }
 }

@@ -60,9 +60,16 @@ abstract final class AppTheme {
         ),
       ),
       chipTheme: ChipThemeData(
+        backgroundColor: Colors.white,
+        selectedColor: const Color(0xFFEEE9FA),
+        checkmarkColor: primary,
         side: const BorderSide(color: border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(color: ink, fontWeight: FontWeight.w600),
+        secondaryLabelStyle: const TextStyle(
+          color: primary,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       navigationBarTheme: const NavigationBarThemeData(
         backgroundColor: Colors.white,
