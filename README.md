@@ -131,7 +131,9 @@ pass/fail 집계만 남깁니다.
 
 세부 범위는 [제품 정의](docs/PRODUCT.md), 구현 계약은
 [아키텍처](docs/ARCHITECTURE.md), 진행 계획은
-[베이스라인 로드맵](docs/ROADMAP.md)을 참고하세요.
+[베이스라인 로드맵](docs/ROADMAP.md)을 참고하세요. iOS 팀원은
+[iOS 실행 가이드](docs/IOS_TEAMMATE_GUIDE.md)에서 현재 지원 범위와 실행 방법을
+확인할 수 있습니다.
 
 ## 기여 및 라이선스
 
