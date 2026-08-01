@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
+import '../../data/place_reminder_service.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
 
@@ -78,6 +79,14 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
           if (capture.raw.attachments.isNotEmpty) ...[
             const SizedBox(height: 24),
             _SourceImage(attachment: capture.raw.attachments.first),
+          ],
+          if (structured.place case final place? when place.hasAddress) ...[
+            const SizedBox(height: 16),
+            _PlaceCard(
+              captureId: capture.raw.id,
+              title: place.name ?? structured.title.value ?? '저장한 장소',
+              place: place,
+            ),
           ],
           if (structured.conflicts.isNotEmpty ||
               structured.warnings.isNotEmpty) ...[
@@ -203,6 +212,7 @@ final class _KindBadge extends StatelessWidget {
       ContentKind.productReview => ('리뷰', Icons.rate_review_outlined),
       ContentKind.menuComparison => ('메뉴 비교', Icons.compare_arrows_rounded),
       ContentKind.beautyProduct => ('뷰티 제품', Icons.spa_outlined),
+      ContentKind.place => ('장소', Icons.location_on_outlined),
       ContentKind.unknown => ('기타', Icons.image_outlined),
     };
     return _Badge(label: label, icon: icon, color: AppTheme.primary);
@@ -603,4 +613,438 @@ final class _ReviewNotice extends StatelessWidget {
       ),
     );
   }
+}
+
+final class _PlaceCard extends StatefulWidget {
+  const _PlaceCard({
+    required this.captureId,
+    required this.title,
+    required this.place,
+  });
+
+  final String captureId;
+  final String title;
+  final StructuredPlace place;
+
+  @override
+  State<_PlaceCard> createState() => _PlaceCardState();
+}
+
+final class _PlaceCardState extends State<_PlaceCard>
+    with WidgetsBindingObserver {
+  static const _service = PlaceReminderService();
+
+  var _enabled = false;
+  var _radiusMeters = PlaceReminderService.defaultRadiusMeters;
+  var _loading = true;
+  var _busy = false;
+  var _waitingForBackgroundPermission = false;
+
+  String get _address => widget.place.address!;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadState();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed ||
+        !_waitingForBackgroundPermission) {
+      return;
+    }
+    _waitingForBackgroundPermission = false;
+    _resumeAfterSettings();
+  }
+
+  Future<void> _loadState() async {
+    try {
+      final state = await _service.getState(widget.captureId);
+      if (!mounted) return;
+      setState(() {
+        _enabled = state.enabled;
+        _radiusMeters = state.radiusMeters;
+        _loading = false;
+      });
+    } on Object {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _resumeAfterSettings() async {
+    final state = await _service.getState(widget.captureId);
+    if (!mounted) return;
+    if (state.backgroundGranted) {
+      await _enable();
+      return;
+    }
+    setState(() => _busy = false);
+    _showMessage('위치 권한을 “${state.backgroundPermissionLabel}”으로 바꿔 주세요.');
+  }
+
+  Future<void> _toggle(bool value) async {
+    if (_busy) return;
+    if (value) {
+      await _enable();
+    } else {
+      setState(() => _busy = true);
+      try {
+        await _service.disable(widget.captureId);
+        if (mounted) setState(() => _enabled = false);
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _enable() async {
+    if (!_busy && mounted) setState(() => _busy = true);
+    try {
+      var result = await _service.enable(
+        id: widget.captureId,
+        title: widget.title,
+        address: _address,
+        radiusMeters: _radiusMeters,
+      );
+      if (!mounted) return;
+
+      if (result.status ==
+          PlaceReminderEnableStatus.needsForegroundPermission) {
+        final granted = await _service.requestForegroundPermission();
+        if (!granted || !mounted) {
+          _showMessage('근처 알림을 받으려면 위치 권한이 필요해요.');
+          return;
+        }
+        result = await _service.enable(
+          id: widget.captureId,
+          title: widget.title,
+          address: _address,
+          radiusMeters: _radiusMeters,
+        );
+      }
+      if (!mounted) return;
+
+      switch (result.status) {
+        case PlaceReminderEnableStatus.enabled:
+          setState(() {
+            _enabled = true;
+            _radiusMeters = result.radiusMeters ?? _radiusMeters;
+          });
+          _showMessage('${_formatRadius(_radiusMeters)} 안에 들어오면 알려드릴게요.');
+        case PlaceReminderEnableStatus.needsBackgroundPermission:
+          final label = result.backgroundPermissionLabel ?? '항상 허용';
+          final openSettings = await _confirmBackgroundPermission(label);
+          if (!mounted || !openSettings) return;
+          _waitingForBackgroundPermission = true;
+          await _service.openBackgroundLocationSettings();
+          return;
+        case PlaceReminderEnableStatus.addressNotFound:
+          _showMessage('주소 위치를 찾지 못했어요. 주소가 더 선명한 캡처로 시도해 주세요.');
+        case PlaceReminderEnableStatus.unavailable:
+          _showMessage('근처 알림은 현재 안드로이드에서 사용할 수 있어요.');
+        case PlaceReminderEnableStatus.failed:
+          _showMessage('근처 알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요.');
+        case PlaceReminderEnableStatus.needsForegroundPermission:
+          _showMessage('위치 권한을 허용해 주세요.');
+      }
+    } on Object {
+      if (mounted) _showMessage('근처 알림을 켜지 못했어요.');
+    } finally {
+      if (mounted && !_waitingForBackgroundPermission) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<bool> _confirmBackgroundPermission(String label) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('앱을 닫아도 알려드릴까요?'),
+            content: Text(
+              '설정에서 위치 권한을 “$label”으로 선택해 주세요. '
+              '현재 위치는 챙김 서버로 전송하지 않아요.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('나중에'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('설정 열기'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _updateRadius(double value) async {
+    if (!_enabled || _busy) return;
+    await _enable();
+  }
+
+  Future<void> _openMap() async {
+    try {
+      await _service.openMap(name: widget.place.name, address: _address);
+    } on Object {
+      if (mounted) _showMessage('지도를 열지 못했어요.');
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final category = _placeCategoryLabel(widget.place.category);
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 116,
+            width: double.infinity,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Positioned.fill(
+                  child: CustomPaint(painter: _MapPainter()),
+                ),
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primary.withValues(alpha: 0.25),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.location_on_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (category != null) ...[
+                  Text(
+                    category,
+                    style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                ],
+                Text(
+                  widget.place.name ?? widget.title,
+                  style: const TextStyle(
+                    color: AppTheme.ink,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _address,
+                  style: const TextStyle(
+                    color: AppTheme.muted,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: _openMap,
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('지도에서 보기'),
+                ),
+                const Divider(height: 34),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '근처에 가면 알림',
+                            style: TextStyle(
+                              color: AppTheme.ink,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            '기본은 꺼져 있어요',
+                            style: TextStyle(
+                              color: AppTheme.muted,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_loading || _busy)
+                      const SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      Switch(value: _enabled, onChanged: _toggle),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    const Text(
+                      '알림 반경',
+                      style: TextStyle(color: AppTheme.muted, fontSize: 14),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _formatRadius(_radiusMeters),
+                      style: const TextStyle(
+                        color: AppTheme.ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                Slider(
+                  min: PlaceReminderService.minRadiusMeters,
+                  max: PlaceReminderService.maxRadiusMeters,
+                  divisions: 49,
+                  value: _radiusMeters.clamp(
+                    PlaceReminderService.minRadiusMeters,
+                    PlaceReminderService.maxRadiusMeters,
+                  ),
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _radiusMeters = value),
+                  onChangeEnd: _updateRadius,
+                ),
+                const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      size: 15,
+                      color: AppTheme.subtle,
+                    ),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '위치 판단은 휴대폰에서 처리하며 현재 위치를 분석 서버로 보내지 않아요.',
+                        style: TextStyle(
+                          color: AppTheme.subtle,
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatRadius(double meters) {
+    if (meters < 1000) return '${meters.round()}m';
+    final kilometers = meters / 1000;
+    return '${kilometers.toStringAsFixed(kilometers == kilometers.round() ? 0 : 1)}km';
+  }
+
+  static String? _placeCategoryLabel(PlaceCategory? category) =>
+      switch (category) {
+        PlaceCategory.restaurant => '맛집',
+        PlaceCategory.cafe => '카페',
+        PlaceCategory.beauty => '뷰티',
+        PlaceCategory.shopping => '쇼핑',
+        PlaceCategory.lodging => '숙소',
+        PlaceCategory.activity => '놀거리',
+        PlaceCategory.other => '장소',
+        null => null,
+      };
+}
+
+final class _MapPainter extends CustomPainter {
+  const _MapPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFFF1F5F3),
+    );
+    final roadPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 14
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(-12, size.height * 0.78),
+      Offset(size.width + 18, size.height * 0.22),
+      roadPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.18, -10),
+      Offset(size.width * 0.72, size.height + 10),
+      roadPaint..strokeWidth = 9,
+    );
+    final blockPaint = Paint()..color = const Color(0xFFDDE9E2);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(18, 14, size.width * 0.24, 29),
+        const Radius.circular(8),
+      ),
+      blockPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * 0.72, 68, size.width * 0.2, 30),
+        const Radius.circular(8),
+      ),
+      blockPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

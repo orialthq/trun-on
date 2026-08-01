@@ -32,7 +32,18 @@ enum ContentKind {
   commerceProduct,
   productReview,
   menuComparison,
+  place,
   unknown,
+}
+
+enum PlaceCategory {
+  restaurant,
+  cafe,
+  beauty,
+  shopping,
+  lodging,
+  activity,
+  other,
 }
 
 enum StructuredCompleteness {
@@ -140,6 +151,7 @@ final class IncomingShare {
     this.originalLength,
     this.shareKind = ShareKind.text,
     this.attachments = const [],
+    this.sourceDeletionAvailable = false,
   });
 
   factory IncomingShare.fromPlatformMap(Map<Object?, Object?> map) {
@@ -185,6 +197,7 @@ final class IncomingShare {
           : sharedText.length,
       shareKind: shareKind,
       attachments: attachments,
+      sourceDeletionAvailable: map['sourceDeletionAvailable'] == true,
     );
   }
 
@@ -198,6 +211,7 @@ final class IncomingShare {
   final int? originalLength;
   final ShareKind shareKind;
   final List<IncomingAttachment> attachments;
+  final bool sourceDeletionAvailable;
 
   static String? extractFirstUrl(String text) {
     final match = RegExp(r'https?://[^\s]+').firstMatch(text);
@@ -709,6 +723,49 @@ final class AnalysisConflict {
   };
 }
 
+final class StructuredPlace {
+  const StructuredPlace({
+    required this.name,
+    required this.address,
+    required this.category,
+    required this.confidence,
+    required this.evidenceIds,
+  });
+
+  factory StructuredPlace.fromJson(Map<String, Object?> json) {
+    _requireExactKeys(json, const {
+      'name',
+      'address',
+      'category',
+      'confidence',
+      'evidenceIds',
+    }, 'place');
+    return StructuredPlace(
+      name: _nullableString(json['name'], 'place.name'),
+      address: _nullableString(json['address'], 'place.address'),
+      category: _placeCategory(json['category']),
+      confidence: _confidence(json['confidence'], 'place.confidence'),
+      evidenceIds: _strictStringList(json['evidenceIds'], 'place.evidenceIds'),
+    );
+  }
+
+  final String? name;
+  final String? address;
+  final PlaceCategory? category;
+  final double confidence;
+  final List<String> evidenceIds;
+
+  bool get hasAddress => address?.trim().isNotEmpty == true;
+
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'address': address,
+    'category': category?.name,
+    'confidence': confidence,
+    'evidenceIds': evidenceIds,
+  };
+}
+
 final class StructuredContentAnalysis {
   const StructuredContentAnalysis({
     required this.schemaVersion,
@@ -717,6 +774,7 @@ final class StructuredContentAnalysis {
     required this.contentKind,
     required this.completeness,
     required this.title,
+    required this.place,
     required this.summary,
     required this.evidence,
     required this.ingredientGroups,
@@ -727,13 +785,16 @@ final class StructuredContentAnalysis {
   });
 
   factory StructuredContentAnalysis.fromJson(Map<String, Object?> json) {
-    _requireExactKeys(json, const {
+    final normalizedJson = Map<String, Object?>.of(json);
+    normalizedJson.putIfAbsent('place', () => null);
+    _requireExactKeys(normalizedJson, const {
       'schemaVersion',
       'model',
       'domain',
       'contentKind',
       'completeness',
       'title',
+      'place',
       'summary',
       'evidence',
       'ingredientGroups',
@@ -743,10 +804,10 @@ final class StructuredContentAnalysis {
       'warnings',
     }, 'analysis');
     final schemaVersion = _requiredString(
-      json['schemaVersion'],
+      normalizedJson['schemaVersion'],
       'analysis.schemaVersion',
     );
-    final model = _requiredString(json['model'], 'analysis.model');
+    final model = _requiredString(normalizedJson['model'], 'analysis.model');
     if (schemaVersion != '1.0' || model != 'gpt-5.6-luna') {
       throw const FormatException(
         'Structured analysis version or model is unsupported.',
@@ -755,32 +816,42 @@ final class StructuredContentAnalysis {
     final result = StructuredContentAnalysis(
       schemaVersion: schemaVersion,
       model: model,
-      domain: _contentDomain(json['domain']),
-      contentKind: _contentKind(json['contentKind']),
-      completeness: _structuredCompleteness(json['completeness']),
-      title: StructuredTitle.fromJson(_requiredMap(json['title'], 'title')),
-      summary: _stringAllowEmpty(json['summary'], 'analysis.summary'),
+      domain: _contentDomain(normalizedJson['domain']),
+      contentKind: _contentKind(normalizedJson['contentKind']),
+      completeness: _structuredCompleteness(normalizedJson['completeness']),
+      title: StructuredTitle.fromJson(
+        _requiredMap(normalizedJson['title'], 'title'),
+      ),
+      place: normalizedJson['place'] == null
+          ? null
+          : StructuredPlace.fromJson(
+              _requiredMap(normalizedJson['place'], 'place'),
+            ),
+      summary: _stringAllowEmpty(normalizedJson['summary'], 'analysis.summary'),
       evidence: _strictMapList(
-        json['evidence'],
+        normalizedJson['evidence'],
         'analysis.evidence',
       ).map(StructuredEvidence.fromJson).toList(growable: false),
       ingredientGroups: _strictMapList(
-        json['ingredientGroups'],
+        normalizedJson['ingredientGroups'],
         'analysis.ingredientGroups',
       ).map(IngredientGroup.fromJson).toList(growable: false),
       steps: _strictMapList(
-        json['steps'],
+        normalizedJson['steps'],
         'analysis.steps',
       ).map(RecipeStep.fromJson).toList(growable: false),
       facts: _strictMapList(
-        json['facts'],
+        normalizedJson['facts'],
         'analysis.facts',
       ).map(AnalysisFact.fromJson).toList(growable: false),
       conflicts: _strictMapList(
-        json['conflicts'],
+        normalizedJson['conflicts'],
         'analysis.conflicts',
       ).map(AnalysisConflict.fromJson).toList(growable: false),
-      warnings: _strictStringList(json['warnings'], 'analysis.warnings'),
+      warnings: _strictStringList(
+        normalizedJson['warnings'],
+        'analysis.warnings',
+      ),
     );
     result._validateEvidenceReferences();
     return result;
@@ -792,6 +863,7 @@ final class StructuredContentAnalysis {
   final ContentKind contentKind;
   final StructuredCompleteness completeness;
   final StructuredTitle title;
+  final StructuredPlace? place;
   final String summary;
   final List<StructuredEvidence> evidence;
   final List<IngredientGroup> ingredientGroups;
@@ -814,6 +886,7 @@ final class StructuredContentAnalysis {
     final validIds = ids.toSet();
     final references = <String>[
       ...title.evidenceIds,
+      ...?place?.evidenceIds,
       for (final group in ingredientGroups)
         for (final ingredient in group.ingredients) ...ingredient.evidenceIds,
       for (final step in steps) ...step.evidenceIds,
@@ -837,6 +910,7 @@ final class StructuredContentAnalysis {
       ContentKind.commerceProduct => 'commerce_product',
       ContentKind.productReview => 'product_review',
       ContentKind.menuComparison => 'menu_comparison',
+      ContentKind.place => 'place',
       _ => contentKind.name,
     },
     'completeness': switch (completeness) {
@@ -844,6 +918,7 @@ final class StructuredContentAnalysis {
       _ => completeness.name,
     },
     'title': title.toJson(),
+    'place': place?.toJson(),
     'summary': summary,
     'evidence': evidence.map((item) => item.toJson()).toList(),
     'ingredientGroups': ingredientGroups.map((item) => item.toJson()).toList(),
@@ -939,10 +1014,25 @@ ContentKind _contentKind(Object? value) {
     'commerce_product' => ContentKind.commerceProduct,
     'product_review' => ContentKind.productReview,
     'menu_comparison' => ContentKind.menuComparison,
+    'place' => ContentKind.place,
     'unknown' => ContentKind.unknown,
     _ => throw const FormatException(
       'Structured analysis.contentKind is invalid.',
     ),
+  };
+}
+
+PlaceCategory? _placeCategory(Object? value) {
+  return switch (value) {
+    null => null,
+    'restaurant' => PlaceCategory.restaurant,
+    'cafe' => PlaceCategory.cafe,
+    'beauty' => PlaceCategory.beauty,
+    'shopping' => PlaceCategory.shopping,
+    'lodging' => PlaceCategory.lodging,
+    'activity' => PlaceCategory.activity,
+    'other' => PlaceCategory.other,
+    _ => throw const FormatException('Structured place.category is invalid.'),
   };
 }
 

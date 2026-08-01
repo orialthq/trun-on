@@ -297,14 +297,20 @@ final class _CaptureStatusLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (capture.status) {
-      CaptureStatus.received ||
-      CaptureStatus.analyzing => ('분석 중', AppTheme.primary),
-      CaptureStatus.sourceLimited => ('내용 부족', const Color(0xFFB26A00)),
-      CaptureStatus.needsReview => ('확인 필요', const Color(0xFFB26A00)),
-      CaptureStatus.organized => ('정리 완료', const Color(0xFF16815D)),
-      CaptureStatus.failed => ('분석 실패', const Color(0xFFD14343)),
-    };
+    final isLinkOnly =
+        capture.status == CaptureStatus.sourceLimited &&
+        capture.raw.attachments.isEmpty &&
+        capture.normalized.completeness == MaterialCompleteness.linkOnly;
+    final (label, color) = isLinkOnly
+        ? ('링크 저장', const Color(0xFFB26A00))
+        : switch (capture.status) {
+            CaptureStatus.received ||
+            CaptureStatus.analyzing => ('분석 중', AppTheme.primary),
+            CaptureStatus.sourceLimited => ('내용 부족', const Color(0xFFB26A00)),
+            CaptureStatus.needsReview => ('확인 필요', const Color(0xFFB26A00)),
+            CaptureStatus.organized => ('정리 완료', const Color(0xFF16815D)),
+            CaptureStatus.failed => ('분석 실패', const Color(0xFFD14343)),
+          };
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -346,12 +352,18 @@ final class _CaptureCard extends StatelessWidget {
         : capture.normalized.urls.first.platform;
     final mention = capture.primaryMention;
     final structured = capture.analysis?.structuredContent;
+    final isLinkOnly =
+        capture.status == CaptureStatus.sourceLimited &&
+        capture.raw.attachments.isEmpty &&
+        capture.normalized.completeness == MaterialCompleteness.linkOnly;
     final productLabel = [
       mention?.brand.value,
       mention?.name.value,
     ].whereType<String>().where((value) => value.isNotEmpty).join(' ');
     final title = structured?.title.value?.trim().isNotEmpty == true
         ? structured!.title.value!
+        : isLinkOnly
+        ? '링크를 저장했어요'
         : capture.status == CaptureStatus.analyzing
         ? '이미지에서 내용을 읽는 중이에요'
         : capture.status == CaptureStatus.failed
@@ -363,6 +375,8 @@ final class _CaptureCard extends StatelessWidget {
         : productLabel;
     final description = structured?.summary.trim().isNotEmpty == true
         ? structured!.summary
+        : isLinkOnly
+        ? '게시물 내용은 전달되지 않았어요. 스크린샷을 보내면 정리할 수 있어요.'
         : capture.status == CaptureStatus.failed
         ? _failureMessage(capture.analysis?.failureCode)
         : capture.raw.rawText.isNotEmpty
@@ -561,7 +575,8 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
           Text('콘텐츠 추가', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 7),
           const Text(
-            'SNS에서 공유한 텍스트나 링크를 붙여넣어 주세요.\n원문은 수정하지 않고 그대로 보관해요.',
+            'SNS에서 공유한 본문이나 링크를 붙여넣어 주세요.\n'
+            '링크만 입력하면 원본 링크만 저장돼요.',
             style: TextStyle(color: AppTheme.muted, height: 1.5),
           ),
           const SizedBox(height: 20),
@@ -572,7 +587,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
             maxLines: 8,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: '텍스트 또는 URL을 입력해 주세요',
+              hintText: '본문 텍스트 또는 URL을 입력해 주세요',
               hintStyle: const TextStyle(color: Color(0xFFADB5BD)),
               filled: true,
               fillColor: AppTheme.background,

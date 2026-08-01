@@ -11,8 +11,14 @@ abstract interface class IncomingShareService {
 
   Future<void> acknowledge(Iterable<String> ids);
 
+  Future<SharedSourceDeletionResult> deleteSharedSource(String transportId);
+
+  Future<void> keepSharedSource(String transportId);
+
   Future<void> dispose();
 }
+
+enum SharedSourceDeletionResult { deleted, kept, unavailable, failed }
 
 final class MethodChannelIncomingShareService implements IncomingShareService {
   MethodChannelIncomingShareService() {
@@ -55,6 +61,28 @@ final class MethodChannelIncomingShareService implements IncomingShareService {
   }
 
   @override
+  Future<SharedSourceDeletionResult> deleteSharedSource(
+    String transportId,
+  ) async {
+    final value = await _channel.invokeMethod<String>('deleteSharedSource', {
+      'transportId': transportId,
+    });
+    return switch (value) {
+      'deleted' => SharedSourceDeletionResult.deleted,
+      'kept' => SharedSourceDeletionResult.kept,
+      'unavailable' => SharedSourceDeletionResult.unavailable,
+      _ => SharedSourceDeletionResult.failed,
+    };
+  }
+
+  @override
+  Future<void> keepSharedSource(String transportId) {
+    return _channel.invokeMethod<void>('keepSharedSource', {
+      'transportId': transportId,
+    });
+  }
+
+  @override
   Future<void> dispose() => _pendingController.close();
 }
 
@@ -78,6 +106,14 @@ final class InMemoryIncomingShareService implements IncomingShareService {
   Future<void> acknowledge(Iterable<String> ids) async {
     _shares.removeWhere((share) => ids.contains(share.id));
   }
+
+  @override
+  Future<SharedSourceDeletionResult> deleteSharedSource(
+    String transportId,
+  ) async => SharedSourceDeletionResult.unavailable;
+
+  @override
+  Future<void> keepSharedSource(String transportId) async {}
 
   @override
   Future<void> dispose() => _pendingController.close();

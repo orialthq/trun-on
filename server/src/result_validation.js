@@ -9,6 +9,7 @@ const CONTENT_KINDS = new Set([
   "commerce_product",
   "product_review",
   "menu_comparison",
+  "place",
   "unknown",
 ]);
 const COMPLETENESS = new Set([
@@ -34,6 +35,7 @@ const ROOT_KEYS = new Set([
   "contentKind",
   "completeness",
   "title",
+  "place",
   "summary",
   "evidence",
   "ingredientGroups",
@@ -129,6 +131,41 @@ export function validateAnalysisResult(result) {
   assertConfidence(result.title.confidence, "title.confidence");
   assertStringArray(result.title.evidenceIds, "title.evidenceIds");
 
+  assertExactKeys(
+    result.place,
+    new Set(["name", "address", "category", "confidence", "evidenceIds"]),
+    "place",
+  );
+  assertString(result.place.name, "place.name", { nullable: true });
+  assertString(result.place.address, "place.address", { nullable: true });
+  const placeCategories = new Set([
+    "restaurant",
+    "cafe",
+    "beauty",
+    "shopping",
+    "lodging",
+    "activity",
+    "other",
+  ]);
+  if (
+    result.place.category !== null &&
+    !placeCategories.has(result.place.category)
+  ) {
+    throw invalid("place.category is invalid");
+  }
+  assertConfidence(result.place.confidence, "place.confidence");
+  assertStringArray(result.place.evidenceIds, "place.evidenceIds");
+  const hasPlace = result.place.name !== null || result.place.address !== null;
+  if (
+    (!hasPlace &&
+      (result.place.category !== null ||
+        result.place.confidence !== 0 ||
+        result.place.evidenceIds.length > 0)) ||
+    (hasPlace && result.place.category === null)
+  ) {
+    throw invalid("place fields are inconsistent");
+  }
+
   if (!Array.isArray(result.evidence)) {
     throw invalid("evidence is not an array");
   }
@@ -154,6 +191,7 @@ export function validateAnalysisResult(result) {
 
   const referenceLists = [
     ["title.evidenceIds", result.title.evidenceIds],
+    ["place.evidenceIds", result.place.evidenceIds],
   ];
 
   if (!Array.isArray(result.ingredientGroups)) {

@@ -18,6 +18,26 @@ void main() {
     expect(analysis.steps.single.evidenceIds, ['e2']);
   });
 
+  test('parses observed place data and keeps old snapshots readable', () {
+    final response = _validResponse();
+    response['contentKind'] = 'place';
+    response['place'] = <String, Object?>{
+      'name': '챙김 식당',
+      'address': '서울특별시 중구 세종대로 110',
+      'category': 'restaurant',
+      'confidence': 0.94,
+      'evidenceIds': ['e1'],
+    };
+
+    final analysis = StructuredContentAnalysis.fromJson(response);
+    expect(analysis.contentKind, ContentKind.place);
+    expect(analysis.place?.category, PlaceCategory.restaurant);
+    expect(analysis.place?.hasAddress, isTrue);
+
+    final legacy = _validResponse()..remove('place');
+    expect(StructuredContentAnalysis.fromJson(legacy).place, isNull);
+  });
+
   test('rejects unknown versions and enum values', () {
     final wrongVersion = _validResponse()..['schemaVersion'] = '2.0';
     expect(
@@ -205,6 +225,13 @@ Map<String, Object?> _validResponse() {
     "status": "observed",
     "confidence": 0.98,
     "evidenceIds": ["e1"]
+  },
+  "place": {
+    "name": null,
+    "address": null,
+    "category": null,
+    "confidence": 0,
+    "evidenceIds": []
   },
   "summary": "화면에서 확인한 재료와 순서예요.",
   "evidence": [

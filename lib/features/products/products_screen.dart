@@ -236,6 +236,7 @@ final class _StructuredRow extends StatelessWidget {
       ContentKind.productReview => '제품 리뷰',
       ContentKind.menuComparison => '메뉴 비교',
       ContentKind.beautyProduct => '뷰티 제품',
+      ContentKind.place => '장소',
       ContentKind.unknown => '기타',
     };
   }

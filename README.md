@@ -94,6 +94,8 @@ OpenAI 키는 Flutter 앱, APK, 저장소에 포함되지 않습니다. 로컬 �
 
 - Android `text/plain`, JPEG, PNG, WebP 공유 수신
 - Galaxy 캡처 미리보기의 이미지 `열기` 후보 등록·자동 가져오기
+- 캡처 수신 직후 분석 상태 카드와 알림 권한 허용 시 앱 복귀 알림
+- 다른 기본 이미지 앱과 무관하게 동작하는 `챙김에 추가` 빠른 설정 타일
 - 앱 시작 전에도 공유를 잃지 않는 pending queue
 - MIME·magic bytes·크기·해상도 검증
 - app-private 파일 복사, flush, atomic rename

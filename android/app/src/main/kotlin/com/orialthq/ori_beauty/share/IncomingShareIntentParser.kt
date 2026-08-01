@@ -1,6 +1,7 @@
 package com.orialthq.ori_beauty.share
 
 import android.content.Intent
+import android.net.Uri
 import java.util.UUID
 
 data class IncomingSharePayload(
@@ -14,6 +15,7 @@ data class IncomingSharePayload(
     val originalLength: Int,
     val shareKind: String = SHARE_KIND_TEXT,
     val attachments: List<IncomingShareAttachment> = emptyList(),
+    val sourceImageUris: List<Uri> = emptyList(),
 )
 
 data class IncomingShareAttachment(

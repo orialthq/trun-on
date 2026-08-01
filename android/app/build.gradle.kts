@@ -45,5 +45,6 @@ flutter {
 }
 
 dependencies {
+    implementation("com.google.android.gms:play-services-location:21.4.0")
     testImplementation("junit:junit:4.13.2")
 }

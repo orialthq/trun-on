@@ -35,6 +35,13 @@ export function makeValidAnalysis(overrides = {}) {
       confidence: 0.98,
       evidenceIds: ["e1"],
     },
+    place: {
+      name: null,
+      address: null,
+      category: null,
+      confidence: 0,
+      evidenceIds: [],
+    },
     summary: "화면에 보이는 된장찌개 레시피예요.",
     evidence: [
       {

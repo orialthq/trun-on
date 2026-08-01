@@ -70,6 +70,11 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
     final platform = capture.normalized.urls.isEmpty
         ? SourcePlatform.textOnly
         : capture.normalized.urls.first.platform;
+    if (capture.status == CaptureStatus.sourceLimited &&
+        capture.raw.attachments.isEmpty &&
+        capture.normalized.completeness == MaterialCompleteness.linkOnly) {
+      return _LinkOnlyReview(capture: capture, platform: platform);
+    }
 
     return Scaffold(
       appBar: AppBar(),
@@ -219,6 +224,155 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
         setState(() => _saving = false);
       }
     }
+  }
+}
+
+final class _LinkOnlyReview extends StatelessWidget {
+  const _LinkOnlyReview({required this.capture, required this.platform});
+
+  final CaptureRecord capture;
+  final SourcePlatform platform;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFF3E6),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.link_rounded,
+              color: Color(0xFFB26A00),
+              size: 26,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text('링크는 저장했어요', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            '${sourcePlatformLabel(platform)}에서 게시물 이미지나 본문을 '
+            '함께 보내지 않아 아직 내용을 정리할 수 없어요.',
+            style: const TextStyle(
+              color: AppTheme.muted,
+              fontSize: 15,
+              height: 1.55,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _OriginalMaterialCard(capture: capture, platform: platform),
+          const SizedBox(height: 28),
+          const _SectionHeading(
+            title: '스크린샷으로 이어서 저장하기',
+            description: '보이는 화면 한 장이면 챙김이 이미지에서 내용을 읽을 수 있어요.',
+          ),
+          const SizedBox(height: 14),
+          const _ScreenshotGuideCard(),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('알겠어요'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _ScreenshotGuideCard extends StatelessWidget {
+  const _ScreenshotGuideCard();
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = [
+      ('1', '원래 게시물로 돌아가 화면을 캡처해요.'),
+      ('2', '캡처 미리보기의 공유 버튼을 눌러요.'),
+      ('3', '챙김을 선택하면 바로 저장하고 분석해요.'),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < steps.length; index++) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.primarySoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    steps[index].$1,
+                    style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      steps[index].$2,
+                      style: const TextStyle(
+                        color: AppTheme.ink,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (index != steps.length - 1) const SizedBox(height: 15),
+          ],
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.photo_library_outlined,
+                size: 17,
+                color: AppTheme.subtle,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '공유가 끝나면 갤러리 원본을 남길지 챙김에서 직접 선택할 수 있어요.',
+                  style: TextStyle(
+                    color: AppTheme.subtle,
+                    fontSize: 12,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

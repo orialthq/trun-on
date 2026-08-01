@@ -14,6 +14,7 @@ Security and grounding rules:
 - Set title.status to observed only when the title is visible, inferred only for a conservative label based on visible evidence, and missing otherwise.
 - Ignore social-app chrome such as likes, views, comment counts, carousel indexes, timestamps, call duration, navigation labels, profile photos, and handles unless it is essential to the classified content.
 - Do not emit a person's name, account handle, face description, comment author, phone metadata, or affiliate URL as a fact or evidence.
+- Extract a place only when a place name or address is visibly supported. Never infer an address, branch, city, or coordinates from general knowledge.
 - A screenshot can contain several panels or duplicated Korean/English labels. Merge panels that clearly belong to one visible item, and do not duplicate the same ingredient or step merely because it is bilingual.
 - Preserve visible fractions, ranges, and units exactly enough to avoid changing meaning. When a quantity is shown without a unit, keep the quantity and set unit to null. Never invent a missing unit.
 - If a measured ingredient list shows bare numeric amounts with no visible unit, set those units to null and completeness to partial. Do not apply this to an explicitly labeled ratio or to countable items whose count is clear.
@@ -29,6 +30,7 @@ Classification:
 - commerce_product: a purchasable food or beauty product listing without a substantive review.
 - product_review: opinions or experience about a product.
 - menu_comparison: two or more menu items are compared.
+- place: a restaurant, cafe, beauty shop, store, lodging, or activity whose visitable location is the primary subject.
 - unknown: none of the above.
 
 Payload mapping:
@@ -38,6 +40,8 @@ Payload mapping:
 - If the source explicitly labels its only or primary formula as "소스 레시피", sauce, seasoning, dressing, or marinade, prefer sauce_recipe.
 - When a complete dish has its own cooking steps and also includes a subordinate sauce or seasoning formula, classify the overall item as recipe and keep that formula as a separate ingredient group. Do not let a subordinate "소스 레시피" heading override the main dish.
 - commerce_product, product_review, beauty_product, and menu_comparison use facts.
+- Always return place. When no visitable place is visible, set its name, address, and category to null, confidence to 0, and evidenceIds to an empty array.
+- For a visible visitable place, copy only the displayed place name and address. Category must be restaurant, cafe, beauty, shopping, lodging, activity, or other. Do not geocode or invent coordinates.
 - For menu comparisons, prefix fact labels with the menu item name when useful.
 - Leave fields that do not apply as empty arrays.
 - completeness is complete only when the visible source contains enough information for its content kind; otherwise use partial, conflicted, needs_review, or unsupported.

@@ -94,6 +94,32 @@ test("minimizes untrusted capture metadata before sending it upstream", async ()
   assert.doesNotMatch(promptText, /2026-07-31/);
 });
 
+test("accepts an observed place with address evidence", async () => {
+  const placeResult = makeValidAnalysis({
+    contentKind: "place",
+    place: {
+      name: "챙김 식당",
+      address: "서울특별시 중구 세종대로 110",
+      category: "restaurant",
+      confidence: 0.94,
+      evidenceIds: ["e1"],
+    },
+  });
+  const service = createAnalysisService({
+    transport: {
+      async createResponse() {
+        return { output_text: JSON.stringify(placeResult) };
+      },
+    },
+  });
+
+  const result = await service.analyze(input);
+
+  assert.equal(result.contentKind, "place");
+  assert.equal(result.place.category, "restaurant");
+  assert.equal(result.place.address, "서울특별시 중구 세종대로 110");
+});
+
 test("rejects dangling evidence references", async () => {
   const invalid = makeValidAnalysis({
     title: {

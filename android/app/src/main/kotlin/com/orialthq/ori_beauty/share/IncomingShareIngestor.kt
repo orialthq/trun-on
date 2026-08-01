@@ -72,6 +72,7 @@ class IncomingShareIngestor(context: Context) {
                 originalLength = parsedText.originalLength,
                 shareKind = SHARE_KIND_IMAGE,
                 attachments = copiedAttachments,
+                sourceImageUris = imageUris,
             )
         } catch (_: InvalidIncomingImageException) {
             deleteAttachments(copiedAttachments)

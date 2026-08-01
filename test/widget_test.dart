@@ -149,6 +149,38 @@ void main() {
     expect(await service.drainPending(), isEmpty);
   });
 
+  testWidgets('URL-only share explains that a screenshot is needed', (
+    tester,
+  ) async {
+    final service = InMemoryIncomingShareService()
+      ..add(
+        IncomingShare(
+          id: 'share-link-only',
+          receivedAt: DateTime(2026, 8, 1),
+          sharedText: 'https://www.instagram.com/reel/example/',
+          discoveredUrl: 'https://www.instagram.com/reel/example/',
+        ),
+      );
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+
+    expect(find.text('링크를 저장했어요'), findsWidgets);
+    expect(find.textContaining('게시물 내용은 전달되지 않았어요'), findsWidgets);
+
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('링크를 저장했어요').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('링크는 저장했어요'), findsOneWidget);
+    expect(find.text('스크린샷으로 이어서 저장하기'), findsOneWidget);
+    expect(find.textContaining('캡처 미리보기의 공유 버튼'), findsOneWidget);
+  });
+
   testWidgets('incoming screenshot returns to the content tab', (tester) async {
     final service = InMemoryIncomingShareService();
     final controller = AppController(service);
@@ -174,5 +206,11 @@ void main() {
 
     expect(find.text('콘텐츠'), findsWidgets);
     expect(find.text('방금 연 스크린샷'), findsOneWidget);
+    expect(find.text('정리가 준비됐어요'), findsOneWidget);
+    expect(find.text('탭해서 내용을 확인해 주세요'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
+    expect(find.text('정리가 준비됐어요'), findsNothing);
   });
 }

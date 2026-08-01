@@ -303,6 +303,7 @@ void main() {
           discoveredUrl: null,
           mimeType: 'image/jpeg',
           shareKind: ShareKind.image,
+          sourceDeletionAvailable: true,
           attachments: [
             IncomingAttachment(
               id: 'attachment-1',
@@ -334,6 +335,10 @@ void main() {
     expect(await File(retainedPath).readAsBytes(), [0xff, 0xd8, 0xff]);
     expect(snapshotStore.snapshot, contains('ori_library_attachments'));
     expect(await imageService.drainPending(), isEmpty);
+    expect(imageController.canDeleteSharedSource(capture.raw.id), isTrue);
+
+    await imageController.keepSharedSource(capture.raw.id);
+    expect(imageController.canDeleteSharedSource(capture.raw.id), isFalse);
   });
 
   test('keeps a native image pending when retained size is invalid', () async {

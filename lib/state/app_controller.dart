@@ -25,6 +25,7 @@ final class AppController extends ChangeNotifier {
   final List<CaptureRecord> _captures;
   final List<ProductGroup> _groups;
   final Set<String> _durablySavedTransportIds = {};
+  final Set<String> _sourceDeletionAvailableCaptureIds = {};
   final StreamController<String> _incomingCaptureController =
       StreamController<String>.broadcast();
 
@@ -85,6 +86,32 @@ final class AppController extends ChangeNotifier {
     return null;
   }
 
+  bool canDeleteSharedSource(String captureId) =>
+      _sourceDeletionAvailableCaptureIds.contains(captureId);
+
+  Future<SharedSourceDeletionResult> deleteSharedSource(
+    String captureId,
+  ) async {
+    final capture = captureById(captureId);
+    if (capture == null || !canDeleteSharedSource(captureId)) {
+      return SharedSourceDeletionResult.unavailable;
+    }
+    final result = await _incomingShareService.deleteSharedSource(
+      capture.raw.transportEventId,
+    );
+    _sourceDeletionAvailableCaptureIds.remove(captureId);
+    return result;
+  }
+
+  Future<void> keepSharedSource(String captureId) async {
+    final capture = captureById(captureId);
+    if (capture == null) {
+      return;
+    }
+    _sourceDeletionAvailableCaptureIds.remove(captureId);
+    await _incomingShareService.keepSharedSource(capture.raw.transportEventId);
+  }
+
   ProductGroup? groupById(String id) {
     for (final group in _groups) {
       if (group.id == id) {
@@ -137,6 +164,7 @@ final class AppController extends ChangeNotifier {
       final safeToAcknowledge = <String>{};
       final pendingAnalysisIds = <String>[];
       final importedCaptureIds = <String>[];
+      final sourceDeletionCandidateIds = <String>[];
       var changed = false;
       for (final share in shares) {
         if (knownTransportIds.contains(share.id)) {
@@ -151,6 +179,9 @@ final class AppController extends ChangeNotifier {
         capture = await _retainAttachments(capture);
         _captures.insert(0, capture);
         importedCaptureIds.add(capture.raw.id);
+        if (share.sourceDeletionAvailable) {
+          sourceDeletionCandidateIds.add(capture.raw.id);
+        }
         if (capture.status == CaptureStatus.analyzing) {
           pendingAnalysisIds.add(capture.raw.id);
         }
@@ -161,11 +192,21 @@ final class AppController extends ChangeNotifier {
         _filter = CaptureFilter.all;
         final saved = await _persistState();
         if (saved) {
+          _sourceDeletionAvailableCaptureIds.addAll(sourceDeletionCandidateIds);
           safeToAcknowledge.addAll(
             shares
                 .where((share) => _durablySavedTransportIds.contains(share.id))
                 .map((share) => share.id),
           );
+        } else {
+          for (final captureId in sourceDeletionCandidateIds) {
+            final capture = captureById(captureId);
+            if (capture != null) {
+              await _incomingShareService.keepSharedSource(
+                capture.raw.transportEventId,
+              );
+            }
+          }
         }
         notifyListeners();
         for (final captureId in importedCaptureIds) {
