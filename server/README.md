@@ -1,4 +1,4 @@
-# Ori capture analysis server
+# 챙김 capture analysis server
 
 Flutter 앱과 OpenAI 사이에서 이미지 분석을 수행하는 로컬 프록시입니다. API
 키는 앱이나 저장소에 포함하지 않으며, 요청 이미지·Base64·OpenAI 응답 내용도
@@ -9,6 +9,8 @@ Flutter 앱과 OpenAI 사이에서 이미지 분석을 수행하는 로컬 프�
 - Node.js 20 이상
 - macOS 개발 환경에서는 키체인 서비스 `ori-beauty-openai`, 계정
   `ori-beauty`에 저장된 OpenAI API 키
+
+키체인 식별자는 기존 로컬 개발 환경과의 호환을 위해 현재 이름을 유지합니다.
 
 외부 npm 의존성은 없습니다.
 
