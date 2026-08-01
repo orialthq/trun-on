@@ -1,11 +1,11 @@
-# iOS 팀원 실행 가이드
+# 챙김 iOS 팀원 실행 가이드
 
-저장소: <https://github.com/orialthq/ori-beauty>
+저장소: <https://github.com/orialthq/chaengim-app>
 
-Ori Beauty는 Flutter로 화면과 도메인 로직을 공유하지만, 현재 입력 파이프라인은
+챙김은 Flutter로 화면과 도메인 로직을 공유하지만, 현재 입력 파이프라인은
 Android 우선으로 구현되어 있습니다. iOS 팀원은 지금 바로 화면과 정리 흐름을
 실행하고 Flutter 코드를 함께 개발할 수 있습니다. 다만 iPhone의 스크린샷 공유
-메뉴에서 Ori Beauty로 보내는 기능은 아직 사용할 수 없습니다.
+메뉴에서 챙김으로 보내는 기능은 아직 사용할 수 없습니다.
 
 ## 현재 iOS 지원 범위
 
@@ -15,7 +15,7 @@ Android 우선으로 구현되어 있습니다. iOS 팀원은 지금 바로 화�
 | 샘플 콘텐츠 탐색 | 가능 | 가능 | 목록·상세·정리함 UI 확인 가능 |
 | 텍스트 직접 추가 | 가능 | 가능 | 현재 실행 중에는 보이지만 재시작 후 보존되지 않음 |
 | Flutter 테스트 | 가능 | 해당 없음 | Dart·widget 범위이며 iOS 네이티브 연동은 별도 검증 필요 |
-| 스크린샷을 Ori로 공유 | 불가 | 불가 | iOS Share Extension 미구현 |
+| 스크린샷을 챙김으로 공유 | 불가 | 불가 | iOS Share Extension 미구현 |
 | 공유 입력 영구 저장 | 불가 | 불가 | iOS 네이티브 저장 채널 미구현 |
 | 스크린샷 Luna 분석 | 불가 | 불가 | iOS 이미지 입력과 서버 연결 작업 필요 |
 
@@ -42,8 +42,8 @@ xcodebuild -version
 ## 가장 빠른 실행 방법
 
 ```bash
-git clone https://github.com/orialthq/ori-beauty.git
-cd ori-beauty
+git clone https://github.com/orialthq/chaengim-app.git
+cd chaengim-app
 git checkout main
 flutter pub get
 flutter analyze --fatal-infos
@@ -92,7 +92,7 @@ Android에 구현된 다음 경로는 iOS에서 아직 동작하지 않습니다
 
 ```text
 스크린샷 촬영
-→ 공유 시트 또는 캡처 미리보기에서 Ori Beauty 선택
+→ 공유 시트 또는 캡처 미리보기에서 챙김 선택
 → 원본을 앱 내부로 복사
 → Luna 분석
 → 결과와 원본을 재실행 후에도 복원
@@ -100,6 +100,7 @@ Android에 구현된 다음 경로는 iOS에서 아직 동작하지 않습니다
 
 현재 iOS 프로젝트에는 Share Extension과 App Group이 없고, Android가 제공하는
 `com.orialthq.ori_beauty/incoming_share/v1` 메서드 채널의 Swift 구현도 없습니다.
+이 내부 채널 이름은 기존 설치와 저장 데이터 호환을 위해 유지합니다.
 따라서 앱 화면이 실행된다는 것과 스크린샷 입력이 지원된다는 것은 구분해야
 합니다. 텍스트 직접 추가도 화면에서는 동작하지만, iOS에서는 현재 네이티브
 snapshot 저장 구현이 없어 앱 재시작 후에는 사라집니다.

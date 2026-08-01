@@ -23,7 +23,7 @@ if (!apiKey) {
     const address = server.address();
     const resolvedPort =
       address && typeof address === "object" ? address.port : port;
-    console.log(`Ori analysis server: http://${host}:${resolvedPort}`);
+    console.log(`챙김 analysis server: http://${host}:${resolvedPort}`);
   });
 
   const shutdown = () => server.close(() => process.exit(0));
