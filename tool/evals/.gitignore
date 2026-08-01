@@ -1,0 +1,5 @@
+# Private holdout inputs and their working manifest.
+local/
+
+# Generated aggregate reports.
+reports/

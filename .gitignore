@@ -33,6 +33,14 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local credentials and private evaluation material
+.env
+.env.*
+!.env.example
+test/fixtures/private/
+tool/evals/private/
+private-samples/
+
 # Symbolication related
 app.*.symbols
 

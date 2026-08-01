@@ -5,161 +5,93 @@ import '../../domain/models.dart';
 
 final class ProductArt extends StatelessWidget {
   const ProductArt({
-    required this.product,
+    required this.brand,
+    required this.name,
+    required this.category,
     this.width = 76,
     this.height = 92,
     super.key,
   });
 
-  final Product product;
+  factory ProductArt.forGroup(
+    ProductGroup group, {
+    double width = 76,
+    double height = 92,
+  }) {
+    return ProductArt(
+      brand: group.identity.brand,
+      name: group.identity.name,
+      category: group.identity.category,
+      width: width,
+      height: height,
+    );
+  }
+
+  final String brand;
+  final String name;
+  final String category;
   final double width;
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    final color = Color(product.colorValue);
+    final color = switch (category) {
+      '선케어' => const Color(0xFFE8A020),
+      '클렌저' => const Color(0xFF3182F6),
+      '크림' || '로션' => const Color(0xFF8B6CE0),
+      _ => const Color(0xFF20A17A),
+    };
+    final icon = switch (category) {
+      '선케어' => Icons.wb_sunny_outlined,
+      '클렌저' => Icons.waves_outlined,
+      '크림' || '로션' => Icons.spa_outlined,
+      _ => Icons.water_drop_outlined,
+    };
     return Semantics(
-      label: '${product.brand} ${product.name} 제품 이미지',
-      image: true,
+      label: '$brand $name, $category',
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(18),
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Center(
-          child: Container(
-            width: width * 0.48,
-            height: height * 0.66,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.28),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Icon(
-              product.category == '선케어'
-                  ? Icons.wb_sunny_outlined
-                  : Icons.water_drop_outlined,
-              color: Colors.white,
-              size: width * 0.25,
-            ),
-          ),
+          child: Icon(icon, color: color, size: width * 0.34),
         ),
       ),
     );
   }
 }
 
-final class StatusPill extends StatelessWidget {
-  const StatusPill({
-    required this.label,
-    required this.icon,
-    required this.foreground,
-    required this.background,
-    super.key,
-  });
-
-  factory StatusPill.forProduct(Product product) {
-    if (product.analysisStatus == AnalysisStatus.needsConfirmation) {
-      return const StatusPill(
-        label: '확인 필요',
-        icon: Icons.help_outline,
-        foreground: Color(0xFF8A5700),
-        background: Color(0xFFFFF1D2),
-      );
-    }
-    return switch (product.decision) {
-      Decision.candidate => const StatusPill(
-        label: '구매 후보',
-        icon: Icons.check_circle_outline,
-        foreground: Color(0xFF176B4D),
-        background: Color(0xFFE6F5EE),
-      ),
-      Decision.hold => const StatusPill(
-        label: '보류',
-        icon: Icons.pause_circle_outline,
-        foreground: Color(0xFF8A5700),
-        background: Color(0xFFFFF1D2),
-      ),
-      Decision.excluded => const StatusPill(
-        label: '제외',
-        icon: Icons.remove_circle_outline,
-        foreground: Color(0xFF6C6461),
-        background: Color(0xFFF0ECEA),
-      ),
-      Decision.undecided => const StatusPill(
-        label: '결정 전',
-        icon: Icons.pending_outlined,
-        foreground: Color(0xFF1A5E99),
-        background: Color(0xFFEAF3FC),
-      ),
-    };
-  }
-
-  final String label;
-  final IconData icon;
-  final Color foreground;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: foreground),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String overlapLabel(OverlapLevel level) {
-  return switch (level) {
-    OverlapLevel.low => '루틴 중복 낮음',
-    OverlapLevel.medium => '루틴 일부 중복',
-    OverlapLevel.high => '루틴 중복 높음',
+String sourcePlatformLabel(SourcePlatform platform) {
+  return switch (platform) {
+    SourcePlatform.instagram => 'Instagram',
+    SourcePlatform.youtube => 'YouTube',
+    SourcePlatform.tiktok => 'TikTok',
+    SourcePlatform.x => 'X',
+    SourcePlatform.web => '웹 링크',
+    SourcePlatform.textOnly => '붙여넣은 텍스트',
   };
 }
 
-Color overlapColor(OverlapLevel level) {
-  return switch (level) {
-    OverlapLevel.low => const Color(0xFF176B4D),
-    OverlapLevel.medium => const Color(0xFF8A5700),
-    OverlapLevel.high => const Color(0xFFB42318),
+IconData sourcePlatformIcon(SourcePlatform platform) {
+  return switch (platform) {
+    SourcePlatform.youtube => Icons.play_circle_outline,
+    SourcePlatform.instagram || SourcePlatform.tiktok => Icons.smart_display,
+    SourcePlatform.x => Icons.alternate_email,
+    SourcePlatform.web => Icons.language,
+    SourcePlatform.textOnly => Icons.notes,
   };
 }
 
-final class SectionTitle extends StatelessWidget {
-  const SectionTitle(this.text, {super.key});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(text, style: Theme.of(context).textTheme.titleMedium);
-  }
+String disclosureLabel(DisclosureObservation disclosure) {
+  return switch (disclosure) {
+    DisclosureObservation.explicitlyObserved => '명시적 광고·협찬 표시 발견',
+    DisclosureObservation.notObservedInCapturedMaterial =>
+      '캡처한 자료에서 광고·협찬 표시 미발견',
+    DisclosureObservation.unknown => '광고·협찬 표시 확인 불가',
+  };
 }
 
 final class InfoBanner extends StatelessWidget {
@@ -167,7 +99,7 @@ final class InfoBanner extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.body,
-    this.background = const Color(0xFFEEE9FA),
+    this.background = AppTheme.fill,
     super.key,
   });
 
@@ -179,15 +111,23 @@ final class InfoBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppTheme.primary),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppTheme.muted, size: 17),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -196,12 +136,19 @@ final class InfoBanner extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(body, style: const TextStyle(color: AppTheme.muted)),
+                const SizedBox(height: 4),
+                Text(
+                  body,
+                  style: const TextStyle(
+                    color: AppTheme.muted,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
               ],
             ),
           ),
