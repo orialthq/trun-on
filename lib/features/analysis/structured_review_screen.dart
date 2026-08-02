@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import '../../core/app_theme.dart';
 import '../../data/place_reminder_service.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
+import '../common/content_folder_ui.dart';
 
 final class StructuredReviewScreen extends StatefulWidget {
   const StructuredReviewScreen({
@@ -23,6 +25,9 @@ final class StructuredReviewScreen extends StatefulWidget {
 
 final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
   var _saving = false;
+  ContentFolder? _selectedFolder;
+  String? _selectedSubcategory;
+  var _subcategoryEdited = false;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +37,9 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
       return const Scaffold(body: Center(child: Text('분석 결과를 찾지 못했어요.')));
     }
     final isOrganized = capture.status == CaptureStatus.organized;
+    final selectedFolder = _selectedFolder ?? capture.contentFolder;
+    final selectedSubcategory =
+        _selectedSubcategory ?? capture.contentSubcategory;
 
     return Scaffold(
       appBar: AppBar(),
@@ -46,6 +54,44 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          ContentFolderPicker(
+            key: const Key('content-folder-picker'),
+            value: selectedFolder,
+            needsReview: selectedFolder == ContentFolder.needsClassification,
+            onChanged: (folder) {
+              setState(() => _selectedFolder = folder);
+              if (isOrganized) {
+                unawaited(
+                  widget.controller.updateContentFolder(
+                    widget.captureId,
+                    folder,
+                  ),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+          ContentSubcategoryPicker(
+            key: const Key('content-subcategory-picker'),
+            folder: selectedFolder,
+            value: selectedSubcategory,
+            aiSuggested: !_subcategoryEdited,
+            onChanged: (subcategory) {
+              setState(() {
+                _selectedSubcategory = subcategory;
+                _subcategoryEdited = true;
+              });
+              if (isOrganized) {
+                unawaited(
+                  widget.controller.updateContentSubcategory(
+                    widget.captureId,
+                    subcategory,
+                  ),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 24),
           Text(
             structured.title.value?.trim().isNotEmpty == true
                 ? structured.title.value!
@@ -154,9 +200,17 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
   }
 
   Future<void> _confirm() async {
+    final capture = widget.controller.captureById(widget.captureId);
+    if (capture == null) {
+      return;
+    }
     setState(() => _saving = true);
     try {
-      await widget.controller.confirmStructured(widget.captureId);
+      await widget.controller.confirmStructured(
+        widget.captureId,
+        folder: _selectedFolder ?? capture.contentFolder,
+        subcategory: _selectedSubcategory ?? capture.contentSubcategory,
+      );
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -213,7 +267,7 @@ final class _KindBadge extends StatelessWidget {
       ContentKind.menuComparison => ('메뉴 비교', Icons.compare_arrows_rounded),
       ContentKind.beautyProduct => ('뷰티 제품', Icons.spa_outlined),
       ContentKind.place => ('장소', Icons.location_on_outlined),
-      ContentKind.unknown => ('기타', Icons.image_outlined),
+      ContentKind.unknown => ('정보', Icons.article_outlined),
     };
     return _Badge(label: label, icon: icon, color: AppTheme.primary);
   }

@@ -28,6 +28,10 @@ export function makeValidAnalysis(overrides = {}) {
     model: MODEL,
     domain: "food",
     contentKind: "recipe",
+    primaryCategory: "recipe",
+    categoryConfidence: 0.98,
+    subcategory: "국·찌개",
+    subcategoryConfidence: 0.95,
     completeness: "partial",
     title: {
       value: "된장찌개",

@@ -1,5 +1,5 @@
 export const MODEL = "gpt-5.6-luna";
-export const SCHEMA_VERSION = "1.0";
+export const SCHEMA_VERSION = "1.2";
 
 export const DEFAULT_MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 export const DEFAULT_MAX_BODY_BYTES = 17 * 1024 * 1024;

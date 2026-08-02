@@ -71,16 +71,27 @@ Wi-Fi를 통해 개발 서버에 연결할 때만 `HOST=0.0.0.0`을 사용하고
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.2",
   "model": "gpt-5.6-luna",
   "domain": "food",
   "contentKind": "recipe",
+  "primaryCategory": "recipe",
+  "categoryConfidence": 0.98,
+  "subcategory": "국·찌개",
+  "subcategoryConfidence": 0.95,
   "completeness": "partial",
   "title": {
     "value": "된장찌개",
     "status": "observed",
     "confidence": 0.98,
     "evidenceIds": ["e1"]
+  },
+  "place": {
+    "name": null,
+    "address": null,
+    "category": null,
+    "confidence": 0,
+    "evidenceIds": []
   },
   "summary": "화면에 보이는 된장찌개 재료와 조리 순서예요.",
   "evidence": [
@@ -103,7 +114,14 @@ Wi-Fi를 통해 개발 서버에 연결할 때만 `HOST=0.0.0.0`을 사용하고
 
 - `domain`: `beauty | food | unknown`
 - `contentKind`: `beauty_product | recipe | sauce_recipe |
-  commerce_product | product_review | menu_comparison | unknown`
+  commerce_product | product_review | menu_comparison | place | unknown`
+- `primaryCategory`: `beauty | health_fitness | restaurant_cafe | recipe |
+  shopping | travel_place | life_tip | other`
+- `categoryConfidence`: `0.0`부터 `1.0` 사이의 분류 신뢰도
+- `subcategory`: AI가 상위 폴더 아래에 동적으로 만드는 2~20자의 재사용 가능한
+  한글 중심 분류명입니다. 브랜드·상품·장소·메뉴처럼 한 콘텐츠에만 맞는 이름은
+  사용하지 않습니다. 예: `스킨케어`, `국·찌개`, `정리·수납`
+- `subcategoryConfidence`: `0.0`부터 `1.0` 사이의 하위 분류 신뢰도
 - `completeness`: `complete | partial | conflicted | needs_review |
   unsupported`
 

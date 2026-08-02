@@ -12,6 +12,16 @@ const CONTENT_KINDS = new Set([
   "place",
   "unknown",
 ]);
+const PRIMARY_CATEGORIES = new Set([
+  "beauty",
+  "health_fitness",
+  "restaurant_cafe",
+  "recipe",
+  "shopping",
+  "travel_place",
+  "life_tip",
+  "other",
+]);
 const COMPLETENESS = new Set([
   "complete",
   "partial",
@@ -28,11 +38,19 @@ const REGIONS = new Set([
   "menu",
   "unknown",
 ]);
+const SUBCATEGORY_MIN_LENGTH = 2;
+const SUBCATEGORY_MAX_LENGTH = 20;
+const SUBCATEGORY_PATTERN =
+  /^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$/u;
 const ROOT_KEYS = new Set([
   "schemaVersion",
   "model",
   "domain",
   "contentKind",
+  "primaryCategory",
+  "categoryConfidence",
+  "subcategory",
+  "subcategoryConfidence",
   "completeness",
   "title",
   "place",
@@ -82,9 +100,23 @@ function assertString(value, path, { nullable = false, nonEmpty = true } = {}) {
 }
 
 function assertConfidence(value, path) {
-  if (typeof value !== "number" || value < 0 || value > 1) {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
     throw invalid(`${path} is not a confidence`);
   }
+}
+
+function sanitizeSubcategory(value) {
+  assertString(value, "subcategory");
+  const sanitized = value.normalize("NFKC").trim().replace(/\s+/gu, " ");
+  const length = Array.from(sanitized).length;
+  if (
+    length < SUBCATEGORY_MIN_LENGTH ||
+    length > SUBCATEGORY_MAX_LENGTH ||
+    !SUBCATEGORY_PATTERN.test(sanitized)
+  ) {
+    throw invalid("subcategory must be a reusable 2-20 character label");
+  }
+  return sanitized;
 }
 
 function assertStringArray(value, path, { nonEmptyItems = true } = {}) {
@@ -108,6 +140,12 @@ export function validateAnalysisResult(result) {
   if (!CONTENT_KINDS.has(result.contentKind)) {
     throw invalid("invalid content kind");
   }
+  if (!PRIMARY_CATEGORIES.has(result.primaryCategory)) {
+    throw invalid("invalid primary category");
+  }
+  assertConfidence(result.categoryConfidence, "categoryConfidence");
+  result.subcategory = sanitizeSubcategory(result.subcategory);
+  assertConfidence(result.subcategoryConfidence, "subcategoryConfidence");
   if (!COMPLETENESS.has(result.completeness)) {
     throw invalid("invalid completeness");
   }

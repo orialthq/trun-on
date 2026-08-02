@@ -264,7 +264,7 @@ final class InMemoryAppSnapshotStore implements AppSnapshotStore {
 }
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 2;
+  static const schemaVersion = 4;
 
   static String encode(List<PersistedCapture> captures) {
     return jsonEncode({
@@ -279,7 +279,10 @@ abstract final class AppSnapshotCodec {
       throw const FormatException('Unsupported app snapshot schema.');
     }
     final decodedVersion = decoded['schemaVersion'];
-    if (decodedVersion != 1 && decodedVersion != schemaVersion) {
+    if (decodedVersion != 1 &&
+        decodedVersion != 2 &&
+        decodedVersion != 3 &&
+        decodedVersion != schemaVersion) {
       throw const FormatException('Unsupported app snapshot schema.');
     }
     final captures = decoded['captures'];
@@ -314,6 +317,8 @@ final class PersistedCapture {
     required this.reviewedAt,
     required this.confirmedIdentity,
     required this.groupId,
+    this.folderOverride,
+    this.subcategoryOverride,
     this.attachments = const [],
     this.analysis,
   });
@@ -338,6 +343,8 @@ final class PersistedCapture {
       reviewedAt: capture.review?.reviewedAt,
       confirmedIdentity: capture.review?.confirmedIdentity ?? group?.identity,
       groupId: capture.groupId,
+      folderOverride: capture.folderOverride,
+      subcategoryOverride: capture.subcategoryOverride,
       attachments: capture.raw.attachments,
       analysis: capture.analysis,
     );
@@ -399,6 +406,16 @@ final class PersistedCapture {
             )
           : null,
       groupId: json['groupId'] as String?,
+      folderOverride: json['folderOverride'] == null
+          ? null
+          : _enumByName(
+              ContentFolder.values,
+              json['folderOverride'],
+              ContentFolder.needsClassification,
+            ),
+      subcategoryOverride: json['subcategoryOverride'] is String
+          ? normalizeContentSubcategory(json['subcategoryOverride']! as String)
+          : null,
       attachments: rawAttachments is List<Object?>
           ? rawAttachments
                 .whereType<Map<String, Object?>>()
@@ -426,6 +443,8 @@ final class PersistedCapture {
   final DateTime? reviewedAt;
   final ConfirmedProductIdentity? confirmedIdentity;
   final String? groupId;
+  final ContentFolder? folderOverride;
+  final String? subcategoryOverride;
   final List<IncomingAttachment> attachments;
   final AnalysisRun? analysis;
 
@@ -469,6 +488,8 @@ final class PersistedCapture {
               'amount': identity.amount,
             },
       'groupId': groupId,
+      'folderOverride': folderOverride?.name,
+      'subcategoryOverride': subcategoryOverride,
       'attachments': attachments.map((item) => item.toJson()).toList(),
       'analysis': analysis == null ? null : _AnalysisRunCodec.toJson(analysis!),
     };

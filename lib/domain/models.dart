@@ -25,6 +25,44 @@ enum ShareKind { text, image }
 
 enum ContentDomain { beauty, food, unknown }
 
+enum ContentFolder {
+  beauty,
+  healthFitness,
+  restaurantCafe,
+  recipe,
+  shopping,
+  travelPlace,
+  lifeTip,
+  other,
+  needsClassification,
+}
+
+final _contentSubcategoryPattern = RegExp(
+  r'^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+\-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$',
+);
+
+/// Keeps AI and user-created subcategory names concise and safe to display.
+String normalizeContentSubcategory(String value) {
+  final collapsed = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+  final sanitized = collapsed
+      .replaceAll(RegExp(r'[^0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ·ㆍ&/+\- ]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (sanitized.isEmpty) {
+    return '기타';
+  }
+  final concise = String.fromCharCodes(sanitized.runes.take(20));
+  return concise.runes.length < 2 ? '기타' : concise;
+}
+
+bool isValidContentSubcategory(String value) {
+  final length = value.runes.length;
+  return length >= 2 &&
+      length <= 20 &&
+      value == normalizeContentSubcategory(value) &&
+      _contentSubcategoryPattern.hasMatch(value);
+}
+
 enum ContentKind {
   beautyProduct,
   recipe,
@@ -772,6 +810,10 @@ final class StructuredContentAnalysis {
     required this.model,
     required this.domain,
     required this.contentKind,
+    required this.primaryCategory,
+    required this.categoryConfidence,
+    required this.subcategory,
+    required this.subcategoryConfidence,
     required this.completeness,
     required this.title,
     required this.place,
@@ -786,12 +828,37 @@ final class StructuredContentAnalysis {
 
   factory StructuredContentAnalysis.fromJson(Map<String, Object?> json) {
     final normalizedJson = Map<String, Object?>.of(json);
+    final declaredVersion = normalizedJson['schemaVersion'];
     normalizedJson.putIfAbsent('place', () => null);
+    if (declaredVersion == '1.0') {
+      normalizedJson.putIfAbsent(
+        'primaryCategory',
+        () => _legacyPrimaryCategory(normalizedJson),
+      );
+      normalizedJson.putIfAbsent(
+        'categoryConfidence',
+        () => _legacyCategoryConfidence(normalizedJson),
+      );
+    }
+    if (declaredVersion == '1.0' || declaredVersion == '1.1') {
+      normalizedJson.putIfAbsent(
+        'subcategory',
+        () => _legacySubcategory(normalizedJson),
+      );
+      normalizedJson.putIfAbsent(
+        'subcategoryConfidence',
+        () => _legacySubcategoryConfidence(normalizedJson),
+      );
+    }
     _requireExactKeys(normalizedJson, const {
       'schemaVersion',
       'model',
       'domain',
       'contentKind',
+      'primaryCategory',
+      'categoryConfidence',
+      'subcategory',
+      'subcategoryConfidence',
       'completeness',
       'title',
       'place',
@@ -808,7 +875,8 @@ final class StructuredContentAnalysis {
       'analysis.schemaVersion',
     );
     final model = _requiredString(normalizedJson['model'], 'analysis.model');
-    if (schemaVersion != '1.0' || model != 'gpt-5.6-luna') {
+    if (!const {'1.0', '1.1', '1.2'}.contains(schemaVersion) ||
+        model != 'gpt-5.6-luna') {
       throw const FormatException(
         'Structured analysis version or model is unsupported.',
       );
@@ -818,6 +886,19 @@ final class StructuredContentAnalysis {
       model: model,
       domain: _contentDomain(normalizedJson['domain']),
       contentKind: _contentKind(normalizedJson['contentKind']),
+      primaryCategory: _contentFolder(normalizedJson['primaryCategory']),
+      categoryConfidence: _confidence(
+        normalizedJson['categoryConfidence'],
+        'analysis.categoryConfidence',
+      ),
+      subcategory: _parsedContentSubcategory(
+        normalizedJson['subcategory'],
+        schemaVersion: schemaVersion,
+      ),
+      subcategoryConfidence: _confidence(
+        normalizedJson['subcategoryConfidence'],
+        'analysis.subcategoryConfidence',
+      ),
       completeness: _structuredCompleteness(normalizedJson['completeness']),
       title: StructuredTitle.fromJson(
         _requiredMap(normalizedJson['title'], 'title'),
@@ -861,6 +942,10 @@ final class StructuredContentAnalysis {
   final String model;
   final ContentDomain domain;
   final ContentKind contentKind;
+  final ContentFolder primaryCategory;
+  final double categoryConfidence;
+  final String subcategory;
+  final double subcategoryConfidence;
   final StructuredCompleteness completeness;
   final StructuredTitle title;
   final StructuredPlace? place;
@@ -875,6 +960,8 @@ final class StructuredContentAnalysis {
   bool get isRecipe =>
       contentKind == ContentKind.recipe ||
       contentKind == ContentKind.sauceRecipe;
+
+  bool get categoryNeedsReview => categoryConfidence < 0.72;
 
   void _validateEvidenceReferences() {
     final ids = evidence.map((item) => item.id).toList(growable: false);
@@ -913,6 +1000,10 @@ final class StructuredContentAnalysis {
       ContentKind.place => 'place',
       _ => contentKind.name,
     },
+    'primaryCategory': _contentFolderWireName(primaryCategory),
+    'categoryConfidence': categoryConfidence,
+    'subcategory': subcategory,
+    'subcategoryConfidence': subcategoryConfidence,
     'completeness': switch (completeness) {
       StructuredCompleteness.needsReview => 'needs_review',
       _ => completeness.name,
@@ -972,6 +1063,18 @@ String _requiredString(Object? value, String field) {
   return value;
 }
 
+String _parsedContentSubcategory(
+  Object? value, {
+  required String schemaVersion,
+}) {
+  final raw = _requiredString(value, 'analysis.subcategory');
+  final normalized = normalizeContentSubcategory(raw);
+  if (schemaVersion == '1.2' && !isValidContentSubcategory(raw)) {
+    throw const FormatException('Structured analysis.subcategory is invalid.');
+  }
+  return normalized;
+}
+
 String _stringAllowEmpty(Object? value, String field) {
   if (value is! String) {
     throw FormatException('Structured $field is invalid.');
@@ -1019,6 +1122,162 @@ ContentKind _contentKind(Object? value) {
     _ => throw const FormatException(
       'Structured analysis.contentKind is invalid.',
     ),
+  };
+}
+
+ContentFolder _contentFolder(Object? value) {
+  return switch (value) {
+    'beauty' => ContentFolder.beauty,
+    'health_fitness' => ContentFolder.healthFitness,
+    'restaurant_cafe' => ContentFolder.restaurantCafe,
+    'recipe' => ContentFolder.recipe,
+    'shopping' => ContentFolder.shopping,
+    'travel_place' => ContentFolder.travelPlace,
+    'life_tip' => ContentFolder.lifeTip,
+    'other' => ContentFolder.other,
+    _ => throw const FormatException(
+      'Structured analysis.primaryCategory is invalid.',
+    ),
+  };
+}
+
+String _contentFolderWireName(ContentFolder value) {
+  return switch (value) {
+    ContentFolder.beauty => 'beauty',
+    ContentFolder.healthFitness => 'health_fitness',
+    ContentFolder.restaurantCafe => 'restaurant_cafe',
+    ContentFolder.recipe => 'recipe',
+    ContentFolder.shopping => 'shopping',
+    ContentFolder.travelPlace => 'travel_place',
+    ContentFolder.lifeTip => 'life_tip',
+    ContentFolder.other => 'other',
+    ContentFolder.needsClassification => 'other',
+  };
+}
+
+String _legacyPrimaryCategory(Map<String, Object?> json) {
+  final kind = json['contentKind'];
+  if (kind == 'recipe' || kind == 'sauce_recipe') {
+    return 'recipe';
+  }
+  final place = json['place'];
+  final placeCategory = place is Map<String, Object?>
+      ? place['category']
+      : null;
+  if (placeCategory == 'restaurant' || placeCategory == 'cafe') {
+    return 'restaurant_cafe';
+  }
+  if (placeCategory == 'lodging' || placeCategory == 'activity') {
+    return 'travel_place';
+  }
+  if (placeCategory == 'beauty' || json['domain'] == 'beauty') {
+    return 'beauty';
+  }
+  if (placeCategory == 'shopping') {
+    return 'shopping';
+  }
+  if (kind == 'menu_comparison') {
+    return 'restaurant_cafe';
+  }
+  if (json['domain'] == 'food') {
+    return 'shopping';
+  }
+  return 'other';
+}
+
+double _legacyCategoryConfidence(Map<String, Object?> json) {
+  return _legacyPrimaryCategory(json) == 'other' ? 0 : 1;
+}
+
+String _legacySubcategory(Map<String, Object?> json) {
+  final kind = json['contentKind'];
+  if (kind == 'sauce_recipe') {
+    return '소스·양념';
+  }
+  if (kind == 'recipe') {
+    return '요리';
+  }
+
+  final place = json['place'];
+  final placeCategory = place is Map<String, Object?>
+      ? place['category']
+      : null;
+  final placeSubcategory = switch (placeCategory) {
+    'restaurant' => '식당',
+    'cafe' => '카페·디저트',
+    'beauty' => '뷰티숍',
+    'shopping' => '쇼핑 장소',
+    'lodging' => '숙소',
+    'activity' => '체험',
+    'other' => '장소',
+    _ => null,
+  };
+  if (placeSubcategory != null) {
+    return placeSubcategory;
+  }
+
+  final title = json['title'];
+  final titleValue = title is Map<String, Object?>
+      ? title['value'] as String?
+      : null;
+  if (json['domain'] == 'beauty' || kind == 'beauty_product') {
+    return _legacyProductSubcategory(
+      titleValue,
+      preserveUnrecognizedCategory: false,
+    );
+  }
+  if (kind == 'menu_comparison') {
+    return '메뉴';
+  }
+  if (kind == 'commerce_product' || kind == 'product_review') {
+    return '상품';
+  }
+  if (json['domain'] == 'food') {
+    return '식품';
+  }
+  return '기타';
+}
+
+double _legacySubcategoryConfidence(Map<String, Object?> json) {
+  return _legacySubcategory(json) == '기타' ? 0 : 0.6;
+}
+
+String _legacyProductSubcategory(
+  String? category, {
+  bool preserveUnrecognizedCategory = true,
+}) {
+  final normalized = category?.toLowerCase().trim() ?? '';
+  if (RegExp(r'세럼|앰플|토너|스킨|에센스|크림|로션|선케어|선크림|클렌|마스크|패드').hasMatch(normalized)) {
+    return '스킨케어';
+  }
+  if (RegExp(r'메이크업|립|틴트|파운데이션|쿠션|컨실러|블러셔|아이섀도|마스카라').hasMatch(normalized)) {
+    return '메이크업';
+  }
+  if (RegExp(r'헤어|샴푸|트리트먼트|바디|바디워시').hasMatch(normalized)) {
+    return '헤어·바디';
+  }
+  if (normalized.contains('네일')) {
+    return '네일';
+  }
+  if (normalized.contains('향수') || normalized.contains('퍼퓸')) {
+    return '향수';
+  }
+  if (normalized.isEmpty || !preserveUnrecognizedCategory) {
+    return '뷰티';
+  }
+  return normalizeContentSubcategory(category!);
+}
+
+String _defaultSubcategoryForFolder(ContentFolder folder) {
+  return switch (folder) {
+    ContentFolder.beauty => '뷰티',
+    ContentFolder.healthFitness => '건강 루틴',
+    ContentFolder.restaurantCafe => '맛집·카페',
+    ContentFolder.recipe => '요리',
+    ContentFolder.shopping => '상품',
+    ContentFolder.travelPlace => '장소',
+    ContentFolder.lifeTip => '생활 팁',
+    ContentFolder.other || ContentFolder.needsClassification => '기타',
   };
 }
 
@@ -1107,6 +1366,8 @@ final class CaptureRecord {
     required this.analysis,
     this.review,
     this.groupId,
+    this.folderOverride,
+    this.subcategoryOverride,
   });
 
   final RawCapture raw;
@@ -1115,10 +1376,45 @@ final class CaptureRecord {
   final AnalysisRun? analysis;
   final UserReview? review;
   final String? groupId;
+  final ContentFolder? folderOverride;
+  final String? subcategoryOverride;
 
   ProductMention? get primaryMention {
     final mentions = analysis?.productMentions;
     return mentions == null || mentions.isEmpty ? null : mentions.first;
+  }
+
+  ContentFolder get contentFolder {
+    final override = folderOverride;
+    if (override != null) {
+      return override;
+    }
+    final structured = analysis?.structuredContent;
+    if (structured != null) {
+      return structured.categoryNeedsReview
+          ? ContentFolder.needsClassification
+          : structured.primaryCategory;
+    }
+    if (primaryMention != null) {
+      return ContentFolder.beauty;
+    }
+    return ContentFolder.needsClassification;
+  }
+
+  String get contentSubcategory {
+    final override = subcategoryOverride;
+    if (override != null) {
+      return normalizeContentSubcategory(override);
+    }
+    final structured = analysis?.structuredContent;
+    if (structured != null) {
+      return structured.subcategory;
+    }
+    final mention = primaryMention;
+    if (mention != null) {
+      return _legacyProductSubcategory(mention.category.value);
+    }
+    return _defaultSubcategoryForFolder(contentFolder);
   }
 
   CaptureRecord copyWith({
@@ -1126,6 +1422,8 @@ final class CaptureRecord {
     AnalysisRun? analysis,
     UserReview? review,
     String? groupId,
+    ContentFolder? folderOverride,
+    String? subcategoryOverride,
   }) {
     return CaptureRecord(
       raw: raw,
@@ -1134,6 +1432,10 @@ final class CaptureRecord {
       analysis: analysis ?? this.analysis,
       review: review ?? this.review,
       groupId: groupId ?? this.groupId,
+      folderOverride: folderOverride ?? this.folderOverride,
+      subcategoryOverride: subcategoryOverride == null
+          ? this.subcategoryOverride
+          : normalizeContentSubcategory(subcategoryOverride),
     );
   }
 }

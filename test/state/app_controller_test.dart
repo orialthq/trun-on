@@ -87,6 +87,8 @@ void main() {
           category: '세럼',
           amount: '30mL',
         ),
+        folder: ContentFolder.shopping,
+        subcategory: '스킨케어',
       );
 
       expect(
@@ -96,6 +98,20 @@ void main() {
       expect(
         controller.groupById('group-baumlab-pore-balance')?.sourceCount,
         before + 1,
+      );
+      expect(
+        controller
+            .capturesForGroup('group-baumlab-pore-balance')
+            .every(
+              (capture) => capture.contentFolder == ContentFolder.shopping,
+            ),
+        isTrue,
+      );
+      expect(
+        controller
+            .capturesForGroup('group-baumlab-pore-balance')
+            .every((capture) => capture.contentSubcategory == '스킨케어'),
+        isTrue,
       );
     },
   );
@@ -178,6 +194,13 @@ void main() {
         category: '선케어',
         amount: '50mL',
       ),
+      folder: ContentFolder.shopping,
+      subcategory: '스킨케어',
+    );
+    final firstCapture = firstController.captureById(captureId)!;
+    await firstController.updateGroupContentSubcategory(
+      firstCapture.groupId!,
+      '  선케어  ',
     );
     firstController.dispose();
 
@@ -193,7 +216,23 @@ void main() {
     final restored = secondController.captureById(captureId);
     expect(restored?.status, CaptureStatus.organized);
     expect(restored?.review?.confirmedIdentity?.brand, '오로라랩');
-    expect(secondController.groupById(restored!.groupId!)?.sourceCount, 1);
+    expect(restored?.contentFolder, ContentFolder.shopping);
+    expect(restored?.contentSubcategory, '선케어');
+    expect(secondController.subcategoryForGroup(restored!.groupId!), '선케어');
+    expect(secondController.groupById(restored.groupId!)?.sourceCount, 1);
+  });
+
+  test('keeps a user subcategory when analysis is retried', () async {
+    final captureId = controller.addManualInput(
+      '바움랩 포어 밸런스 세럼 30ml. 촉촉하다고 소개했어요.',
+    );
+    await controller.updateContentSubcategory(captureId, '  집중 보습✨  ');
+
+    controller.retryAnalysis(captureId);
+
+    final retried = controller.captureById(captureId)!;
+    expect(retried.subcategoryOverride, '집중 보습');
+    expect(retried.contentSubcategory, '집중 보습');
   });
 
   test(

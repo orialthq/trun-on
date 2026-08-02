@@ -54,6 +54,28 @@ export const ANALYSIS_SCHEMA = {
         "unknown",
       ],
     },
+    primaryCategory: {
+      type: "string",
+      enum: [
+        "beauty",
+        "health_fitness",
+        "restaurant_cafe",
+        "recipe",
+        "shopping",
+        "travel_place",
+        "life_tip",
+        "other",
+      ],
+    },
+    categoryConfidence: confidence,
+    subcategory: {
+      type: "string",
+      minLength: 2,
+      maxLength: 20,
+      pattern:
+        "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$",
+    },
+    subcategoryConfidence: confidence,
     completeness: {
       type: "string",
       enum: [
@@ -170,6 +192,10 @@ export const ANALYSIS_SCHEMA = {
     "model",
     "domain",
     "contentKind",
+    "primaryCategory",
+    "categoryConfidence",
+    "subcategory",
+    "subcategoryConfidence",
     "completeness",
     "title",
     "place",

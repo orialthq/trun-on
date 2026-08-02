@@ -14,6 +14,10 @@ void main() {
     expect(analysis.model, 'gpt-5.6-luna');
     expect(analysis.domain, ContentDomain.food);
     expect(analysis.contentKind, ContentKind.recipe);
+    expect(analysis.primaryCategory, ContentFolder.recipe);
+    expect(analysis.categoryNeedsReview, isFalse);
+    expect(analysis.subcategory, '밑반찬');
+    expect(analysis.subcategoryConfidence, 0.93);
     expect(analysis.ingredientGroups.single.ingredients.single.unit, '큰술');
     expect(analysis.steps.single.evidenceIds, ['e2']);
   });
@@ -34,8 +38,35 @@ void main() {
     expect(analysis.place?.category, PlaceCategory.restaurant);
     expect(analysis.place?.hasAddress, isTrue);
 
-    final legacy = _validResponse()..remove('place');
-    expect(StructuredContentAnalysis.fromJson(legacy).place, isNull);
+    final legacy = _validResponse()
+      ..['schemaVersion'] = '1.0'
+      ..remove('place')
+      ..remove('primaryCategory')
+      ..remove('categoryConfidence')
+      ..remove('subcategory')
+      ..remove('subcategoryConfidence');
+    final migrated = StructuredContentAnalysis.fromJson(legacy);
+    expect(migrated.place, isNull);
+    expect(migrated.primaryCategory, ContentFolder.recipe);
+    expect(migrated.subcategory, '요리');
+
+    final categoryEra = _validResponse()
+      ..['schemaVersion'] = '1.1'
+      ..remove('subcategory')
+      ..remove('subcategoryConfidence');
+    final categoryEraMigrated = StructuredContentAnalysis.fromJson(categoryEra);
+    expect(categoryEraMigrated.subcategory, '요리');
+    expect(categoryEraMigrated.subcategoryConfidence, 0.6);
+
+    final legacyBeauty = _validResponse()
+      ..['schemaVersion'] = '1.1'
+      ..['domain'] = 'beauty'
+      ..['contentKind'] = 'beauty_product'
+      ..['primaryCategory'] = 'beauty'
+      ..remove('subcategory')
+      ..remove('subcategoryConfidence');
+    (legacyBeauty['title']! as Map<String, Object?>)['value'] = '오로라 글로우';
+    expect(StructuredContentAnalysis.fromJson(legacyBeauty).subcategory, '뷰티');
   });
 
   test('rejects unknown versions and enum values', () {
@@ -50,12 +81,24 @@ void main() {
       () => StructuredContentAnalysis.fromJson(wrongKind),
       throwsFormatException,
     );
+
+    final wrongCategory = _validResponse()..['primaryCategory'] = 'finance';
+    expect(
+      () => StructuredContentAnalysis.fromJson(wrongCategory),
+      throwsFormatException,
+    );
   });
 
   test('rejects missing fields and dangling evidence references', () {
     final missingField = _validResponse()..remove('warnings');
     expect(
       () => StructuredContentAnalysis.fromJson(missingField),
+      throwsFormatException,
+    );
+
+    final missingV12Subcategory = _validResponse()..remove('subcategory');
+    expect(
+      () => StructuredContentAnalysis.fromJson(missingV12Subcategory),
       throwsFormatException,
     );
 
@@ -79,6 +122,78 @@ void main() {
     );
   });
 
+  test('rejects unsafe Luna 1.2 subcategory labels', () {
+    for (final invalid in [
+      '뷰',
+      '향수✨',
+      '  스킨케어  ',
+      '스킨--케어',
+      '123456789012345678901',
+    ]) {
+      final response = _validResponse()..['subcategory'] = invalid;
+      expect(
+        () => StructuredContentAnalysis.fromJson(response),
+        throwsFormatException,
+        reason: invalid,
+      );
+    }
+  });
+
+  test('normalizes concise user and AI subcategory names', () {
+    expect(normalizeContentSubcategory('  카페   디저트  '), '카페 디저트');
+    expect(normalizeContentSubcategory('향수✨'), '향수');
+    expect(normalizeContentSubcategory('✨'), '기타');
+    expect(normalizeContentSubcategory('뷰'), '기타');
+    expect(isValidContentSubcategory('정리ㆍ수납'), isTrue);
+    expect(isValidContentSubcategory('정리--수납'), isFalse);
+    expect(
+      normalizeContentSubcategory('1234567890123456789012345'),
+      '12345678901234567890',
+    );
+
+    const baseline = BaselineContentAnalysisService();
+    final legacyProduct = baseline.analyzeShare(
+      IncomingShare(
+        id: 'legacy-serum-subcategory',
+        receivedAt: DateTime(2026, 8, 2),
+        sharedText: '바움랩 포어 밸런스 세럼 30ml',
+        discoveredUrl: null,
+      ),
+    );
+    expect(legacyProduct.contentSubcategory, '스킨케어');
+  });
+
+  test('routes a low-confidence category to classification review', () {
+    final response = _validResponse()..['categoryConfidence'] = 0.4;
+    final structured = StructuredContentAnalysis.fromJson(response);
+    const baseline = BaselineContentAnalysisService();
+    final prepared = baseline.prepareShare(
+      IncomingShare(
+        id: 'low-category-confidence',
+        receivedAt: DateTime(2026, 8, 2),
+        sharedText: 'image placeholder',
+        discoveredUrl: null,
+      ),
+    );
+    final record = prepared.copyWith(
+      analysis: AnalysisRun(
+        id: 'analysis-low-category-confidence',
+        inputId: prepared.raw.id,
+        normalizerVersion: prepared.normalized.normalizerVersion,
+        analyzerVersion: 'luna-structured-v1',
+        status: AnalysisRunStatus.succeeded,
+        completedAt: DateTime(2026, 8, 2),
+        evidence: const [],
+        productMentions: const [],
+        statements: const [],
+        disclosure: DisclosureObservation.unknown,
+        structuredContent: structured,
+      ),
+    );
+
+    expect(record.contentFolder, ContentFolder.needsClassification);
+  });
+
   test('persists the completed structured result without re-analysis', () {
     const baseline = BaselineContentAnalysisService();
     final prepared = baseline.prepareShare(
@@ -92,6 +207,8 @@ void main() {
     final structured = StructuredContentAnalysis.fromJson(_validResponse());
     final record = prepared.copyWith(
       status: CaptureStatus.needsReview,
+      folderOverride: ContentFolder.travelPlace,
+      subcategoryOverride: '숙소',
       analysis: AnalysisRun(
         id: 'analysis-persisted-structured',
         inputId: prepared.raw.id,
@@ -114,6 +231,8 @@ void main() {
     final restored = AppSnapshotCodec.decode(encoded).single;
 
     expect(restored.analysis?.id, 'analysis-persisted-structured');
+    expect(restored.folderOverride, ContentFolder.travelPlace);
+    expect(restored.subcategoryOverride, '숙소');
     expect(
       restored.analysis?.structuredContent?.contentKind,
       ContentKind.recipe,
@@ -215,10 +334,14 @@ void main() {
 Map<String, Object?> _validResponse() {
   const source = '''
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.2",
   "model": "gpt-5.6-luna",
   "domain": "food",
   "contentKind": "recipe",
+  "primaryCategory": "recipe",
+  "categoryConfidence": 0.98,
+  "subcategory": "밑반찬",
+  "subcategoryConfidence": 0.93,
   "completeness": "partial",
   "title": {
     "value": "화면에 보이는 요리",

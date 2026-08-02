@@ -4,6 +4,7 @@ import '../../core/app_theme.dart';
 import '../../core/formatters.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
+import '../common/content_folder_ui.dart';
 import '../common/product_ui.dart';
 
 final class AnalysisReviewScreen extends StatefulWidget {
@@ -26,6 +27,9 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _categoryController;
   late final TextEditingController _amountController;
+  late ContentFolder _selectedFolder;
+  late String _selectedSubcategory;
+  var _subcategoryEdited = false;
   var _saving = false;
 
   CaptureRecord? get _capture =>
@@ -43,6 +47,8 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
     _amountController = TextEditingController(
       text: mention?.amount.value ?? '',
     );
+    _selectedFolder = _capture?.contentFolder ?? ContentFolder.beauty;
+    _selectedSubcategory = _capture?.contentSubcategory ?? '';
   }
 
   @override
@@ -103,6 +109,33 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
                 background: const Color(0xFFFFF3E6),
               ),
             ],
+            const SizedBox(height: 32),
+            const _SectionHeading(
+              title: '저장할 폴더',
+              description: '정리함에서 다시 찾을 기준이에요.',
+            ),
+            const SizedBox(height: 14),
+            ContentFolderPicker(
+              key: const Key('content-folder-picker'),
+              value: _selectedFolder,
+              needsReview: _selectedFolder == ContentFolder.needsClassification,
+              onChanged: (folder) {
+                setState(() => _selectedFolder = folder);
+              },
+            ),
+            const SizedBox(height: 10),
+            ContentSubcategoryPicker(
+              key: const Key('content-subcategory-picker'),
+              folder: _selectedFolder,
+              value: _selectedSubcategory,
+              aiSuggested: !_subcategoryEdited,
+              onChanged: (subcategory) {
+                setState(() {
+                  _selectedSubcategory = subcategory;
+                  _subcategoryEdited = true;
+                });
+              },
+            ),
             const SizedBox(height: 32),
             const _SectionHeading(
               title: '제품 정보',
@@ -201,6 +234,10 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
           category: _categoryController.text.trim(),
           amount: _amountController.text.trim(),
         ),
+        folder: _selectedFolder,
+        // Let the controller keep an existing product group's user-selected
+        // child folder unless this review explicitly renamed it.
+        subcategory: _subcategoryEdited ? _selectedSubcategory : null,
       );
       if (mounted) {
         Navigator.of(context).pop();

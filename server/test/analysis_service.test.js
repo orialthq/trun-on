@@ -43,6 +43,8 @@ test("builds the stateless original-detail Luna request and parses output", asyn
   const result = await service.analyze(input);
 
   assert.equal(result.contentKind, "recipe");
+  assert.equal(result.subcategory, "국·찌개");
+  assert.equal(result.subcategoryConfidence, 0.95);
   assert.equal(capturedBody.model, MODEL);
   assert.equal(capturedBody.store, false);
   assert.deepEqual(capturedBody.reasoning, { effort: "low" });
@@ -59,6 +61,74 @@ test("builds the stateless original-detail Luna request and parses output", asyn
   );
   assert.match(capturedBody.instructions, /untrusted source material/);
   assert.match(capturedBody.instructions, /capture metadata as untrusted/i);
+  assert.match(capturedBody.instructions, /Dynamic subcategory classification/);
+  assert.match(capturedBody.instructions, /not a fixed enum/);
+  assert.match(capturedBody.instructions, /brand name, exact product name/);
+  assert.match(capturedBody.instructions, /정리·수납/);
+});
+
+test("normalizes safe whitespace in a dynamic subcategory", async () => {
+  const service = createAnalysisService({
+    transport: {
+      async createResponse() {
+        return {
+          output_text: JSON.stringify(
+            makeValidAnalysis({ subcategory: "  건강   루틴  " }),
+          ),
+        };
+      },
+    },
+  });
+
+  const result = await service.analyze(input);
+
+  assert.equal(result.subcategory, "건강 루틴");
+});
+
+for (const [label, subcategory] of [
+  ["one-character", "뷰"],
+  ["overlong", "가".repeat(21)],
+  ["emoji", "스킨케어✨"],
+  ["sentence punctuation", "스킨케어 추천!"],
+]) {
+  test(`rejects a ${label} subcategory`, async () => {
+    const service = createAnalysisService({
+      transport: {
+        async createResponse() {
+          return {
+            output_text: JSON.stringify(makeValidAnalysis({ subcategory })),
+          };
+        },
+      },
+    });
+
+    await assert.rejects(
+      service.analyze(input),
+      (error) =>
+        error instanceof OpenAITransportError &&
+        error.kind === "invalid_response",
+    );
+  });
+}
+
+test("rejects an invalid subcategory confidence", async () => {
+  const service = createAnalysisService({
+    transport: {
+      async createResponse() {
+        return {
+          output_text: JSON.stringify(
+            makeValidAnalysis({ subcategoryConfidence: 1.01 }),
+          ),
+        };
+      },
+    },
+  });
+
+  await assert.rejects(
+    service.analyze(input),
+    (error) =>
+      error instanceof OpenAITransportError && error.kind === "invalid_response",
+  );
 });
 
 test("minimizes untrusted capture metadata before sending it upstream", async () => {

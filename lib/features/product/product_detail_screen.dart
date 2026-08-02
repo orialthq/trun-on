@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/formatters.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
+import '../common/content_folder_ui.dart';
 import '../common/product_ui.dart';
 
 final class ProductDetailScreen extends StatelessWidget {
@@ -38,6 +41,30 @@ final class ProductDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 44),
             children: [
               _ProductHeader(group: group),
+              const SizedBox(height: 24),
+              ContentFolderPicker(
+                value: controller.folderForGroup(groupId),
+                onChanged: (folder) {
+                  unawaited(
+                    controller.updateGroupContentFolder(groupId, folder),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              ContentSubcategoryPicker(
+                key: const Key('content-subcategory-picker'),
+                folder: controller.folderForGroup(groupId),
+                value: controller.subcategoryForGroup(groupId),
+                aiSuggested: false,
+                onChanged: (subcategory) {
+                  unawaited(
+                    controller.updateGroupContentSubcategory(
+                      groupId,
+                      subcategory,
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: 36),
               _SectionHeading(
                 title: '콘텐츠에서 나온 이야기',

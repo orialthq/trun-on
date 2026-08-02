@@ -127,6 +127,34 @@ final class AppController extends ChangeNotifier {
         .toList(growable: false);
   }
 
+  ContentFolder folderForGroup(String groupId) {
+    for (final capture in _captures) {
+      if (capture.groupId == groupId) {
+        return capture.contentFolder;
+      }
+    }
+    return ContentFolder.beauty;
+  }
+
+  String subcategoryForGroup(String groupId) {
+    for (final capture in _captures) {
+      if (capture.groupId == groupId) {
+        return capture.contentSubcategory;
+      }
+    }
+    return '기타';
+  }
+
+  int organizedCountForFolder(ContentFolder folder) {
+    final structuredCount = organizedStructuredCaptures
+        .where((capture) => capture.contentFolder == folder)
+        .length;
+    final groupCount = _groups
+        .where((group) => folderForGroup(group.id) == folder)
+        .length;
+    return structuredCount + groupCount;
+  }
+
   List<CaptureRecord> get organizedStructuredCaptures => _captures
       .where(
         (capture) =>
@@ -397,6 +425,8 @@ final class AppController extends ChangeNotifier {
       analysis: capture.analysis,
       review: capture.review,
       groupId: capture.groupId,
+      folderOverride: capture.folderOverride,
+      subcategoryOverride: capture.subcategoryOverride,
     );
   }
 
@@ -438,6 +468,8 @@ final class AppController extends ChangeNotifier {
   Future<void> confirmAndOrganize({
     required String captureId,
     required ConfirmedProductIdentity identity,
+    ContentFolder folder = ContentFolder.beauty,
+    String? subcategory,
   }) async {
     final captureIndex = _captures.indexWhere(
       (capture) => capture.raw.id == captureId,
@@ -507,11 +539,29 @@ final class AppController extends ChangeNotifier {
       );
     }
 
+    final effectiveSubcategory = normalizeContentSubcategory(
+      subcategory ??
+          (existingGroupIndex == -1
+              ? capture.contentSubcategory
+              : subcategoryForGroup(groupId)),
+    );
+
     _captures[captureIndex] = capture.copyWith(
       status: CaptureStatus.organized,
       review: review,
       groupId: groupId,
+      folderOverride: folder,
+      subcategoryOverride: effectiveSubcategory,
     );
+    for (var index = 0; index < _captures.length; index++) {
+      final groupedCapture = _captures[index];
+      if (index != captureIndex && groupedCapture.groupId == groupId) {
+        _captures[index] = groupedCapture.copyWith(
+          folderOverride: folder,
+          subcategoryOverride: effectiveSubcategory,
+        );
+      }
+    }
     notifyListeners();
 
     final saved = await _persistState();
@@ -552,7 +602,11 @@ final class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> confirmStructured(String captureId) async {
+  Future<void> confirmStructured(
+    String captureId, {
+    ContentFolder? folder,
+    String? subcategory,
+  }) async {
     final captureIndex = _captures.indexWhere(
       (capture) => capture.raw.id == captureId,
     );
@@ -574,6 +628,10 @@ final class AppController extends ChangeNotifier {
         resolution: ReviewResolution.confirmed,
         reviewedAt: DateTime.now(),
       ),
+      folderOverride: folder ?? capture.contentFolder,
+      subcategoryOverride: normalizeContentSubcategory(
+        subcategory ?? capture.contentSubcategory,
+      ),
     );
     notifyListeners();
 
@@ -581,6 +639,79 @@ final class AppController extends ChangeNotifier {
     if (saved && capture.raw.origin == CaptureOrigin.androidShare) {
       await _incomingShareService.acknowledge([capture.raw.transportEventId]);
     }
+  }
+
+  Future<void> updateContentFolder(
+    String captureId,
+    ContentFolder folder,
+  ) async {
+    final index = _captures.indexWhere(
+      (capture) => capture.raw.id == captureId,
+    );
+    if (index == -1) {
+      return;
+    }
+    _captures[index] = _captures[index].copyWith(folderOverride: folder);
+    notifyListeners();
+    await _persistState();
+  }
+
+  Future<void> updateContentSubcategory(
+    String captureId,
+    String subcategory,
+  ) async {
+    final index = _captures.indexWhere(
+      (capture) => capture.raw.id == captureId,
+    );
+    if (index == -1) {
+      return;
+    }
+    _captures[index] = _captures[index].copyWith(
+      subcategoryOverride: normalizeContentSubcategory(subcategory),
+    );
+    notifyListeners();
+    await _persistState();
+  }
+
+  Future<void> updateGroupContentFolder(
+    String groupId,
+    ContentFolder folder,
+  ) async {
+    var changed = false;
+    for (var index = 0; index < _captures.length; index++) {
+      final capture = _captures[index];
+      if (capture.groupId != groupId) {
+        continue;
+      }
+      _captures[index] = capture.copyWith(folderOverride: folder);
+      changed = true;
+    }
+    if (!changed) {
+      return;
+    }
+    notifyListeners();
+    await _persistState();
+  }
+
+  Future<void> updateGroupContentSubcategory(
+    String groupId,
+    String subcategory,
+  ) async {
+    final normalized = normalizeContentSubcategory(subcategory);
+    var changed = false;
+    for (var index = 0; index < _captures.length; index++) {
+      final capture = _captures[index];
+      if (capture.groupId != groupId) {
+        continue;
+      }
+      _captures[index] = capture.copyWith(subcategoryOverride: normalized);
+      changed = true;
+    }
+    if (!changed) {
+      return;
+    }
+    notifyListeners();
+    await _persistState();
   }
 
   void retryAnalysis(String captureId) {
@@ -605,7 +736,7 @@ final class AppController extends ChangeNotifier {
           : ShareKind.image,
       attachments: capture.raw.attachments,
     );
-    final reanalyzed = capture.raw.attachments.isEmpty
+    final reanalyzedWithoutFolder = capture.raw.attachments.isEmpty
         ? _contentAnalysisService.analyzeShare(
             share,
             origin: capture.raw.origin,
@@ -614,6 +745,10 @@ final class AppController extends ChangeNotifier {
             share,
             origin: capture.raw.origin,
           );
+    final reanalyzed = reanalyzedWithoutFolder.copyWith(
+      folderOverride: capture.folderOverride,
+      subcategoryOverride: capture.subcategoryOverride,
+    );
     _captures[index] = reanalyzed;
     unawaited(_persistState());
     notifyListeners();
@@ -639,7 +774,7 @@ final class AppController extends ChangeNotifier {
           share,
           origin: persisted.origin,
         );
-        final analyzed = switch (persisted.analysis) {
+        final analyzedWithoutFolder = switch (persisted.analysis) {
           final analysis? => prepared.copyWith(
             status: persisted.status,
             analysis: analysis,
@@ -651,6 +786,10 @@ final class AppController extends ChangeNotifier {
             ),
           null => prepared,
         };
+        final analyzed = analyzedWithoutFolder.copyWith(
+          folderOverride: persisted.folderOverride,
+          subcategoryOverride: persisted.subcategoryOverride,
+        );
         if (analyzed.status == CaptureStatus.analyzing) {
           pendingAnalysisIds.add(analyzed.raw.id);
         }
@@ -691,6 +830,7 @@ final class AppController extends ChangeNotifier {
         restored.add(analyzed);
       }
       if (restored.isNotEmpty) {
+        _synchronizeRestoredGroupSubcategories(restored);
         _captures.insertAll(0, restored);
         _durablySavedTransportIds.addAll(
           restored.map((capture) => capture.raw.transportEventId),
@@ -702,6 +842,45 @@ final class AppController extends ChangeNotifier {
       }
     } catch (error, stackTrace) {
       debugPrint('App snapshot restore failed: $error\n$stackTrace');
+    }
+  }
+
+  void _synchronizeRestoredGroupSubcategories(List<CaptureRecord> restored) {
+    final subcategoryByGroup = <String, String>{};
+    for (final capture in restored) {
+      final groupId = capture.groupId;
+      final override = capture.subcategoryOverride;
+      if (groupId != null && override != null) {
+        subcategoryByGroup.putIfAbsent(groupId, () => override);
+      }
+    }
+    for (final capture in _captures) {
+      final groupId = capture.groupId;
+      final override = capture.subcategoryOverride;
+      if (groupId != null && override != null) {
+        subcategoryByGroup.putIfAbsent(groupId, () => override);
+      }
+    }
+    if (subcategoryByGroup.isEmpty) {
+      return;
+    }
+    for (var index = 0; index < restored.length; index++) {
+      final capture = restored[index];
+      final subcategory = capture.groupId == null
+          ? null
+          : subcategoryByGroup[capture.groupId];
+      if (subcategory != null) {
+        restored[index] = capture.copyWith(subcategoryOverride: subcategory);
+      }
+    }
+    for (var index = 0; index < _captures.length; index++) {
+      final capture = _captures[index];
+      final subcategory = capture.groupId == null
+          ? null
+          : subcategoryByGroup[capture.groupId];
+      if (subcategory != null) {
+        _captures[index] = capture.copyWith(subcategoryOverride: subcategory);
+      }
     }
   }
 

@@ -35,6 +35,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('콘텐츠에서 나온 이야기'), findsOneWidget);
+    expect(find.byKey(const Key('content-subcategory-picker')), findsOneWidget);
     expect(find.textContaining('사용자 확인 완료'), findsNothing);
     expect(find.textContaining('베이스라인'), findsNothing);
   });
@@ -84,6 +85,39 @@ void main() {
     expect(find.text('접기'), findsWidgets);
   });
 
+  testWidgets('filters the organized library by folder', (tester) async {
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+    final beautySubcategory = controller.subcategoryForGroup(
+      'group-baumlab-pore-balance',
+    );
+
+    await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('folder-beauty')), findsOneWidget);
+    expect(find.byKey(const Key('folder-healthFitness')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('folder-healthFitness')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('건강·운동 폴더가 비어 있어요'), findsOneWidget);
+    expect(find.text('포어 밸런스 세럼'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('folder-beauty')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(Key('subcategory-$beautySubcategory')), findsOneWidget);
+    await tester.tap(find.byKey(Key('subcategory-$beautySubcategory')));
+    await tester.pumpAndSettle();
+    expect(find.text('포어 밸런스 세럼'), findsOneWidget);
+  });
+
   testWidgets('reviews extracted fields and organizes a capture', (
     tester,
   ) async {
@@ -102,6 +136,25 @@ void main() {
     expect(find.text('잘못된 부분만 고치면 돼요.'), findsOneWidget);
     expect(find.textContaining('정규화된 URL'), findsNothing);
     expect(find.textContaining('신뢰도'), findsNothing);
+    expect(find.byKey(const Key('content-subcategory-picker')), findsOneWidget);
+
+    final subcategoryPicker = find.byKey(
+      const Key('content-subcategory-picker'),
+    );
+    await tester.scrollUntilVisible(
+      subcategoryPicker,
+      220,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(subcategoryPicker);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('subcategory-name-field')),
+      '선케어',
+    );
+    await tester.tap(find.byKey(const Key('save-subcategory-button')));
+    await tester.pumpAndSettle();
 
     await tester.drag(find.byType(ListView).last, const Offset(0, -500));
     await tester.pumpAndSettle();
@@ -118,6 +171,12 @@ void main() {
     expect(
       controller.captureById('capture-demo-daylight-review')?.status,
       CaptureStatus.organized,
+    );
+    expect(
+      controller
+          .captureById('capture-demo-daylight-review')
+          ?.contentSubcategory,
+      '선케어',
     );
     expect(find.text('콘텐츠'), findsWidgets);
   });
