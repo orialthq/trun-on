@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
+import '../../data/external_app_navigation_service.dart';
 import '../../data/incoming_share_service.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
@@ -28,6 +29,8 @@ final class _HomeShellState extends State<HomeShell> {
   var _selectedIndex = 0;
   String? _incomingCaptureId;
   var _exitArmed = false;
+  var _canReturnToSourceApp = false;
+  var _returningToSourceApp = false;
   Timer? _exitConfirmationTimer;
   late StreamSubscription<String> _incomingCaptureSubscription;
   Future<void> _sourceChoiceTail = Future<void>.value();
@@ -59,6 +62,8 @@ final class _HomeShellState extends State<HomeShell> {
               _selectedIndex = 1;
               _incomingCaptureId = captureId;
               _exitArmed = false;
+              _canReturnToSourceApp = true;
+              _returningToSourceApp = false;
             });
             _exitConfirmationTimer?.cancel();
             Navigator.of(context).popUntil((route) => route.isFirst);
@@ -77,7 +82,7 @@ final class _HomeShellState extends State<HomeShell> {
     }
     final shouldDelete = await showModalBottomSheet<bool>(
       context: context,
-      useSafeArea: true,
+      isScrollControlled: true,
       isDismissible: false,
       enableDrag: false,
       builder: (context) => const _SourceImageChoiceSheet(),
@@ -126,7 +131,7 @@ final class _HomeShellState extends State<HomeShell> {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
   }
 
-  void _handleSystemBack() {
+  Future<void> _handleSystemBack() async {
     if (_selectedIndex != 0) {
       _exitConfirmationTimer?.cancel();
       setState(() {
@@ -135,6 +140,19 @@ final class _HomeShellState extends State<HomeShell> {
       });
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       return;
+    }
+
+    if (_canReturnToSourceApp) {
+      if (_returningToSourceApp) return;
+      setState(() => _returningToSourceApp = true);
+      final returned = await const ExternalAppNavigationService()
+          .returnToPreviousApp();
+      if (!mounted) return;
+      setState(() {
+        _canReturnToSourceApp = false;
+        _returningToSourceApp = false;
+      });
+      if (returned) return;
     }
 
     _exitConfirmationTimer?.cancel();
@@ -179,7 +197,7 @@ final class _HomeShellState extends State<HomeShell> {
       canPop: !_handlesSystemBack || _exitArmed,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && _handlesSystemBack) {
-          _handleSystemBack();
+          unawaited(_handleSystemBack());
         }
       },
       child: Scaffold(
@@ -505,63 +523,74 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Align(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.border,
-                borderRadius: BorderRadius.circular(999),
+    return SafeArea(
+      top: false,
+      maintainBottomViewPadding: true,
+      minimum: const EdgeInsets.only(bottom: 12),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              child: ExcludeSemantics(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.border,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            width: 46,
-            height: 46,
-            decoration: const BoxDecoration(
-              color: AppTheme.primarySoft,
-              shape: BoxShape.circle,
+            const SizedBox(height: 16),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                color: AppTheme.primarySoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.download_done_rounded,
+                color: AppTheme.primary,
+              ),
             ),
-            child: const Icon(
-              Icons.download_done_rounded,
-              color: AppTheme.primary,
+            const SizedBox(height: 12),
+            Text(
+              'Trun On에 안전하게 저장했어요',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Trun On에 안전하게 저장했어요',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '갤러리의 원본도 남겨둘까요? 어떤 선택을 해도 Trun On 안의 복사본은 유지돼요.',
-            style: TextStyle(color: AppTheme.muted, fontSize: 15, height: 1.5),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('갤러리에 두기'),
+            const SizedBox(height: 6),
+            const Text(
+              '갤러리의 원본도 남겨둘까요? 어떤 선택을 해도 Trun On 안의 복사본은 유지돼요.',
+              style: TextStyle(
+                color: AppTheme.muted,
+                fontSize: 14,
+                height: 1.45,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(foregroundColor: AppTheme.negative),
-              child: const Text('갤러리 원본 삭제'),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('갤러리에 두기'),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: AppTheme.negative),
+                child: const Text('갤러리 원본 삭제'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

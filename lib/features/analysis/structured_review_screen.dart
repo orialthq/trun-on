@@ -109,11 +109,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
             _SourceGallery(attachments: capture.raw.attachments),
           ],
           const SizedBox(height: 32),
-          const _SectionTitle(
-            title: 'AI 분류',
-            subtitle: '카드를 눌러 저장할 폴더를 바꿀 수 있어요.',
-            editable: true,
-          ),
+          const _SectionTitle(title: 'AI 분류', editable: true),
           const SizedBox(height: 14),
           ContentFolderPicker(
             key: const Key('content-folder-picker'),
@@ -190,12 +186,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
           ],
           if (structured.evidence.isNotEmpty) ...[
             const SizedBox(height: 32),
-            const _SectionTitle(
-              title: '근거',
-              subtitle: '이미지에서 실제로 읽힌 내용만 모았어요.',
-            ),
-            const SizedBox(height: 12),
-            _EvidenceCard(evidence: structured.evidence),
+            _EvidenceDisclosure(evidence: structured.evidence),
           ],
         ],
       ),
@@ -427,14 +418,9 @@ final class _Badge extends StatelessWidget {
 }
 
 final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.title,
-    this.subtitle,
-    this.editable = false,
-  });
+  const _SectionTitle({required this.title, this.editable = false});
 
   final String title;
-  final String? subtitle;
   final bool editable;
 
   @override
@@ -468,17 +454,6 @@ final class _SectionTitle extends StatelessWidget {
             ],
           ],
         ),
-        if (subtitle case final value?) ...[
-          const SizedBox(height: 5),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppTheme.muted,
-              fontSize: 13,
-              height: 1.4,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -701,6 +676,93 @@ final class _FactsCard extends StatelessWidget {
   }
 }
 
+final class _EvidenceDisclosure extends StatefulWidget {
+  const _EvidenceDisclosure({required this.evidence});
+
+  final List<StructuredEvidence> evidence;
+
+  @override
+  State<_EvidenceDisclosure> createState() => _EvidenceDisclosureState();
+}
+
+final class _EvidenceDisclosureState extends State<_EvidenceDisclosure> {
+  var _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: AppTheme.surfaceRaised,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: AppTheme.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            key: const Key('analysis-evidence-disclosure'),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Semantics(
+              button: true,
+              label: _expanded ? '원본 근거 접기' : '원본 근거 펼치기',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.fact_check_outlined,
+                      color: AppTheme.muted,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '원본 근거',
+                            style: TextStyle(
+                              color: AppTheme.ink,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${widget.evidence.length}개 · 필요할 때 펼쳐보세요',
+                            style: const TextStyle(
+                              color: AppTheme.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: AppTheme.muted,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 10),
+          _EvidenceCard(evidence: widget.evidence),
+        ],
+      ],
+    );
+  }
+}
+
 final class _EvidenceCard extends StatelessWidget {
   const _EvidenceCard({required this.evidence});
 
@@ -816,6 +878,9 @@ final class _PlaceCardState extends State<_PlaceCard>
 
   var _enabled = false;
   var _radiusMeters = PlaceReminderService.defaultRadiusMeters;
+  var _foregroundGranted = false;
+  var _backgroundGranted = false;
+  var _backgroundPermissionLabel = '항상 허용';
   var _loading = true;
   var _busy = false;
   var _waitingForBackgroundPermission = false;
@@ -852,6 +917,9 @@ final class _PlaceCardState extends State<_PlaceCard>
       setState(() {
         _enabled = state.enabled;
         _radiusMeters = state.radiusMeters;
+        _foregroundGranted = state.foregroundGranted;
+        _backgroundGranted = state.backgroundGranted;
+        _backgroundPermissionLabel = state.backgroundPermissionLabel;
         _loading = false;
       });
     } on Object {
@@ -860,14 +928,27 @@ final class _PlaceCardState extends State<_PlaceCard>
   }
 
   Future<void> _resumeAfterSettings() async {
-    final state = await _service.getState(widget.captureId);
-    if (!mounted) return;
-    if (state.backgroundGranted) {
-      await _enable();
-      return;
+    try {
+      final state = await _service.getState(widget.captureId);
+      if (!mounted) return;
+      setState(() {
+        _enabled = state.enabled;
+        _radiusMeters = state.radiusMeters;
+        _foregroundGranted = state.foregroundGranted;
+        _backgroundGranted = state.backgroundGranted;
+        _backgroundPermissionLabel = state.backgroundPermissionLabel;
+      });
+      if (state.backgroundGranted) {
+        await _enable();
+        return;
+      }
+      setState(() => _busy = false);
+      _showMessage('위치 권한을 “${state.backgroundPermissionLabel}”으로 바꿔 주세요.');
+    } on Object {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _showMessage('위치 권한 상태를 확인하지 못했어요.');
     }
-    setState(() => _busy = false);
-    _showMessage('위치 권한을 “${state.backgroundPermissionLabel}”으로 바꿔 주세요.');
   }
 
   Future<void> _toggle(bool value) async {
@@ -903,6 +984,7 @@ final class _PlaceCardState extends State<_PlaceCard>
           _showMessage('근처 알림을 받으려면 위치 권한이 필요해요.');
           return;
         }
+        setState(() => _foregroundGranted = true);
         result = await _service.enable(
           id: widget.captureId,
           title: widget.title,
@@ -916,11 +998,18 @@ final class _PlaceCardState extends State<_PlaceCard>
         case PlaceReminderEnableStatus.enabled:
           setState(() {
             _enabled = true;
+            _foregroundGranted = true;
+            _backgroundGranted = true;
             _radiusMeters = result.radiusMeters ?? _radiusMeters;
           });
           _showMessage('${_formatRadius(_radiusMeters)} 안에 들어오면 알려드릴게요.');
         case PlaceReminderEnableStatus.needsBackgroundPermission:
           final label = result.backgroundPermissionLabel ?? '항상 허용';
+          setState(() {
+            _foregroundGranted = true;
+            _backgroundGranted = false;
+            _backgroundPermissionLabel = label;
+          });
           final openSettings = await _confirmBackgroundPermission(label);
           if (!mounted || !openSettings) return;
           _waitingForBackgroundPermission = true;
@@ -944,6 +1033,24 @@ final class _PlaceCardState extends State<_PlaceCard>
     }
   }
 
+  Future<void> _openAlwaysAllowSettings() async {
+    if (_busy) return;
+    if (!Platform.isAndroid) {
+      _showMessage('근처 알림 설정은 현재 안드로이드에서 사용할 수 있어요.');
+      return;
+    }
+    setState(() => _busy = true);
+    _waitingForBackgroundPermission = true;
+    try {
+      await _service.openBackgroundLocationSettings();
+    } on Object {
+      _waitingForBackgroundPermission = false;
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _showMessage('위치 설정을 열지 못했어요.');
+    }
+  }
+
   Future<bool> _confirmBackgroundPermission(String label) async {
     return await showDialog<bool>(
           context: context,
@@ -951,7 +1058,7 @@ final class _PlaceCardState extends State<_PlaceCard>
             title: const Text('앱을 닫아도 알려드릴까요?'),
             content: Text(
               '설정에서 위치 권한을 “$label”으로 선택해 주세요. '
-              '현재 위치는 Trun On 서버로 전송하지 않아요.',
+              '위치는 휴대폰 안에서만 확인해요.',
             ),
             actions: [
               TextButton(
@@ -1078,26 +1185,13 @@ final class _PlaceCardState extends State<_PlaceCard>
                 Row(
                   children: [
                     const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '근처에 가면 알림',
-                            style: TextStyle(
-                              color: AppTheme.ink,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          SizedBox(height: 3),
-                          Text(
-                            '기본은 꺼져 있어요',
-                            style: TextStyle(
-                              color: AppTheme.muted,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        '근처에 가면 알림',
+                        style: TextStyle(
+                          color: AppTheme.ink,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     if (_loading || _busy)
@@ -1110,6 +1204,85 @@ final class _PlaceCardState extends State<_PlaceCard>
                       Switch(value: _enabled, onChanged: _toggle),
                   ],
                 ),
+                if (!_loading && !_backgroundGranted) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B1F13),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.caution),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 1),
+                              child: Icon(
+                                Icons.location_disabled_outlined,
+                                size: 18,
+                                color: AppTheme.caution,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _foregroundGranted
+                                        ? '“$_backgroundPermissionLabel”이 필요해요'
+                                        : '위치 권한이 필요해요',
+                                    style: const TextStyle(
+                                      color: AppTheme.ink,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    _foregroundGranted
+                                        ? '권한 → 위치 → $_backgroundPermissionLabel'
+                                        : '근처 알림을 켜려면 먼저 허용해 주세요.',
+                                    style: const TextStyle(
+                                      color: AppTheme.muted,
+                                      fontSize: 12,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton.icon(
+                            onPressed: _busy
+                                ? null
+                                : _foregroundGranted
+                                ? _openAlwaysAllowSettings
+                                : _enable,
+                            icon: Icon(
+                              _foregroundGranted
+                                  ? Icons.settings_outlined
+                                  : Icons.location_on_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _foregroundGranted ? '항상 허용 설정 열기' : '위치 권한 허용하기',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 Row(
                   children: [
@@ -1152,7 +1325,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                     SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '위치 판단은 휴대폰에서 처리하며 현재 위치를 분석 서버로 보내지 않아요.',
+                        '위치는 휴대폰 안에서만 확인해요.',
                         style: TextStyle(
                           color: AppTheme.subtle,
                           fontSize: 12,

@@ -45,10 +45,10 @@ extension ContentFolderUi on ContentFolder {
   };
 
   IconData get icon => switch (this) {
-    ContentFolder.beauty => Icons.spa_outlined,
-    ContentFolder.healthFitness => Icons.favorite_border_rounded,
+    ContentFolder.beauty => Icons.face_retouching_natural_rounded,
+    ContentFolder.healthFitness => Icons.fitness_center_rounded,
     ContentFolder.restaurantCafe => Icons.restaurant_outlined,
-    ContentFolder.recipe => Icons.menu_book_outlined,
+    ContentFolder.recipe => Icons.soup_kitchen_rounded,
     ContentFolder.shopping => Icons.shopping_bag_outlined,
     ContentFolder.travelPlace => Icons.map_outlined,
     ContentFolder.lifeTip => Icons.lightbulb_outline_rounded,

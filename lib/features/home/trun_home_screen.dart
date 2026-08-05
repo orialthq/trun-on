@@ -38,9 +38,7 @@ final class TrunHomeScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
           children: [
             _Masthead(onAdd: onAdd),
-            const SizedBox(height: 26),
-            _TodayHeader(now: DateTime.now()),
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
             _NextStepCard(
               needsReview: controller.needsReviewCount,
               analyzing: controller.analyzingCount,
@@ -113,39 +111,6 @@ final class TrunHomeScreen extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-final class _TodayHeader extends StatelessWidget {
-  const _TodayHeader({required this.now});
-
-  final DateTime now;
-
-  @override
-  Widget build(BuildContext context) {
-    const weekdays = <String>['월', '화', '수', '목', '금', '토', '일'];
-    final date = '${now.month}월 ${now.day}일 ${weekdays[now.weekday - 1]}요일';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'TODAY  ·  $date',
-          style: const TextStyle(
-            color: AppTheme.accent,
-            fontSize: 12,
-            height: 1.4,
-            letterSpacing: 1.05,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '오늘 들어온 걸\n정리부터 해볼까요?',
-          style: Theme.of(context).textTheme.displaySmall,
-        ),
-      ],
     );
   }
 }
@@ -284,12 +249,7 @@ final class _NextStepCard extends StatelessWidget {
         ? '$analyzing개를 읽고 있어요'
         : needsReview > 0
         ? '$needsReview개만 확인하면 끝'
-        : '새로운 발견을 가져와요';
-    final eyebrow = analyzing > 0
-        ? 'ANALYZING'
-        : needsReview > 0
-        ? 'READY TO SAVE'
-        : 'NEW INPUT';
+        : '콘텐츠를 추가해 보세요';
     final description = analyzing > 0
         ? '분석이 끝나면 바로 알려드릴게요.'
         : needsReview > 0
@@ -311,20 +271,10 @@ final class _NextStepCard extends StatelessWidget {
           button: true,
           label: '$title, $actionLabel',
           child: Padding(
-            padding: const EdgeInsets.all(22),
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  eyebrow,
-                  style: const TextStyle(
-                    color: Color(0xFF3E5010),
-                    fontSize: 12,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 18),
                 Text(
                   title,
                   style: const TextStyle(
@@ -345,7 +295,7 @@ final class _NextStepCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 48),
                   child: DecoratedBox(

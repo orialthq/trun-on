@@ -7,7 +7,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.provider.Settings
 import com.orialthq.ori_beauty.share.IncomingShareIngestor
 import com.orialthq.ori_beauty.share.IncomingShareRoutePolicy
 import com.orialthq.ori_beauty.share.IncomingShareStore
@@ -18,6 +17,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var incomingChannel: MethodChannel? = null
     private var placeReminderChannel: MethodChannel? = null
+    private var appNavigationChannel: MethodChannel? = null
     private val incomingStore: IncomingShareStore by lazy {
         IncomingShareStore(applicationContext)
     }
@@ -137,12 +137,32 @@ class MainActivity : FlutterActivity() {
                         "requestForegroundLocationPermission" ->
                             requestForegroundLocationPermission(result)
                         "openBackgroundLocationSettings" -> {
-                            openBackgroundLocationSettings()
-                            result.success(null)
+                            if (openBackgroundLocationSettings()) {
+                                result.success(null)
+                            } else {
+                                result.error(
+                                    "settings_unavailable",
+                                    "Location permission settings are unavailable.",
+                                    null,
+                                )
+                            }
                         }
                         "enablePlaceReminder" -> enablePlaceReminder(call.arguments, result)
                         "disablePlaceReminder" -> disablePlaceReminder(call.arguments, result)
                         "openMap" -> openMap(call.arguments, result)
+                        else -> result.notImplemented()
+                    }
+                }
+            }
+
+        appNavigationChannel =
+            MethodChannel(
+                flutterEngine.dartExecutor.binaryMessenger,
+                APP_NAVIGATION_CHANNEL,
+            ).also { channel ->
+                channel.setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "returnToPreviousApp" -> returnToPreviousApp(result)
                         else -> result.notImplemented()
                     }
                 }
@@ -266,13 +286,26 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    private fun openBackgroundLocationSettings() {
-        startActivity(
-            Intent(
-                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.parse("package:$packageName"),
-            ),
-        )
+    private fun openBackgroundLocationSettings(): Boolean {
+        return LocationPermissionSettingsNavigator.open(this)
+    }
+
+    private fun returnToPreviousApp(result: MethodChannel.Result) {
+        // Let Flutter receive the method result before this activity is paused or
+        // finished. If a share target was added on top of the source app's task,
+        // finishing reveals that source activity. Otherwise, moving Trun On's own
+        // task behind reveals whichever app was foreground before the share.
+        result.success(true)
+        window.decorView.post {
+            if (isFinishing || isDestroyed) {
+                return@post
+            }
+            if (!isTaskRoot) {
+                finish()
+            } else if (!moveTaskToBack(true)) {
+                finish()
+            }
+        }
     }
 
     private fun enablePlaceReminder(arguments: Any?, result: MethodChannel.Result) {
@@ -491,6 +524,8 @@ class MainActivity : FlutterActivity() {
             "com.orialthq.ori_beauty/incoming_share/v1"
         private const val PLACE_REMINDER_CHANNEL =
             "com.orialthq.ori_beauty/place_reminders/v1"
+        private const val APP_NAVIGATION_CHANNEL =
+            "com.orialthq.ori_beauty/app_navigation/v1"
         private const val PICK_CAPTURE_REQUEST_CODE = 4109
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 4107
         private const val LOCATION_PERMISSION_REQUEST_CODE = 4111

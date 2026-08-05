@@ -18,14 +18,6 @@ final class ProductsScreen extends StatefulWidget {
 
 final class _ProductsScreenState extends State<ProductsScreen> {
   ContentFolder _selectedFolder = ContentFolder.beauty;
-  String _query = '';
-  final _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
 
   void _openSubcategories({String? initialSubcategory, ContentFolder? folder}) {
     Navigator.of(context).push(
@@ -45,12 +37,6 @@ final class _ProductsScreenState extends State<ProductsScreen> {
       animation: widget.controller,
       builder: (context, _) {
         final items = savedLibraryItems(widget.controller);
-        final query = _query.trim().toLowerCase();
-        final searchResults = query.isEmpty
-            ? const <SavedLibraryItem>[]
-            : items
-                  .where((item) => item.matches(query))
-                  .toList(growable: false);
         final itemsByFolder = <ContentFolder, List<SavedLibraryItem>>{
           for (final folder in defaultContentFolders) folder: [],
         };
@@ -72,18 +58,7 @@ final class _ProductsScreenState extends State<ProductsScreen> {
           ),
           children: [
             _ArchiveHeader(total: items.length),
-            const SizedBox(height: 24),
-            _UnifiedSearch(
-              controller: _searchController,
-              query: _query,
-              onChanged: (value) => setState(() => _query = value),
-              onClear: () {
-                FocusScope.of(context).unfocus();
-                _searchController.clear();
-                setState(() => _query = '');
-              },
-            ),
-            if (query.isEmpty && needsClassificationCount > 0) ...[
+            if (needsClassificationCount > 0) ...[
               const SizedBox(height: 14),
               _NeedsClassificationBanner(
                 count: needsClassificationCount,
@@ -93,31 +68,20 @@ final class _ProductsScreenState extends State<ProductsScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            if (query.isNotEmpty)
-              _SearchResults(
-                query: _query.trim(),
-                items: searchResults,
-                onSelected: (item) => openSavedLibraryItem(
-                  context,
-                  controller: widget.controller,
-                  item: item,
-                ),
-              )
-            else
-              _FolderStack(
-                selected: _selectedFolder,
-                itemsByFolder: itemsByFolder,
-                onSelected: (folder) {
-                  setState(() => _selectedFolder = folder);
-                },
-                onOpenSubcategories: ({initialSubcategory}) =>
-                    _openSubcategories(initialSubcategory: initialSubcategory),
-                onOpenItem: (item) => openSavedLibraryItem(
-                  context,
-                  controller: widget.controller,
-                  item: item,
-                ),
+            _FolderStack(
+              selected: _selectedFolder,
+              itemsByFolder: itemsByFolder,
+              onSelected: (folder) {
+                setState(() => _selectedFolder = folder);
+              },
+              onOpenSubcategories: ({initialSubcategory}) =>
+                  _openSubcategories(initialSubcategory: initialSubcategory),
+              onOpenItem: (item) => openSavedLibraryItem(
+                context,
+                controller: widget.controller,
+                item: item,
               ),
+            ),
           ],
         );
       },
@@ -139,16 +103,6 @@ final class _ArchiveHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'A R C H I V E',
-                style: TextStyle(
-                  color: AppTheme.subtle,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.8,
-                ),
-              ),
-              const SizedBox(height: 5),
               Text(
                 '정리함',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
@@ -186,87 +140,6 @@ final class _ArchiveHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-final class _UnifiedSearch extends StatelessWidget {
-  const _UnifiedSearch({
-    required this.controller,
-    required this.query,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  final TextEditingController controller;
-  final String query;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(left: 2, bottom: 9),
-              child: Row(
-                children: [
-                  Text(
-                    'CROSS',
-                    style: TextStyle(
-                      color: AppTheme.subtle,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      '8개 폴더를 한 번에 찾기',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppTheme.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            TextField(
-              key: const Key('library-search-field'),
-              controller: controller,
-              onChanged: onChanged,
-              textInputAction: TextInputAction.search,
-              style: const TextStyle(color: AppTheme.ink, fontSize: 15),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: '제목, 장소, 태그 검색',
-                prefixIcon: const Icon(Icons.search_rounded, size: 21),
-                suffixIcon: query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: '검색어 지우기',
-                        onPressed: onClear,
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                      ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -336,7 +209,7 @@ final class _NeedsClassificationBanner extends StatelessWidget {
   }
 }
 
-final class _FolderStack extends StatelessWidget {
+final class _FolderStack extends StatefulWidget {
   const _FolderStack({
     required this.selected,
     required this.itemsByFolder,
@@ -345,11 +218,6 @@ final class _FolderStack extends StatelessWidget {
     required this.onOpenItem,
   });
 
-  static const _collapsedHeight = 116.0;
-  static const _expandedHeight = 322.0;
-  static const _step = 72.0;
-  static const _expansionOffset = _expandedHeight - _collapsedHeight;
-
   final ContentFolder selected;
   final Map<ContentFolder, List<SavedLibraryItem>> itemsByFolder;
   final ValueChanged<ContentFolder> onSelected;
@@ -357,55 +225,347 @@ final class _FolderStack extends StatelessWidget {
   final ValueChanged<SavedLibraryItem> onOpenItem;
 
   @override
-  Widget build(BuildContext context) {
-    final selectedIndex = defaultContentFolders.indexOf(selected);
-    final cards = <Widget>[];
-    for (var index = 0; index < defaultContentFolders.length; index++) {
-      if (index == selectedIndex) {
-        continue;
-      }
-      cards.add(_positionedCard(index, selectedIndex));
-    }
-    cards.add(_positionedCard(selectedIndex, selectedIndex));
+  State<_FolderStack> createState() => _FolderStackState();
+}
 
-    final height = (defaultContentFolders.length - 1) * _step + _expandedHeight;
-    return SizedBox(
-      height: height,
-      child: Stack(clipBehavior: Clip.none, children: cards),
+final class _FolderStackState extends State<_FolderStack> {
+  static const _itemExtent = 62.0;
+
+  late int _centeredIndex;
+  late FixedExtentScrollController _wheelController;
+
+  @override
+  void initState() {
+    super.initState();
+    _centeredIndex = _folderIndex(widget.selected);
+    _wheelController = FixedExtentScrollController(initialItem: _centeredIndex);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FolderStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextIndex = _folderIndex(widget.selected);
+    if (nextIndex == _centeredIndex) {
+      return;
+    }
+    _centeredIndex = nextIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_wheelController.hasClients) {
+        return;
+      }
+      _wheelController.animateToItem(
+        nextIndex,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _wheelController.dispose();
+    super.dispose();
+  }
+
+  int _folderIndex(ContentFolder folder) {
+    final index = defaultContentFolders.indexOf(folder);
+    return index < 0 ? 0 : index;
+  }
+
+  void _handleWheelChange(int index) {
+    if (index == _centeredIndex) {
+      return;
+    }
+    setState(() => _centeredIndex = index);
+    widget.onSelected(defaultContentFolders[index]);
+  }
+
+  void _selectIndex(int index) {
+    final boundedIndex = index.clamp(0, defaultContentFolders.length - 1);
+    if (boundedIndex != _centeredIndex) {
+      setState(() => _centeredIndex = boundedIndex);
+      widget.onSelected(defaultContentFolders[boundedIndex]);
+    }
+    _wheelController.animateToItem(
+      boundedIndex,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
     );
   }
 
-  Widget _positionedCard(int index, int selectedIndex) {
-    final folder = defaultContentFolders[index];
-    final expanded = index == selectedIndex;
-    final top = index * _step + (index > selectedIndex ? _expansionOffset : 0);
-    return AnimatedPositioned(
-      key: ValueKey('folder-position-${folder.name}'),
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-      left: 0,
-      right: 0,
-      top: top,
-      height: expanded ? _expandedHeight : _collapsedHeight,
-      child: _FolderCard(
-        key: Key('folder-${folder.name}'),
-        folder: folder,
-        items: itemsByFolder[folder] ?? const [],
-        expanded: expanded,
-        onTap: expanded ? null : () => onSelected(folder),
-        onOpenSubcategories: onOpenSubcategories,
-        onOpenItem: onOpenItem,
+  void _moveBy(int amount) {
+    var nextIndex = _centeredIndex + amount;
+    if (nextIndex < 0) {
+      nextIndex = defaultContentFolders.length - 1;
+    } else if (nextIndex >= defaultContentFolders.length) {
+      nextIndex = 0;
+    }
+    _selectIndex(nextIndex);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final folder = defaultContentFolders[_centeredIndex];
+    final items = widget.itemsByFolder[folder] ?? const <SavedLibraryItem>[];
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final wheelDiameter = textScale > 1.3 ? 304.0 : 284.0;
+
+    return Column(
+      children: [
+        Semantics(
+          label: '상위 폴더 룰렛, ${folder.label} 선택됨',
+          child: Center(
+            child: SizedBox.square(
+              dimension: wheelDiameter,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  AnimatedContainer(
+                    key: const Key('folder-roulette'),
+                    duration: const Duration(milliseconds: 240),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          folder.color.withValues(alpha: 0.2),
+                          AppTheme.surfaceRaised,
+                          AppTheme.surface,
+                        ],
+                        stops: const [0, 0.62, 1],
+                      ),
+                      border: Border.all(
+                        color: folder.color.withValues(alpha: 0.56),
+                        width: 1.4,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: folder.color.withValues(alpha: 0.13),
+                          blurRadius: 28,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                  ClipOval(
+                    child: ListWheelScrollView.useDelegate(
+                      key: const Key('top-folder-wheel'),
+                      controller: _wheelController,
+                      itemExtent: _itemExtent,
+                      diameterRatio: 1.35,
+                      perspective: 0.0045,
+                      squeeze: 0.94,
+                      physics: const FixedExtentScrollPhysics(),
+                      onSelectedItemChanged: _handleWheelChange,
+                      childDelegate: ListWheelChildBuilderDelegate(
+                        childCount: defaultContentFolders.length,
+                        builder: (context, index) {
+                          final option = defaultContentFolders[index];
+                          return _RouletteFolderOption(
+                            key: Key('folder-${option.name}'),
+                            folder: option,
+                            count: widget.itemsByFolder[option]?.length ?? 0,
+                            selected: index == _centeredIndex,
+                            onTap: () => _selectIndex(index),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  IgnorePointer(
+                    child: Container(
+                      height: _itemExtent + 4,
+                      margin: const EdgeInsets.symmetric(horizontal: 18),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: folder.color.withValues(alpha: 0.9),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 13),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _WheelStepButton(
+              tooltip: '이전 폴더',
+              icon: Icons.keyboard_arrow_up_rounded,
+              onPressed: () => _moveBy(-1),
+            ),
+            const SizedBox(width: 18),
+            SizedBox(
+              width: 92,
+              child: Column(
+                children: [
+                  Text(
+                    folder.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_centeredIndex + 1} / ${defaultContentFolders.length}',
+                    style: const TextStyle(
+                      color: AppTheme.subtle,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 18),
+            _WheelStepButton(
+              tooltip: '다음 폴더',
+              icon: Icons.keyboard_arrow_down_rounded,
+              onPressed: () => _moveBy(1),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.03),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          ),
+          child: _FolderDetailCard(
+            key: Key('folder-detail-${folder.name}'),
+            folder: folder,
+            items: items,
+            onOpenSubcategories: widget.onOpenSubcategories,
+            onOpenItem: widget.onOpenItem,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+final class _RouletteFolderOption extends StatelessWidget {
+  const _RouletteFolderOption({
+    required this.folder,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final ContentFolder folder;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${folder.label} 폴더, $count개',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              constraints: const BoxConstraints(minHeight: 48),
+              margin: const EdgeInsets.symmetric(horizontal: 28, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 19),
+              decoration: BoxDecoration(
+                color: selected ? folder.color : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      folder.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? const Color(0xFF1B100C)
+                            : AppTheme.muted,
+                        fontSize: selected ? 18 : 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      color: selected
+                          ? const Color(0xFF1B100C)
+                          : AppTheme.subtle,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-final class _FolderCard extends StatelessWidget {
-  const _FolderCard({
+final class _WheelStepButton extends StatelessWidget {
+  const _WheelStepButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+      color: AppTheme.ink,
+      iconSize: 25,
+      style: IconButton.styleFrom(
+        minimumSize: const Size.square(48),
+        backgroundColor: AppTheme.surfaceRaised,
+        side: const BorderSide(color: AppTheme.border),
+      ),
+    );
+  }
+}
+
+final class _FolderDetailCard extends StatelessWidget {
+  const _FolderDetailCard({
     required this.folder,
     required this.items,
-    required this.expanded,
-    required this.onTap,
     required this.onOpenSubcategories,
     required this.onOpenItem,
     super.key,
@@ -413,8 +573,6 @@ final class _FolderCard extends StatelessWidget {
 
   final ContentFolder folder;
   final List<SavedLibraryItem> items;
-  final bool expanded;
-  final VoidCallback? onTap;
   final void Function({String? initialSubcategory}) onOpenSubcategories;
   final ValueChanged<SavedLibraryItem> onOpenItem;
 
@@ -434,127 +592,98 @@ final class _FolderCard extends StatelessWidget {
         return countOrder != 0 ? countOrder : left.key.compareTo(right.key);
       });
 
-    return Semantics(
-      button: !expanded,
-      selected: expanded,
-      label: '${folder.label} 폴더, ${items.length}개',
-      child: Material(
+    return Container(
+      decoration: BoxDecoration(
         color: folder.color,
-        elevation: expanded ? 12 : 5,
-        shadowColor: folder.color.withValues(alpha: 0.34),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(34)),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final showExpandedContent =
-                  expanded &&
-                  constraints.maxHeight >= _FolderStack._expandedHeight - 1;
-              final showArchiveCode =
-                  showExpandedContent ||
-                  MediaQuery.textScalerOf(context).scale(10) <= 13;
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(25, 19, 25, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            folder.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF1B100C),
-                              fontSize: 31,
-                              height: 1.02,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -1.2,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 13,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF1B100C,
-                            ).withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '${items.length}',
-                            style: const TextStyle(
-                              color: Color(0xFF1B100C),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (showArchiveCode) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        folder.archiveCode,
-                        style: TextStyle(
-                          color: const Color(
-                            0xFF1B100C,
-                          ).withValues(alpha: 0.58),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.2,
-                        ),
-                      ),
-                    ],
-                    if (showExpandedContent) ...[
-                      const SizedBox(height: 14),
-                      if (items.isEmpty)
-                        Expanded(child: _EmptyFolderMessage(folder: folder))
-                      else ...[
-                        SizedBox(
-                          height: 44,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: subcategories.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(width: 7),
-                            itemBuilder: (context, index) {
-                              final entry = subcategories[index];
-                              return _SubcategoryChip(
-                                key: Key('subcategory-${entry.key}'),
-                                label: entry.key,
-                                count: entry.value,
-                                onTap: () => onOpenSubcategories(
-                                  initialSubcategory: entry.key,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 11),
-                        _RecentItemRow(
-                          item: items.first,
-                          onTap: () => onOpenItem(items.first),
-                        ),
-                        const Spacer(),
-                        _OpenSubcategoriesButton(
-                          folder: folder,
-                          subcategoryCount: subcategories.length,
-                          onTap: () => onOpenSubcategories(),
-                        ),
-                      ],
-                    ],
-                  ],
-                ),
-              );
-            },
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: folder.color.withValues(alpha: 0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 9),
           ),
-        ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  folder.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF1B100C),
+                    fontSize: 27,
+                    height: 1.05,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1,
+                  ),
+                ),
+              ),
+              Container(
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B100C).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${items.length}',
+                  style: const TextStyle(
+                    color: Color(0xFF1B100C),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (items.isEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                child: _EmptyFolderMessage(folder: folder),
+              ),
+            )
+          else ...[
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: subcategories.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 7),
+                itemBuilder: (context, index) {
+                  final entry = subcategories[index];
+                  return _SubcategoryChip(
+                    key: Key('subcategory-${entry.key}'),
+                    label: entry.key,
+                    count: entry.value,
+                    onTap: () =>
+                        onOpenSubcategories(initialSubcategory: entry.key),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 11),
+            _RecentItemRow(
+              item: items.first,
+              onTap: () => onOpenItem(items.first),
+            ),
+            const SizedBox(height: 17),
+            _OpenSubcategoriesButton(
+              folder: folder,
+              subcategoryCount: subcategories.length,
+              onTap: () => onOpenSubcategories(),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -715,152 +844,21 @@ final class _EmptyFolderMessage extends StatelessWidget {
       children: [
         Icon(
           folder.icon,
-          size: 28,
+          size: 38,
           color: const Color(0xFF1B100C).withValues(alpha: 0.64),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
         Text(
           '${folder.label} 폴더가 비어 있어요',
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: Color(0xFF1B100C),
-            fontSize: 16,
+            fontSize: 18,
+            height: 1.35,
             fontWeight: FontWeight.w900,
           ),
         ),
-        const SizedBox(height: 5),
-        Text(
-          folder.description,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: const Color(0xFF1B100C).withValues(alpha: 0.65),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
       ],
     );
   }
-}
-
-final class _SearchResults extends StatelessWidget {
-  const _SearchResults({
-    required this.query,
-    required this.items,
-    required this.onSelected,
-  });
-
-  final String query;
-  final List<SavedLibraryItem> items;
-  final ValueChanged<SavedLibraryItem> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 72),
-        child: Column(
-          children: [
-            Icon(Icons.search_off_rounded, size: 38, color: AppTheme.subtle),
-            SizedBox(height: 14),
-            Text(
-              '검색 결과가 없어요',
-              style: TextStyle(
-                color: AppTheme.ink,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            SizedBox(height: 6),
-            Text(
-              '다른 제목, 장소 또는 태그로 찾아보세요.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.muted, fontSize: 14),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '“$query” ${items.length}개',
-          style: const TextStyle(
-            color: AppTheme.muted,
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 12),
-        for (var index = 0; index < items.length; index++) ...[
-          _SearchResultRow(
-            item: items[index],
-            onTap: () => onSelected(items[index]),
-          ),
-          if (index != items.length - 1) const SizedBox(height: 10),
-        ],
-      ],
-    );
-  }
-}
-
-final class _SearchResultRow extends StatelessWidget {
-  const _SearchResultRow({required this.item, required this.onTap});
-
-  final SavedLibraryItem item;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.surfaceRaised,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(19),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        minTileHeight: 76,
-        onTap: onTap,
-        leading: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: item.folder.softColor,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(item.folder.icon, color: item.folder.color, size: 21),
-        ),
-        title: Text(
-          item.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        subtitle: Text(
-          '${item.folder.label} · ${item.subcategory}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: AppTheme.muted),
-        ),
-        trailing: const Icon(Icons.chevron_right_rounded),
-      ),
-    );
-  }
-}
-
-extension on ContentFolder {
-  String get archiveCode => switch (this) {
-    ContentFolder.beauty => 'B E A U T Y',
-    ContentFolder.healthFitness => 'F I T N E S S',
-    ContentFolder.restaurantCafe => 'E A T S  &  C A F E',
-    ContentFolder.recipe => 'R E C I P E',
-    ContentFolder.shopping => 'S H O P P I N G',
-    ContentFolder.travelPlace => 'T R A V E L  &  P L A C E',
-    ContentFolder.lifeTip => 'L I F E  T I P S',
-    ContentFolder.other => 'O T H E R',
-    ContentFolder.needsClassification => 'U N S O R T E D',
-  };
 }

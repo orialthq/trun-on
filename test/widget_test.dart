@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ori_beauty/app/ori_beauty_app.dart';
 import 'package:ori_beauty/data/incoming_share_service.dart';
@@ -22,6 +23,11 @@ void main() {
     expect(app.title, 'Trun On');
     expect(find.text('TRUN ON'), findsOneWidget);
     expect(find.text('1개만 확인하면 끝'), findsOneWidget);
+    expect(find.textContaining('TODAY'), findsNothing);
+    expect(find.textContaining('READY TO SAVE'), findsNothing);
+    expect(find.textContaining('오늘 들어온 걸'), findsNothing);
+    expect(find.text('CAPTURE INBOX'), findsNothing);
+    expect(find.text('들어온 내용을 확인하고 정리해요'), findsNothing);
     expect(find.text('콘텐츠'), findsOneWidget);
     expect(find.text('INPUT → 정리'), findsNothing);
     expect(find.byIcon(Icons.auto_awesome_outlined), findsNothing);
@@ -32,15 +38,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('정리함'), findsWidgets);
-    expect(find.text('A R C H I V E'), findsOneWidget);
-    await tester.enterText(
-      find.byKey(const Key('library-search-field')),
-      '포어 밸런스',
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('포어 밸런스 세럼'), findsOneWidget);
+    expect(find.text('A R C H I V E'), findsNothing);
+    expect(find.byKey(const Key('folder-roulette')), findsOneWidget);
+    expect(find.byKey(const Key('library-search-field')), findsNothing);
 
-    await tester.tap(find.text('포어 밸런스 세럼'));
+    final recentItem = find.text('카밍 앰플').last;
+    await tester.ensureVisible(recentItem);
+    await tester.pumpAndSettle();
+    await tester.tap(recentItem);
     await tester.pumpAndSettle();
 
     expect(find.text('콘텐츠에서 나온 이야기'), findsOneWidget);
@@ -145,7 +150,7 @@ void main() {
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
   });
 
-  testWidgets('searches the organized library by saved content metadata', (
+  testWidgets('keeps the archive focused on the folder roulette', (
     tester,
   ) async {
     final service = InMemoryIncomingShareService();
@@ -158,23 +163,12 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('library-search-field')),
-      '포어 밸런스',
-    );
-    await tester.pumpAndSettle();
 
-    expect(find.text('포어 밸런스 세럼'), findsOneWidget);
-    expect(find.text('워터리 선 세럼'), findsNothing);
-    expect(find.text('카밍 앰플'), findsNothing);
-
-    await tester.tap(find.byTooltip('검색어 지우기'));
-    await tester.pumpAndSettle();
-    final searchField = tester.widget<TextField>(
-      find.byKey(const Key('library-search-field')),
-    );
-    expect(searchField.controller?.text, isEmpty);
-    expect(find.text('검색 결과가 없어요'), findsNothing);
+    expect(find.byKey(const Key('folder-roulette')), findsOneWidget);
+    expect(find.byKey(const Key('top-folder-wheel')), findsOneWidget);
+    expect(find.byKey(const Key('library-search-field')), findsNothing);
+    expect(find.textContaining('CROSS'), findsNothing);
+    expect(find.text('B E A U T Y'), findsNothing);
   });
 
   testWidgets('reviews extracted fields and organizes a capture', (
@@ -335,6 +329,45 @@ void main() {
     expect(find.text('정리가 준비됐어요'), findsNothing);
   });
 
+  testWidgets('gallery source choice clears the Android system inset', (
+    tester,
+  ) async {
+    final service = InMemoryIncomingShareService()
+      ..add(
+        IncomingShare(
+          id: 'share-with-source-choice',
+          receivedAt: DateTime(2026, 8, 5),
+          sharedText: '갤러리 원본 선택 테스트',
+          discoveredUrl: null,
+          sourceDeletionAvailable: true,
+        ),
+      );
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+
+    final deleteAction = find.widgetWithText(TextButton, '갤러리 원본 삭제');
+    expect(deleteAction, findsOneWidget);
+    final safeArea = tester.widget<SafeArea>(
+      find.ancestor(of: deleteAction, matching: find.byType(SafeArea)).first,
+    );
+    expect(safeArea.bottom, isTrue);
+    expect(safeArea.maintainBottomViewPadding, isTrue);
+    expect(
+      find.ancestor(
+        of: deleteAction,
+        matching: find.byType(SingleChildScrollView),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '갤러리에 두기'));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets(
     'Android back returns to home before arming app exit',
     (tester) async {
@@ -368,6 +401,56 @@ void main() {
         tester.widget<PopScope<void>>(find.byType(PopScope<void>)).canPop,
         isFalse,
       );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
+    'Android share flow returns to the source app from home',
+    (tester) async {
+      const navigationChannel = MethodChannel(
+        'com.orialthq.ori_beauty/app_navigation/v1',
+      );
+      var returnRequested = false;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(navigationChannel, (call) async {
+            if (call.method == 'returnToPreviousApp') {
+              returnRequested = true;
+              return true;
+            }
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(navigationChannel, null),
+      );
+
+      final service = InMemoryIncomingShareService();
+      final controller = AppController(service);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(OriBeautyApp(controller: controller));
+      await controller.initialize();
+      await tester.pumpAndSettle();
+
+      service.add(
+        IncomingShare(
+          id: 'share-return-to-source',
+          receivedAt: DateTime(2026, 8, 5),
+          sharedText: '인스타그램에서 보낸 캡처',
+          discoveredUrl: null,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('TRUN ON'), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(returnRequested, isTrue);
+      expect(find.text('한 번 더 누르면 앱을 종료해요.'), findsNothing);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );

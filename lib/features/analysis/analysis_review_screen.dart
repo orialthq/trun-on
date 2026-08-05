@@ -124,11 +124,7 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
               ),
             ],
             const SizedBox(height: 32),
-            const _SectionHeading(
-              title: 'AI 분류',
-              description: '카드를 눌러 저장할 폴더를 바꿀 수 있어요.',
-              editable: true,
-            ),
+            const _SectionHeading(title: 'AI 분류', editable: true),
             const SizedBox(height: 14),
             ContentFolderPicker(
               key: const Key('content-folder-picker'),

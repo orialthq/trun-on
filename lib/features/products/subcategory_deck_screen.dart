@@ -83,29 +83,14 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
               icon: const Icon(Icons.arrow_back_rounded),
             ),
             titleSpacing: 2,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.folder.archiveCode,
-                  style: TextStyle(
-                    color: widget.folder.color,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2.2,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  widget.folder.label,
-                  style: const TextStyle(
-                    color: AppTheme.ink,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.8,
-                  ),
-                ),
-              ],
+            title: Text(
+              widget.folder.label,
+              style: const TextStyle(
+                color: AppTheme.ink,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.8,
+              ),
             ),
             actions: [
               if (groupedItems.isNotEmpty)
@@ -646,18 +631,4 @@ Color _subcategoryColor(int index, Color seed) {
     return seed;
   }
   return palette[(index - 1) % palette.length];
-}
-
-extension on ContentFolder {
-  String get archiveCode => switch (this) {
-    ContentFolder.beauty => 'BEAUTY',
-    ContentFolder.healthFitness => 'FITNESS',
-    ContentFolder.restaurantCafe => 'EATS & CAFE',
-    ContentFolder.recipe => 'RECIPE',
-    ContentFolder.shopping => 'SHOPPING',
-    ContentFolder.travelPlace => 'TRAVEL & PLACE',
-    ContentFolder.lifeTip => 'LIFE TIPS',
-    ContentFolder.other => 'OTHER',
-    ContentFolder.needsClassification => 'UNSORTED',
-  };
 }

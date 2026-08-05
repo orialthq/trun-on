@@ -27,16 +27,6 @@ final class InboxScreen extends StatelessWidget {
           key: const PageStorageKey('content-inbox'),
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
           children: [
-            const Text(
-              'CAPTURE INBOX',
-              style: TextStyle(
-                color: AppTheme.primary,
-                fontSize: 12,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -47,11 +37,6 @@ final class InboxScreen extends StatelessWidget {
                       Text(
                         '콘텐츠',
                         style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        '들어온 내용을 확인하고 정리해요',
-                        style: TextStyle(color: AppTheme.muted, fontSize: 15),
                       ),
                     ],
                   ),
