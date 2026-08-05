@@ -77,7 +77,8 @@ Payload mapping:
 - completeness is complete only when the visible source contains enough information for its content kind; otherwise use partial, conflicted, needs_review, or unsupported.
 - Cropped captions, missing ingredient quantities, a missing main recipe, or a review that only shows part of its claims should normally be partial.
 - A title inferred from ingredients alone does not make a partial recipe complete.
-- summary must be a concise Korean, evidence-grounded description, not advice.
+- summary must be one evidence-grounded Korean sentence without line breaks,
+  ideally 20-45 characters, and must not contain advice or repeat the title.
 `.trim();
 
 export function buildOpenAIRequest({

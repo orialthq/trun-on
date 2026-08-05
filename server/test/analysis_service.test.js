@@ -158,6 +158,7 @@ test("minimizes untrusted capture metadata before sending it upstream", async ()
   assert.match(promptText, /"sourceApp":null/);
   assert.match(promptText, /"sourceHost":"www.instagram.com"/);
   assert.match(promptText, /"locale":"ko-KR"/);
+  assert.match(capturedBody.instructions, /20-45 characters/);
   assert.doesNotMatch(promptText, /private-capture-id/);
   assert.doesNotMatch(promptText, /private\/post/);
   assert.doesNotMatch(promptText, /do-not-forward/);

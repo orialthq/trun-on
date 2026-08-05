@@ -116,6 +116,8 @@ export const ANALYSIS_SCHEMA = {
     }),
     summary: {
       type: "string",
+      description:
+        "A single concise Korean sentence, ideally 20-45 characters, grounded in visible evidence and not repeating the title.",
     },
     evidence: {
       type: "array",

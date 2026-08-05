@@ -78,6 +78,7 @@ final class InboxScreen extends StatelessWidget {
                           child: _FilterButton(
                             label: _filterLabel(filter),
                             count: _countForFilter(controller, filter),
+                            color: _filterColor(filter),
                             selected: controller.filter == filter,
                             onPressed: () => controller.setFilter(filter),
                           ),
@@ -199,6 +200,15 @@ final class InboxScreen extends StatelessWidget {
       CaptureFilter.limitedOrFailed => '내용 부족',
     };
   }
+
+  static Color _filterColor(CaptureFilter filter) {
+    return switch (filter) {
+      CaptureFilter.all => AppTheme.primary,
+      CaptureFilter.needsReview => AppTheme.caution,
+      CaptureFilter.organized => AppTheme.positive,
+      CaptureFilter.limitedOrFailed => AppTheme.negative,
+    };
+  }
 }
 
 final class _CaptureSummaryCard extends StatelessWidget {
@@ -259,22 +269,28 @@ final class _FilterButton extends StatelessWidget {
   const _FilterButton({
     required this.label,
     required this.count,
+    required this.color,
     required this.selected,
     required this.onPressed,
   });
 
   final String label;
   final int count;
+  final Color color;
   final bool selected;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppTheme.primarySoft : AppTheme.surface,
+      color: selected
+          ? Color.alphaBlend(color.withValues(alpha: 0.16), AppTheme.surface)
+          : AppTheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: selected ? AppTheme.primary : AppTheme.border),
+        side: BorderSide(
+          color: selected ? color : color.withValues(alpha: 0.28),
+        ),
       ),
       child: InkWell(
         onTap: onPressed,
@@ -284,13 +300,27 @@ final class _FilterButton extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Center(
-              child: Text(
-                '$label $count',
-                style: TextStyle(
-                  color: selected ? AppTheme.primary : AppTheme.muted,
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: selected ? 1 : 0.58),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    '$label $count',
+                    style: TextStyle(
+                      color: selected ? color : AppTheme.muted,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -383,17 +413,11 @@ final class _CaptureCard extends StatelessWidget {
               ? '이미지 내용을 확인해 주세요'
               : '제품을 특정하지 못했어요'
         : productLabel;
-    final description = structured?.summary.trim().isNotEmpty == true
-        ? structured!.summary
-        : isLinkOnly
-        ? '게시물 내용은 전달되지 않았어요. 스크린샷을 보내면 정리할 수 있어요.'
-        : capture.status == CaptureStatus.failed
-        ? _failureMessage(capture.analysis?.failureCode)
-        : capture.raw.rawText.isNotEmpty
-        ? capture.raw.rawText
-        : capture.status == CaptureStatus.analyzing
-        ? '원본을 보존한 채 재료와 순서를 나누고 있어요.'
-        : '공유된 이미지';
+    final description = _listSummary(
+      capture,
+      structured: structured,
+      isLinkOnly: isLinkOnly,
+    );
 
     return InkWell(
       onTap: capture.status == CaptureStatus.failed
@@ -417,29 +441,26 @@ final class _CaptureCard extends StatelessWidget {
                     runSpacing: 5,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            capture.raw.attachments.isNotEmpty
-                                ? Icons.image_outlined
-                                : sourcePlatformIcon(platform),
-                            color: AppTheme.muted,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            capture.raw.attachments.isNotEmpty
-                                ? '이미지'
-                                : sourcePlatformLabel(platform),
-                            style: const TextStyle(
+                      if (capture.raw.attachments.isEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              sourcePlatformIcon(platform),
                               color: AppTheme.muted,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              size: 16,
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 6),
+                            Text(
+                              sourcePlatformLabel(platform),
+                              style: const TextStyle(
+                                color: AppTheme.muted,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       Text(
                         formatCaptureTime(capture.raw.receivedAt),
                         style: const TextStyle(
@@ -464,7 +485,7 @@ final class _CaptureCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     description,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppTheme.muted,
@@ -492,6 +513,36 @@ final class _CaptureCard extends StatelessWidget {
       ),
     );
   }
+
+  static String _listSummary(
+    CaptureRecord capture, {
+    required StructuredContentAnalysis? structured,
+    required bool isLinkOnly,
+  }) {
+    final aiSummary = structured?.summary.trim();
+    if (aiSummary != null && aiSummary.isNotEmpty) {
+      return _singleLine(aiSummary);
+    }
+    if (isLinkOnly) {
+      return '게시물 내용이 없어 스크린샷이 필요해요.';
+    }
+    if (capture.status == CaptureStatus.analyzing) {
+      return 'AI가 이미지의 핵심 내용을 정리하고 있어요.';
+    }
+    if (capture.status == CaptureStatus.failed) {
+      return _failureMessage(capture.analysis?.failureCode);
+    }
+    final statements = capture.analysis?.statements;
+    if (statements != null && statements.isNotEmpty) {
+      return _singleLine(statements.first.originalExpression);
+    }
+    return capture.raw.attachments.isNotEmpty
+        ? 'AI가 읽은 세부 내용을 확인해 주세요.'
+        : '저장한 내용의 세부 정보를 확인해 주세요.';
+  }
+
+  static String _singleLine(String value) =>
+      value.replaceAll(RegExp(r'\s+'), ' ').trim();
 
   static String _failureMessage(String? code) {
     return switch (code) {

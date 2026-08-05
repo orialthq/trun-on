@@ -883,6 +883,7 @@ final class _PlaceCardState extends State<_PlaceCard>
   var _backgroundPermissionLabel = '항상 허용';
   var _loading = true;
   var _busy = false;
+  var _radiusEffectRevision = 0;
   var _waitingForBackgroundPermission = false;
 
   String get _address => widget.place.address!;
@@ -1076,6 +1077,9 @@ final class _PlaceCardState extends State<_PlaceCard>
   }
 
   Future<void> _updateRadius(double value) async {
+    if (mounted) {
+      setState(() => _radiusEffectRevision++);
+    }
     if (!_enabled || _busy) return;
     await _enable();
   }
@@ -1116,25 +1120,9 @@ final class _PlaceCardState extends State<_PlaceCard>
                 const Positioned.fill(
                   child: CustomPaint(painter: _MapPainter()),
                 ),
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primary.withValues(alpha: 0.25),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.location_on_rounded,
-                    color: AppTheme.background,
-                    size: 26,
-                  ),
+                _AnimatedMapRadius(
+                  radiusMeters: _radiusMeters,
+                  pulseRevision: _radiusEffectRevision,
                 ),
               ],
             ),
@@ -1360,6 +1348,138 @@ final class _PlaceCardState extends State<_PlaceCard>
         PlaceCategory.other => '장소',
         null => null,
       };
+}
+
+final class _AnimatedMapRadius extends StatefulWidget {
+  const _AnimatedMapRadius({
+    required this.radiusMeters,
+    required this.pulseRevision,
+  });
+
+  final double radiusMeters;
+  final int pulseRevision;
+
+  @override
+  State<_AnimatedMapRadius> createState() => _AnimatedMapRadiusState();
+}
+
+final class _AnimatedMapRadiusState extends State<_AnimatedMapRadius>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1050),
+  );
+
+  @override
+  void didUpdateWidget(covariant _AnimatedMapRadius oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pulseRevision != widget.pulseRevision) {
+      _pulseController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  double get _targetDiameter {
+    final normalized =
+        ((widget.radiusMeters - PlaceReminderService.minRadiusMeters) /
+                (PlaceReminderService.maxRadiusMeters -
+                    PlaceReminderService.minRadiusMeters))
+            .clamp(0.0, 1.0);
+    return 62 + (Curves.easeOut.transform(normalized) * 50);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return ExcludeSemantics(
+      child: IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 46, end: _targetDiameter),
+          duration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 820),
+          curve: Curves.easeInOutCubic,
+          builder: (context, diameter, _) {
+            return AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, _) {
+                final pulse = reduceMotion ? 1.0 : _pulseController.value;
+                final pulseOpacity = reduceMotion
+                    ? 0.0
+                    : (1 - Curves.easeOut.transform(pulse)) * 0.42;
+                final pulseDiameter = diameter + (pulse * 34);
+                return SizedBox.square(
+                  dimension: 116,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Opacity(
+                        opacity: pulseOpacity,
+                        child: Container(
+                          width: pulseDiameter,
+                          height: pulseDiameter,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppTheme.primary,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: diameter,
+                        height: diameter,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.primary.withValues(alpha: 0.12),
+                          border: Border.all(
+                            color: AppTheme.primary.withValues(alpha: 0.62),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primary.withValues(alpha: 0.16),
+                              blurRadius: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primary.withValues(alpha: 0.28),
+                              blurRadius: 16,
+                              offset: const Offset(0, 7),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.location_on_rounded,
+                          color: AppTheme.background,
+                          size: 25,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 final class _MapPainter extends CustomPainter {

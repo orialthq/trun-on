@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ori_beauty/app/ori_beauty_app.dart';
+import 'package:ori_beauty/core/app_theme.dart';
 import 'package:ori_beauty/data/incoming_share_service.dart';
 import 'package:ori_beauty/domain/models.dart';
 import 'package:ori_beauty/features/product/product_detail_screen.dart';
@@ -171,6 +172,31 @@ void main() {
     expect(find.text('B E A U T Y'), findsNothing);
   });
 
+  testWidgets('content filters use distinct selected colors', (tester) async {
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
+    await tester.pumpAndSettle();
+
+    final cases = <(String, Color)>[
+      ('전체 ${controller.captures.length}', AppTheme.primary),
+      ('확인 필요 ${controller.needsReviewCount}', AppTheme.caution),
+      ('정리 완료 ${controller.organizedCount}', AppTheme.positive),
+      ('내용 부족 ${controller.limitedOrFailedCount}', AppTheme.negative),
+    ];
+    for (final (label, color) in cases) {
+      final filter = find.text(label);
+      await tester.tap(filter);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(filter).style?.color, color);
+    }
+  });
+
   testWidgets('reviews extracted fields and organizes a capture', (
     tester,
   ) async {
@@ -320,7 +346,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('콘텐츠'), findsWidgets);
-    expect(find.text('방금 연 스크린샷'), findsOneWidget);
+    expect(find.text('방금 연 스크린샷'), findsNothing);
+    final compactSummary = find.text('저장한 내용의 세부 정보를 확인해 주세요.');
+    expect(compactSummary, findsOneWidget);
+    expect(tester.widget<Text>(compactSummary).maxLines, 1);
     expect(find.text('정리가 준비됐어요'), findsOneWidget);
     expect(find.text('탭해서 내용을 확인해 주세요'), findsOneWidget);
 
