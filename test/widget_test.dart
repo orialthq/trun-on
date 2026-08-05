@@ -32,6 +32,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('정리함'), findsWidgets);
+    expect(find.text('A R C H I V E'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('library-search-field')),
+      '포어 밸런스',
+    );
+    await tester.pumpAndSettle();
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
 
     await tester.tap(find.text('포어 밸런스 세럼'));
@@ -102,22 +108,40 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
     await tester.pumpAndSettle();
+    final archive = find.byKey(const PageStorageKey<String>('products'));
+    final archiveScroll = find
+        .descendant(of: archive, matching: find.byType(Scrollable))
+        .first;
 
     expect(find.byKey(const Key('folder-beauty')), findsOneWidget);
     expect(find.byKey(const Key('folder-healthFitness')), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('folder-healthFitness')),
+      220,
+      scrollable: archiveScroll,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('folder-healthFitness')));
     await tester.pumpAndSettle();
 
     expect(find.text('건강·운동 폴더가 비어 있어요'), findsOneWidget);
     expect(find.text('포어 밸런스 세럼'), findsNothing);
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('folder-beauty')),
+      -220,
+      scrollable: archiveScroll,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('folder-beauty')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(Key('subcategory-$beautySubcategory')), findsOneWidget);
     await tester.tap(find.byKey(Key('subcategory-$beautySubcategory')));
     await tester.pumpAndSettle();
+    expect(find.text('AI 하위 분류'), findsOneWidget);
+    expect(find.text('하위 분류'), findsOneWidget);
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
   });
 
@@ -310,6 +334,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('정리가 준비됐어요'), findsNothing);
   });
+
+  testWidgets(
+    'Android back returns to home before arming app exit',
+    (tester) async {
+      final service = InMemoryIncomingShareService();
+      final controller = AppController(service);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(OriBeautyApp(controller: controller));
+      await controller.initialize();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
+      await tester.pumpAndSettle();
+      expect(find.text('정리함'), findsWidgets);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('TRUN ON'), findsOneWidget);
+      expect(find.text('한 번 더 누르면 앱을 종료해요.'), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.text('한 번 더 누르면 앱을 종료해요.'), findsOneWidget);
+      expect(
+        tester.widget<PopScope<void>>(find.byType(PopScope<void>)).canPop,
+        isTrue,
+      );
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        tester.widget<PopScope<void>>(find.byType(PopScope<void>)).canPop,
+        isFalse,
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
 
   testWidgets('core screens remain usable at 150 percent text scale', (
     tester,

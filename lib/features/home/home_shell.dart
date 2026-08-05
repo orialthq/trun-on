@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
@@ -22,8 +23,12 @@ final class HomeShell extends StatefulWidget {
 }
 
 final class _HomeShellState extends State<HomeShell> {
+  static const _exitConfirmationWindow = Duration(seconds: 2);
+
   var _selectedIndex = 0;
   String? _incomingCaptureId;
+  var _exitArmed = false;
+  Timer? _exitConfirmationTimer;
   late StreamSubscription<String> _incomingCaptureSubscription;
   Future<void> _sourceChoiceTail = Future<void>.value();
 
@@ -53,7 +58,9 @@ final class _HomeShellState extends State<HomeShell> {
             setState(() {
               _selectedIndex = 1;
               _incomingCaptureId = captureId;
+              _exitArmed = false;
             });
+            _exitConfirmationTimer?.cancel();
             Navigator.of(context).popUntil((route) => route.isFirst);
             if (widget.controller.canDeleteSharedSource(captureId)) {
               _sourceChoiceTail = _sourceChoiceTail.then(
@@ -99,8 +106,57 @@ final class _HomeShellState extends State<HomeShell> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  bool get _handlesSystemBack =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  void _selectDestination(int index) {
+    if (_selectedIndex == index) {
+      if (_exitArmed) {
+        _exitConfirmationTimer?.cancel();
+        setState(() => _exitArmed = false);
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+      return;
+    }
+    setState(() {
+      _selectedIndex = index;
+      _exitArmed = false;
+    });
+    _exitConfirmationTimer?.cancel();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  }
+
+  void _handleSystemBack() {
+    if (_selectedIndex != 0) {
+      _exitConfirmationTimer?.cancel();
+      setState(() {
+        _selectedIndex = 0;
+        _exitArmed = false;
+      });
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      return;
+    }
+
+    _exitConfirmationTimer?.cancel();
+    setState(() => _exitArmed = true);
+    _exitConfirmationTimer = Timer(_exitConfirmationWindow, () {
+      if (mounted) {
+        setState(() => _exitArmed = false);
+      }
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('한 번 더 누르면 앱을 종료해요.'),
+          duration: _exitConfirmationWindow,
+        ),
+      );
+  }
+
   @override
   void dispose() {
+    _exitConfirmationTimer?.cancel();
     unawaited(_incomingCaptureSubscription.cancel());
     super.dispose();
   }
@@ -111,101 +167,107 @@ final class _HomeShellState extends State<HomeShell> {
       TrunHomeScreen(
         controller: widget.controller,
         onAdd: () => InboxScreen.openManualInput(context, widget.controller),
-        onOpenInbox: () => setState(() => _selectedIndex = 1),
-        onOpenLibrary: () => setState(() => _selectedIndex = 2),
+        onOpenInbox: () => _selectDestination(1),
+        onOpenLibrary: () => _selectDestination(2),
         onOpenCapture: _openCapture,
       ),
       InboxScreen(controller: widget.controller),
       ProductsScreen(controller: widget.controller),
     ];
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: IndexedStack(index: _selectedIndex, children: screens),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, -0.12),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
+    return PopScope<void>(
+      canPop: !_handlesSystemBack || _exitArmed,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _handlesSystemBack) {
+          _handleSystemBack();
+        }
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            SafeArea(
+              bottom: false,
+              child: IndexedStack(index: _selectedIndex, children: screens),
+            ),
+            SafeArea(
+              bottom: false,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, -0.12),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
                   ),
-                ),
-                child: _incomingCaptureId == null
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        key: ValueKey(_incomingCaptureId),
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                        child: _IncomingCaptureCard(
-                          controller: widget.controller,
-                          captureId: _incomingCaptureId!,
-                          onDismiss: () {
-                            setState(() => _incomingCaptureId = null);
-                          },
-                          onOpen: () =>
-                              _openIncomingCapture(_incomingCaptureId!),
+                  child: _incomingCaptureId == null
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          key: ValueKey(_incomingCaptureId),
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                          child: _IncomingCaptureCard(
+                            controller: widget.controller,
+                            captureId: _incomingCaptureId!,
+                            onDismiss: () {
+                              setState(() => _incomingCaptureId = null);
+                            },
+                            onOpen: () =>
+                                _openIncomingCapture(_incomingCaptureId!),
+                          ),
                         ),
-                      ),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: AppTheme.surface,
-          border: Border(top: BorderSide(color: AppTheme.border)),
+          ],
         ),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            backgroundColor: AppTheme.surface,
-            elevation: 0,
-            height: 72,
-            indicatorColor: AppTheme.primarySoft,
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              final selected = states.contains(WidgetState.selected);
-              return TextStyle(
-                color: selected ? AppTheme.primary : AppTheme.subtle,
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              );
-            }),
+        bottomNavigationBar: DecoratedBox(
+          decoration: const BoxDecoration(
+            color: AppTheme.surface,
+            border: Border(top: BorderSide(color: AppTheme.border)),
           ),
-          child: NavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() => _selectedIndex = index);
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: '홈',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.inbox_outlined),
-                selectedIcon: Icon(Icons.inbox),
-                label: '콘텐츠',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.bookmark_border_rounded),
-                selectedIcon: Icon(Icons.bookmark_rounded),
-                label: '정리함',
-              ),
-            ],
+          child: NavigationBarTheme(
+            data: NavigationBarThemeData(
+              backgroundColor: AppTheme.surface,
+              elevation: 0,
+              height: 72,
+              indicatorColor: AppTheme.primarySoft,
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                final selected = states.contains(WidgetState.selected);
+                return TextStyle(
+                  color: selected ? AppTheme.primary : AppTheme.subtle,
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                );
+              }),
+            ),
+            child: NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _selectDestination,
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home_rounded),
+                  label: '홈',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.inbox_outlined),
+                  selectedIcon: Icon(Icons.inbox),
+                  label: '콘텐츠',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.bookmark_border_rounded),
+                  selectedIcon: Icon(Icons.bookmark_rounded),
+                  label: '정리함',
+                ),
+              ],
+            ),
           ),
         ),
       ),

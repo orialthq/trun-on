@@ -1,14 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
 import '../common/content_folder_ui.dart';
-import '../common/product_ui.dart';
-import '../analysis/structured_review_screen.dart';
-import '../product/product_detail_screen.dart';
+import 'saved_library_item.dart';
+import 'subcategory_deck_screen.dart';
 
 final class ProductsScreen extends StatefulWidget {
   const ProductsScreen({required this.controller, super.key});
@@ -20,8 +17,7 @@ final class ProductsScreen extends StatefulWidget {
 }
 
 final class _ProductsScreenState extends State<ProductsScreen> {
-  ContentFolder? _selectedFolder;
-  String? _selectedSubcategory;
+  ContentFolder _selectedFolder = ContentFolder.beauty;
   String _query = '';
   final _searchController = TextEditingController();
 
@@ -31,399 +27,294 @@ final class _ProductsScreenState extends State<ProductsScreen> {
     super.dispose();
   }
 
+  void _openSubcategories({String? initialSubcategory, ContentFolder? folder}) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SubcategoryDeckScreen(
+          controller: widget.controller,
+          folder: folder ?? _selectedFolder,
+          initialSubcategory: initialSubcategory,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (context, _) {
-        final allGroups = widget.controller.groups;
-        final allStructuredCaptures =
-            widget.controller.organizedStructuredCaptures;
-        final total = allGroups.length + allStructuredCaptures.length;
-        final selectedFolder = _selectedFolder;
-        final folderGroups = selectedFolder == null
-            ? allGroups
-            : allGroups
-                  .where(
-                    (group) =>
-                        widget.controller.folderForGroup(group.id) ==
-                        selectedFolder,
-                  )
-                  .toList(growable: false);
-        final folderStructuredCaptures = selectedFolder == null
-            ? allStructuredCaptures
-            : allStructuredCaptures
-                  .where((capture) => capture.contentFolder == selectedFolder)
-                  .toList(growable: false);
-        final subcategoryCounts = <String, int>{};
-        if (selectedFolder != null) {
-          for (final group in folderGroups) {
-            final name = widget.controller.subcategoryForGroup(group.id).trim();
-            if (name.isNotEmpty) {
-              subcategoryCounts.update(
-                name,
-                (count) => count + 1,
-                ifAbsent: () => 1,
-              );
-            }
-          }
-          for (final capture in folderStructuredCaptures) {
-            final name = capture.contentSubcategory.trim();
-            if (name.isNotEmpty) {
-              subcategoryCounts.update(
-                name,
-                (count) => count + 1,
-                ifAbsent: () => 1,
-              );
-            }
-          }
-        }
-        final sortedSubcategories = subcategoryCounts.entries.toList()
-          ..sort((left, right) {
-            final countOrder = right.value.compareTo(left.value);
-            return countOrder != 0 ? countOrder : left.key.compareTo(right.key);
-          });
-        final selectedSubcategory =
-            _selectedSubcategory != null &&
-                subcategoryCounts.containsKey(_selectedSubcategory)
-            ? _selectedSubcategory
-            : null;
-        final subcategoryGroups = selectedSubcategory == null
-            ? folderGroups
-            : folderGroups
-                  .where(
-                    (group) =>
-                        widget.controller.subcategoryForGroup(group.id) ==
-                        selectedSubcategory,
-                  )
-                  .toList(growable: false);
-        final subcategoryStructuredCaptures = selectedSubcategory == null
-            ? folderStructuredCaptures
-            : folderStructuredCaptures
-                  .where(
-                    (capture) =>
-                        capture.contentSubcategory == selectedSubcategory,
-                  )
-                  .toList(growable: false);
+        final items = savedLibraryItems(widget.controller);
         final query = _query.trim().toLowerCase();
-        final groups = query.isEmpty
-            ? subcategoryGroups
-            : subcategoryGroups
-                  .where((group) => _groupMatches(group, query))
+        final searchResults = query.isEmpty
+            ? const <SavedLibraryItem>[]
+            : items
+                  .where((item) => item.matches(query))
                   .toList(growable: false);
-        final structuredCaptures = query.isEmpty
-            ? subcategoryStructuredCaptures
-            : subcategoryStructuredCaptures
-                  .where((capture) => _captureMatches(capture, query))
-                  .toList(growable: false);
-        final visibleTotal = groups.length + structuredCaptures.length;
+        final itemsByFolder = <ContentFolder, List<SavedLibraryItem>>{
+          for (final folder in defaultContentFolders) folder: [],
+        };
+        for (final item in items) {
+          itemsByFolder[item.folder]?.add(item);
+        }
+        final needsClassificationCount = items
+            .where((item) => item.folder == ContentFolder.needsClassification)
+            .length;
 
         return ListView(
           key: const PageStorageKey('products'),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.fromLTRB(
             20,
-            24,
+            22,
             20,
             40 + MediaQuery.paddingOf(context).bottom,
           ),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '정리함',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primarySoft,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '$total',
-                    style: const TextStyle(
-                      color: AppTheme.primary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              total == 0 ? '확인한 내용을 이곳에 차곡차곡 모아요' : '확인한 내용 $total개를 모아봤어요',
-              style: const TextStyle(
-                color: AppTheme.muted,
-                fontSize: 15,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              key: const Key('library-search-field'),
+            _ArchiveHeader(total: items.length),
+            const SizedBox(height: 24),
+            _UnifiedSearch(
               controller: _searchController,
+              query: _query,
               onChanged: (value) => setState(() => _query = value),
-              textInputAction: TextInputAction.search,
-              style: const TextStyle(color: AppTheme.ink, fontSize: 15),
-              decoration: InputDecoration(
-                hintText: '제목, 장소, 태그 검색',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: '검색어 지우기',
-                        onPressed: () {
-                          FocusScope.of(context).unfocus();
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            _FolderGrid(
-              controller: widget.controller,
-              total: total,
-              selected: selectedFolder,
-              onSelected: (folder) {
-                setState(() {
-                  _selectedFolder = folder;
-                  _selectedSubcategory = null;
-                });
+              onClear: () {
+                FocusScope.of(context).unfocus();
+                _searchController.clear();
+                setState(() => _query = '');
               },
             ),
-            if (selectedFolder != null && sortedSubcategories.isNotEmpty) ...[
-              const SizedBox(height: 22),
-              _SubcategoryFilters(
-                folder: selectedFolder,
-                entries: sortedSubcategories,
-                selected: selectedSubcategory,
-                onSelected: (subcategory) {
-                  setState(() => _selectedSubcategory = subcategory);
-                },
+            if (query.isEmpty && needsClassificationCount > 0) ...[
+              const SizedBox(height: 14),
+              _NeedsClassificationBanner(
+                count: needsClassificationCount,
+                onTap: () => _openSubcategories(
+                  folder: ContentFolder.needsClassification,
+                ),
               ),
             ],
-            const SizedBox(height: 32),
-            if (total == 0)
-              const _EmptyProducts()
-            else if (visibleTotal == 0)
-              query.isNotEmpty
-                  ? const _EmptySearch()
-                  : _EmptyFolder(folder: selectedFolder!)
-            else ...[
-              if (structuredCaptures.isNotEmpty) ...[
-                const _ListHeading(title: '저장한 콘텐츠'),
-                const SizedBox(height: 12),
-                _StructuredList(
-                  captures: structuredCaptures,
-                  onSelected: (capture) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => StructuredReviewScreen(
-                          controller: widget.controller,
-                          captureId: capture.raw.id,
-                        ),
-                      ),
-                    );
-                  },
+            const SizedBox(height: 24),
+            if (query.isNotEmpty)
+              _SearchResults(
+                query: _query.trim(),
+                items: searchResults,
+                onSelected: (item) => openSavedLibraryItem(
+                  context,
+                  controller: widget.controller,
+                  item: item,
                 ),
-              ],
-              if (groups.isNotEmpty) ...[
-                if (structuredCaptures.isNotEmpty) const SizedBox(height: 28),
-                const _ListHeading(title: '제품'),
-                const SizedBox(height: 12),
-                _ProductList(
-                  groups: groups,
-                  subcategoryForGroup: widget.controller.subcategoryForGroup,
-                  onSelected: (group) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ProductDetailScreen(
-                          controller: widget.controller,
-                          groupId: group.id,
-                        ),
-                      ),
-                    );
-                  },
+              )
+            else
+              _FolderStack(
+                selected: _selectedFolder,
+                itemsByFolder: itemsByFolder,
+                onSelected: (folder) {
+                  setState(() => _selectedFolder = folder);
+                },
+                onOpenSubcategories: ({initialSubcategory}) =>
+                    _openSubcategories(initialSubcategory: initialSubcategory),
+                onOpenItem: (item) => openSavedLibraryItem(
+                  context,
+                  controller: widget.controller,
+                  item: item,
                 ),
-              ],
-            ],
+              ),
           ],
         );
       },
     );
   }
-
-  bool _captureMatches(CaptureRecord capture, String query) {
-    final structured = capture.analysis?.structuredContent;
-    final searchable = <String>[
-      capture.contentFolder.label,
-      capture.contentSubcategory,
-      structured?.title.value ?? '',
-      structured?.summary ?? '',
-      structured?.place?.name ?? '',
-      structured?.place?.address ?? '',
-      for (final fact in structured?.facts ?? const <AnalysisFact>[])
-        '${fact.label} ${fact.value}',
-    ].join(' ').toLowerCase();
-    return searchable.contains(query);
-  }
-
-  bool _groupMatches(ProductGroup group, String query) {
-    final searchable = <String>[
-      group.identity.brand,
-      group.identity.name,
-      group.identity.category,
-      group.identity.amount,
-      widget.controller.subcategoryForGroup(group.id),
-      for (final statement in group.statements)
-        '${statement.topic} ${statement.originalExpression}',
-    ].join(' ').toLowerCase();
-    return searchable.contains(query);
-  }
 }
 
-final class _FolderGrid extends StatelessWidget {
-  const _FolderGrid({
-    required this.controller,
-    required this.total,
-    required this.selected,
-    required this.onSelected,
-  });
+final class _ArchiveHeader extends StatelessWidget {
+  const _ArchiveHeader({required this.total});
 
-  final AppController controller;
   final int total;
-  final ContentFolder? selected;
-  final ValueChanged<ContentFolder?> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final needsClassificationCount = controller.organizedCountForFolder(
-      ContentFolder.needsClassification,
-    );
-    final folders = <ContentFolder>[
-      ...defaultContentFolders,
-      if (needsClassificationCount > 0) ContentFolder.needsClassification,
-    ];
-    final items = <Widget>[
-      _FolderCard(
-        key: const Key('folder-all'),
-        label: '전체',
-        count: total,
-        icon: Icons.grid_view_rounded,
-        color: AppTheme.primary,
-        selected: selected == null,
-        onTap: () => onSelected(null),
-      ),
-      for (final folder in folders)
-        _FolderCard(
-          key: Key('folder-${folder.name}'),
-          label: folder.label,
-          count: controller.organizedCountForFolder(folder),
-          icon: folder.icon,
-          color: folder.color,
-          selected: selected == folder,
-          onTap: () => onSelected(folder),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'A R C H I V E',
+                style: TextStyle(
+                  color: AppTheme.subtle,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2.8,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                '정리함',
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  fontSize: 42,
+                  letterSpacing: -1.8,
+                ),
+              ),
+            ],
+          ),
         ),
-    ];
+        Padding(
+          padding: const EdgeInsets.only(bottom: 3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$total',
+                style: const TextStyle(
+                  color: AppTheme.ink,
+                  fontSize: 27,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              const Text(
+                '저장됨',
+                style: TextStyle(
+                  color: AppTheme.subtle,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
 
-    final cardHeight = (72 + MediaQuery.textScalerOf(context).scale(14))
-        .clamp(90.0, 128.0)
-        .toDouble();
-    return SizedBox(
-      height: cardHeight,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (_, index) => SizedBox(width: 138, child: items[index]),
+final class _UnifiedSearch extends StatelessWidget {
+  const _UnifiedSearch({
+    required this.controller,
+    required this.query,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final String query;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(left: 2, bottom: 9),
+              child: Row(
+                children: [
+                  Text(
+                    'CROSS',
+                    style: TextStyle(
+                      color: AppTheme.subtle,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      '8개 폴더를 한 번에 찾기',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppTheme.muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextField(
+              key: const Key('library-search-field'),
+              controller: controller,
+              onChanged: onChanged,
+              textInputAction: TextInputAction.search,
+              style: const TextStyle(color: AppTheme.ink, fontSize: 15),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: '제목, 장소, 태그 검색',
+                prefixIcon: const Icon(Icons.search_rounded, size: 21),
+                suffixIcon: query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '검색어 지우기',
+                        onPressed: onClear,
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-final class _FolderCard extends StatelessWidget {
-  const _FolderCard({
-    required this.label,
-    required this.count,
-    required this.icon,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-    super.key,
-  });
+final class _NeedsClassificationBanner extends StatelessWidget {
+  const _NeedsClassificationBanner({required this.count, required this.onTap});
 
-  final String label;
   final int count;
-  final IconData icon;
-  final Color color;
-  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '$label 폴더, $count개',
-      child: Material(
-        color: selected ? AppTheme.primarySoft : AppTheme.surfaceRaised,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(
-            color: selected ? AppTheme.primary : AppTheme.border,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
+    final folder = ContentFolder.needsClassification;
+    return Material(
+      key: const Key('folder-needsClassification'),
+      color: AppTheme.accentSoft,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: folder.color.withValues(alpha: 0.46)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 58),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
             child: Row(
               children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: Color.alphaBlend(
-                      color.withValues(alpha: 0.16),
-                      AppTheme.surfaceRaised,
-                    ),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, size: 20, color: color),
-                ),
-                const SizedBox(width: 11),
+                Icon(folder.icon, color: folder.color, size: 22),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        '분류가 필요한 콘텐츠 $count개',
                         style: const TextStyle(
                           color: AppTheme.ink,
                           fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        '$count개',
+                      const Text(
+                        '눌러서 AI 분류 결과를 확인해요',
                         style: TextStyle(
-                          color: selected ? AppTheme.primary : AppTheme.subtle,
+                          color: AppTheme.muted,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -431,6 +322,11 @@ final class _FolderCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: AppTheme.caution,
+                  size: 20,
+                ),
               ],
             ),
           ),
@@ -440,78 +336,226 @@ final class _FolderCard extends StatelessWidget {
   }
 }
 
-final class _SubcategoryFilters extends StatelessWidget {
-  const _SubcategoryFilters({
-    required this.folder,
-    required this.entries,
+final class _FolderStack extends StatelessWidget {
+  const _FolderStack({
     required this.selected,
+    required this.itemsByFolder,
     required this.onSelected,
+    required this.onOpenSubcategories,
+    required this.onOpenItem,
   });
 
-  final ContentFolder folder;
-  final List<MapEntry<String, int>> entries;
-  final String? selected;
-  final ValueChanged<String?> onSelected;
+  static const _collapsedHeight = 116.0;
+  static const _expandedHeight = 322.0;
+  static const _step = 72.0;
+  static const _expansionOffset = _expandedHeight - _collapsedHeight;
+
+  final ContentFolder selected;
+  final Map<ContentFolder, List<SavedLibraryItem>> itemsByFolder;
+  final ValueChanged<ContentFolder> onSelected;
+  final void Function({String? initialSubcategory}) onOpenSubcategories;
+  final ValueChanged<SavedLibraryItem> onOpenItem;
 
   @override
   Widget build(BuildContext context) {
-    final total = entries.fold<int>(0, (sum, entry) => sum + entry.value);
-    final chipHeight = (20 + MediaQuery.textScalerOf(context).scale(13))
-        .clamp(44.0, 68.0)
-        .toDouble();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 6,
-          runSpacing: 4,
-          children: [
-            Text(
-              '${folder.label} 하위 폴더',
-              style: const TextStyle(
-                color: AppTheme.ink,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Text(
-              'AI 분류 · 선택해서 보기',
-              style: TextStyle(color: AppTheme.subtle, fontSize: 12),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: chipHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: entries.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return _SubcategoryChip(
-                  key: const Key('subcategory-all'),
-                  label: '전체',
-                  count: total,
-                  selected: selected == null,
-                  color: folder.color,
-                  onTap: () => onSelected(null),
-                );
-              }
-              final entry = entries[index - 1];
-              return _SubcategoryChip(
-                key: Key('subcategory-${entry.key}'),
-                label: entry.key,
-                count: entry.value,
-                selected: selected == entry.key,
-                color: folder.color,
-                onTap: () => onSelected(entry.key),
+    final selectedIndex = defaultContentFolders.indexOf(selected);
+    final cards = <Widget>[];
+    for (var index = 0; index < defaultContentFolders.length; index++) {
+      if (index == selectedIndex) {
+        continue;
+      }
+      cards.add(_positionedCard(index, selectedIndex));
+    }
+    cards.add(_positionedCard(selectedIndex, selectedIndex));
+
+    final height = (defaultContentFolders.length - 1) * _step + _expandedHeight;
+    return SizedBox(
+      height: height,
+      child: Stack(clipBehavior: Clip.none, children: cards),
+    );
+  }
+
+  Widget _positionedCard(int index, int selectedIndex) {
+    final folder = defaultContentFolders[index];
+    final expanded = index == selectedIndex;
+    final top = index * _step + (index > selectedIndex ? _expansionOffset : 0);
+    return AnimatedPositioned(
+      key: ValueKey('folder-position-${folder.name}'),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      left: 0,
+      right: 0,
+      top: top,
+      height: expanded ? _expandedHeight : _collapsedHeight,
+      child: _FolderCard(
+        key: Key('folder-${folder.name}'),
+        folder: folder,
+        items: itemsByFolder[folder] ?? const [],
+        expanded: expanded,
+        onTap: expanded ? null : () => onSelected(folder),
+        onOpenSubcategories: onOpenSubcategories,
+        onOpenItem: onOpenItem,
+      ),
+    );
+  }
+}
+
+final class _FolderCard extends StatelessWidget {
+  const _FolderCard({
+    required this.folder,
+    required this.items,
+    required this.expanded,
+    required this.onTap,
+    required this.onOpenSubcategories,
+    required this.onOpenItem,
+    super.key,
+  });
+
+  final ContentFolder folder;
+  final List<SavedLibraryItem> items;
+  final bool expanded;
+  final VoidCallback? onTap;
+  final void Function({String? initialSubcategory}) onOpenSubcategories;
+  final ValueChanged<SavedLibraryItem> onOpenItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final subcategoryCounts = <String, int>{};
+    for (final item in items) {
+      subcategoryCounts.update(
+        item.subcategory,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    final subcategories = subcategoryCounts.entries.toList()
+      ..sort((left, right) {
+        final countOrder = right.value.compareTo(left.value);
+        return countOrder != 0 ? countOrder : left.key.compareTo(right.key);
+      });
+
+    return Semantics(
+      button: !expanded,
+      selected: expanded,
+      label: '${folder.label} 폴더, ${items.length}개',
+      child: Material(
+        color: folder.color,
+        elevation: expanded ? 12 : 5,
+        shadowColor: folder.color.withValues(alpha: 0.34),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(34)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final showExpandedContent =
+                  expanded &&
+                  constraints.maxHeight >= _FolderStack._expandedHeight - 1;
+              final showArchiveCode =
+                  showExpandedContent ||
+                  MediaQuery.textScalerOf(context).scale(10) <= 13;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(25, 19, 25, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            folder.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF1B100C),
+                              fontSize: 31,
+                              height: 1.02,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -1.2,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 13,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF1B100C,
+                            ).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${items.length}',
+                            style: const TextStyle(
+                              color: Color(0xFF1B100C),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (showArchiveCode) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        folder.archiveCode,
+                        style: TextStyle(
+                          color: const Color(
+                            0xFF1B100C,
+                          ).withValues(alpha: 0.58),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.2,
+                        ),
+                      ),
+                    ],
+                    if (showExpandedContent) ...[
+                      const SizedBox(height: 14),
+                      if (items.isEmpty)
+                        Expanded(child: _EmptyFolderMessage(folder: folder))
+                      else ...[
+                        SizedBox(
+                          height: 44,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: subcategories.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 7),
+                            itemBuilder: (context, index) {
+                              final entry = subcategories[index];
+                              return _SubcategoryChip(
+                                key: Key('subcategory-${entry.key}'),
+                                label: entry.key,
+                                count: entry.value,
+                                onTap: () => onOpenSubcategories(
+                                  initialSubcategory: entry.key,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 11),
+                        _RecentItemRow(
+                          item: items.first,
+                          onTap: () => onOpenItem(items.first),
+                        ),
+                        const Spacer(),
+                        _OpenSubcategoriesButton(
+                          folder: folder,
+                          subcategoryCount: subcategories.length,
+                          onTap: () => onOpenSubcategories(),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
               );
             },
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -520,43 +564,33 @@ final class _SubcategoryChip extends StatelessWidget {
   const _SubcategoryChip({
     required this.label,
     required this.count,
-    required this.selected,
-    required this.color,
     required this.onTap,
     super.key,
   });
 
   final String label;
   final int count;
-  final bool selected;
-  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '$label, $count개',
-      child: Material(
-        color: selected ? color : AppTheme.surfaceRaised,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: selected ? color : AppTheme.border),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
+    return Material(
+      color: const Color(0xFF1B100C).withValues(alpha: 0.13),
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Center(
               child: Text(
                 '$label $count',
-                style: TextStyle(
-                  color: selected ? const Color(0xFF0B0B0D) : AppTheme.muted,
+                style: const TextStyle(
+                  color: Color(0xFF1B100C),
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ),
@@ -567,450 +601,266 @@ final class _SubcategoryChip extends StatelessWidget {
   }
 }
 
-final class _ListHeading extends StatelessWidget {
-  const _ListHeading({required this.title});
+final class _RecentItemRow extends StatelessWidget {
+  const _RecentItemRow({required this.item, required this.onTap});
 
-  final String title;
+  final SavedLibraryItem item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        color: AppTheme.ink,
-        fontSize: 17,
-        fontWeight: FontWeight.w700,
+    return Material(
+      color: const Color(0xFF1B100C).withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(15),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.bookmark_rounded,
+                  size: 18,
+                  color: Color(0xFF1B100C),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF1B100C),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 18,
+                  color: Color(0xFF1B100C),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-final class _StructuredList extends StatelessWidget {
-  const _StructuredList({required this.captures, required this.onSelected});
+final class _OpenSubcategoriesButton extends StatelessWidget {
+  const _OpenSubcategoriesButton({
+    required this.folder,
+    required this.subcategoryCount,
+    required this.onTap,
+  });
 
-  final List<CaptureRecord> captures;
-  final ValueChanged<CaptureRecord> onSelected;
+  final ContentFolder folder;
+  final int subcategoryCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: Key('open-subcategories-${folder.name}'),
+      color: const Color(0xFF24100A),
+      borderRadius: BorderRadius.circular(17),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'AI 하위 분류 열기 · $subcategoryCount',
+                    style: TextStyle(
+                      color: folder.color,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  color: folder.color,
+                  size: 19,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+final class _EmptyFolderMessage extends StatelessWidget {
+  const _EmptyFolderMessage({required this.folder});
+
+  final ContentFolder folder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          folder.icon,
+          size: 28,
+          color: const Color(0xFF1B100C).withValues(alpha: 0.64),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '${folder.label} 폴더가 비어 있어요',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFF1B100C),
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          folder.description,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: const Color(0xFF1B100C).withValues(alpha: 0.65),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+final class _SearchResults extends StatelessWidget {
+  const _SearchResults({
+    required this.query,
+    required this.items,
+    required this.onSelected,
+  });
+
+  final String query;
+  final List<SavedLibraryItem> items;
+  final ValueChanged<SavedLibraryItem> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 72),
+        child: Column(
+          children: [
+            Icon(Icons.search_off_rounded, size: 38, color: AppTheme.subtle),
+            SizedBox(height: 14),
+            Text(
+              '검색 결과가 없어요',
+              style: TextStyle(
+                color: AppTheme.ink,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              '다른 제목, 장소 또는 태그로 찾아보세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.muted, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '“$query” ${items.length}개',
+          style: const TextStyle(
+            color: AppTheme.muted,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (var index = 0; index < items.length; index++) ...[
+          _SearchResultRow(
+            item: items[index],
+            onTap: () => onSelected(items[index]),
+          ),
+          if (index != items.length - 1) const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+}
+
+final class _SearchResultRow extends StatelessWidget {
+  const _SearchResultRow({required this.item, required this.onTap});
+
+  final SavedLibraryItem item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppTheme.surfaceRaised,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(19),
         side: const BorderSide(color: AppTheme.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          for (var index = 0; index < captures.length; index++) ...[
-            _StructuredRow(
-              capture: captures[index],
-              onTap: () => onSelected(captures[index]),
-            ),
-            if (index != captures.length - 1)
-              const Divider(height: 1, indent: 92, endIndent: 18),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-final class _StructuredRow extends StatelessWidget {
-  const _StructuredRow({required this.capture, required this.onTap});
-
-  final CaptureRecord capture;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final structured = capture.analysis!.structuredContent!;
-    final folder = capture.contentFolder;
-    final attachment = capture.raw.attachments.isEmpty
-        ? null
-        : capture.raw.attachments.first;
-    return Semantics(
-      button: true,
-      label: '${structured.title.value ?? '제목 없음'}, ${folder.label}',
-      child: InkWell(
+      child: ListTile(
+        minTileHeight: 76,
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: 62,
-                  height: 72,
-                  child: ColoredBox(
-                    color: folder.softColor,
-                    child: attachment == null
-                        ? Icon(folder.icon, color: folder.color)
-                        : Image.file(
-                            File(attachment.filePath),
-                            fit: BoxFit.cover,
-                            cacheWidth: 186,
-                            errorBuilder: (_, _, _) =>
-                                Icon(folder.icon, color: folder.color),
-                          ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      [
-                        folder.label,
-                        capture.contentSubcategory,
-                        _contentKindLabel(structured.contentKind),
-                        if (structured.title.status == ObservedStatus.inferred)
-                          '제목 추정',
-                        if (structured.title.status == ObservedStatus.missing)
-                          '제목 없음',
-                      ].join(' · '),
-                      style: TextStyle(
-                        color: folder.color,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      structured.title.value ?? '제목 없음',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.ink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (structured.summary.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        structured.summary,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.muted,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppTheme.subtle,
-                size: 22,
-              ),
-            ],
+        leading: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: item.folder.softColor,
+            borderRadius: BorderRadius.circular(14),
           ),
+          child: Icon(item.folder.icon, color: item.folder.color, size: 21),
         ),
-      ),
-    );
-  }
-
-  static String _contentKindLabel(ContentKind kind) {
-    return switch (kind) {
-      ContentKind.recipe => '레시피',
-      ContentKind.sauceRecipe => '소스 레시피',
-      ContentKind.commerceProduct => '상품',
-      ContentKind.productReview => '제품 리뷰',
-      ContentKind.menuComparison => '메뉴 비교',
-      ContentKind.beautyProduct => '뷰티 제품',
-      ContentKind.place => '장소',
-      ContentKind.unknown => '정보',
-    };
-  }
-}
-
-final class _ProductList extends StatelessWidget {
-  const _ProductList({
-    required this.groups,
-    required this.subcategoryForGroup,
-    required this.onSelected,
-  });
-
-  final List<ProductGroup> groups;
-  final String Function(String groupId) subcategoryForGroup;
-  final ValueChanged<ProductGroup> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceRaised,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          children: [
-            for (var index = 0; index < groups.length; index++) ...[
-              _ProductRow(
-                group: groups[index],
-                subcategory: subcategoryForGroup(groups[index].id),
-                onTap: () => onSelected(groups[index]),
-              ),
-              if (index != groups.length - 1)
-                const Divider(indent: 100, endIndent: 20),
-            ],
-          ],
+        title: Text(
+          item.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
-      ),
-    );
-  }
-}
-
-final class _ProductRow extends StatelessWidget {
-  const _ProductRow({
-    required this.group,
-    required this.subcategory,
-    required this.onTap,
-  });
-
-  final ProductGroup group;
-  final String subcategory;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final repeatedTopic = _mostRepeatedTopic(group);
-    final meta = [
-      group.identity.category,
-      group.identity.amount,
-    ].where((value) => value.trim().isNotEmpty).join(' · ');
-
-    return Semantics(
-      button: true,
-      label: '${group.identity.brand} ${group.identity.name}',
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
-          child: Row(
-            children: [
-              ProductArt.forGroup(group, width: 68, height: 68),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      [
-                        subcategory,
-                        group.identity.brand,
-                      ].where((value) => value.trim().isNotEmpty).join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.muted,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      group.identity.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.ink,
-                        fontSize: 17,
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    if (meta.isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        meta,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.subtle,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 9),
-                    Text(
-                      repeatedTopic == null
-                          ? '콘텐츠 ${group.sourceCount}개'
-                          : '콘텐츠 ${group.sourceCount}개 · ${repeatedTopic.label}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: repeatedTopic == null
-                            ? AppTheme.muted
-                            : AppTheme.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppTheme.subtle,
-                size: 22,
-              ),
-            ],
-          ),
+        subtitle: Text(
+          '${item.folder.label} · ${item.subcategory}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: AppTheme.muted),
         ),
-      ),
-    );
-  }
-
-  _TopicSummary? _mostRepeatedTopic(ProductGroup group) {
-    final sourcesByTopic = <String, Set<String>>{};
-    for (final statement in group.statements) {
-      if (statement.type == StatementType.disclosure) {
-        continue;
-      }
-      sourcesByTopic
-          .putIfAbsent(statement.topic, () => <String>{})
-          .add(statement.captureId);
-    }
-
-    final topics =
-        sourcesByTopic.entries
-            .map(
-              (entry) => _TopicSummary(
-                label: entry.key,
-                sourceCount: entry.value.length,
-              ),
-            )
-            .toList(growable: false)
-          ..sort((left, right) {
-            final countOrder = right.sourceCount.compareTo(left.sourceCount);
-            return countOrder != 0
-                ? countOrder
-                : left.label.compareTo(right.label);
-          });
-
-    if (topics.isEmpty || topics.first.sourceCount < 2) {
-      return null;
-    }
-    return topics.first;
-  }
-}
-
-final class _TopicSummary {
-  const _TopicSummary({required this.label, required this.sourceCount});
-
-  final String label;
-  final int sourceCount;
-}
-
-final class _EmptyFolder extends StatelessWidget {
-  const _EmptyFolder({required this.folder});
-
-  final ContentFolder folder;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 48, 16, 32),
-      child: Column(
-        children: [
-          Icon(folder.icon, size: 34, color: folder.color),
-          const SizedBox(height: 16),
-          Text(
-            '${folder.label} 폴더가 비어 있어요',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 7),
-          Text(
-            folder.description,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.muted, fontSize: 14),
-          ),
-        ],
+        trailing: const Icon(Icons.chevron_right_rounded),
       ),
     );
   }
 }
 
-final class _EmptySearch extends StatelessWidget {
-  const _EmptySearch();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 48, 16, 32),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.search_off_rounded,
-            size: 36,
-            color: AppTheme.subtle,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '검색 결과가 없어요',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 7),
-          const Text(
-            '다른 제목, 장소 또는 태그로 찾아보세요.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.muted, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-final class _EmptyProducts extends StatelessWidget {
-  const _EmptyProducts();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 72, 16, 40),
-      child: Column(
-        children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: const BoxDecoration(
-              color: AppTheme.primarySoft,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              size: 30,
-              color: AppTheme.primary,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            '아직 정리된 내용이 없어요',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '캡처를 확인하면 알맞은 폴더에\n차곡차곡 정리해 드려요.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.muted, fontSize: 14, height: 1.55),
-          ),
-        ],
-      ),
-    );
-  }
+extension on ContentFolder {
+  String get archiveCode => switch (this) {
+    ContentFolder.beauty => 'B E A U T Y',
+    ContentFolder.healthFitness => 'F I T N E S S',
+    ContentFolder.restaurantCafe => 'E A T S  &  C A F E',
+    ContentFolder.recipe => 'R E C I P E',
+    ContentFolder.shopping => 'S H O P P I N G',
+    ContentFolder.travelPlace => 'T R A V E L  &  P L A C E',
+    ContentFolder.lifeTip => 'L I F E  T I P S',
+    ContentFolder.other => 'O T H E R',
+    ContentFolder.needsClassification => 'U N S O R T E D',
+  };
 }

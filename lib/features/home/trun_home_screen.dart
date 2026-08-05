@@ -28,60 +28,34 @@ final class TrunHomeScreen extends StatelessWidget {
       animation: controller,
       builder: (context, _) {
         final recent = controller.captures.take(3).toList(growable: false);
+        final hasPendingWork =
+            controller.needsReviewCount > 0 || controller.analyzingCount > 0;
+        final organizedLibraryCount =
+            controller.groups.length +
+            controller.organizedStructuredCaptures.length;
         return ListView(
           key: const PageStorageKey('trun-home'),
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
           children: [
             _Masthead(onAdd: onAdd),
-            const SizedBox(height: 34),
-            Text(
-              '발견에서 멈추지 말고,\n내 것으로 켜.',
-              style: Theme.of(context).textTheme.displaySmall,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'SNS에서 건진 정보를 이해하기 쉽게 정리하고,\n필요한 순간 다시 찾을 수 있게 모아요.',
-              style: TextStyle(
-                color: AppTheme.muted,
-                fontSize: 15,
-                height: 1.55,
-              ),
-            ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 26),
+            _TodayHeader(now: DateTime.now()),
+            const SizedBox(height: 18),
             _NextStepCard(
               needsReview: controller.needsReviewCount,
               analyzing: controller.analyzingCount,
-              onTap: onOpenInbox,
+              onTap: hasPendingWork ? onOpenInbox : onAdd,
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    key: const Key('home-inbox-card'),
-                    eyebrow: '받은 콘텐츠',
-                    value: '${controller.captures.length}',
-                    unit: '개',
-                    icon: Icons.inbox_outlined,
-                    color: AppTheme.accent,
-                    onTap: onOpenInbox,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    key: const Key('home-library-card'),
-                    eyebrow: '정리 완료',
-                    value: '${controller.organizedCount}',
-                    unit: '개',
-                    icon: Icons.bookmark_border_rounded,
-                    color: AppTheme.positive,
-                    onTap: onOpenLibrary,
-                  ),
-                ),
-              ],
+            _StatsGrid(
+              inboxCount: controller.captures.length,
+              organizedCount: organizedLibraryCount,
+              onOpenInbox: onOpenInbox,
+              onOpenLibrary: onOpenLibrary,
             ),
-            const SizedBox(height: 34),
+            const SizedBox(height: 18),
+            const _BrandStatement(),
+            const SizedBox(height: 32),
             _SectionTitle(
               title: '카테고리',
               actionLabel: '정리함 보기',
@@ -89,7 +63,9 @@ final class TrunHomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             SizedBox(
-              height: 100,
+              height: MediaQuery.textScalerOf(context).scale(14) > 18
+                  ? 148
+                  : 116,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 clipBehavior: Clip.none,
@@ -137,6 +113,99 @@ final class TrunHomeScreen extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+final class _TodayHeader extends StatelessWidget {
+  const _TodayHeader({required this.now});
+
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    const weekdays = <String>['월', '화', '수', '목', '금', '토', '일'];
+    final date = '${now.month}월 ${now.day}일 ${weekdays[now.weekday - 1]}요일';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'TODAY  ·  $date',
+          style: const TextStyle(
+            color: AppTheme.accent,
+            fontSize: 12,
+            height: 1.4,
+            letterSpacing: 1.05,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '오늘 들어온 걸\n정리부터 해볼까요?',
+          style: Theme.of(context).textTheme.displaySmall,
+        ),
+      ],
+    );
+  }
+}
+
+final class _BrandStatement extends StatelessWidget {
+  const _BrandStatement();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.fromLTRB(18, 17, 18, 18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 4,
+              height: 52,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppTheme.accent,
+                  borderRadius: BorderRadius.all(Radius.circular(99)),
+                ),
+              ),
+            ),
+            SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '발견만으로는 달라지지 않으니까.',
+                    style: TextStyle(
+                      color: AppTheme.ink,
+                      fontSize: 16,
+                      height: 1.35,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'AI가 읽은 내용을 확인하고 폴더에 넣어 두세요.',
+                    style: TextStyle(
+                      color: AppTheme.muted,
+                      fontSize: 13,
+                      height: 1.45,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -216,11 +285,21 @@ final class _NextStepCard extends StatelessWidget {
         : needsReview > 0
         ? '$needsReview개만 확인하면 끝'
         : '새로운 발견을 가져와요';
+    final eyebrow = analyzing > 0
+        ? 'ANALYZING'
+        : needsReview > 0
+        ? 'READY TO SAVE'
+        : 'NEW INPUT';
     final description = analyzing > 0
         ? '분석이 끝나면 바로 알려드릴게요.'
         : needsReview > 0
         ? 'AI가 정리한 내용을 확인하고 저장해 주세요.'
         : '캡처나 링크·텍스트를 추가해 시작할 수 있어요.';
+    final actionLabel = analyzing > 0
+        ? '분석 상태 보기'
+        : needsReview > 0
+        ? '확인하고 정리하기'
+        : '콘텐츠 가져오기';
 
     return Material(
       color: AppTheme.primary,
@@ -228,66 +307,137 @@ final class _NextStepCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(22),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'NEXT',
-                      style: TextStyle(
-                        color: Color(0xFF3E5010),
-                        fontSize: 12,
-                        letterSpacing: 1.2,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Color(0xFF101208),
-                        fontSize: 24,
-                        height: 1.25,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.6,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      description,
-                      style: const TextStyle(
-                        color: Color(0xFF35430E),
-                        fontSize: 14,
-                        height: 1.45,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+        child: Semantics(
+          button: true,
+          label: '$title, $actionLabel',
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  eyebrow,
+                  style: const TextStyle(
+                    color: Color(0xFF3E5010),
+                    fontSize: 12,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              const SizedBox.square(
-                dimension: 48,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
+                const SizedBox(height: 18),
+                Text(
+                  title,
+                  style: const TextStyle(
                     color: Color(0xFF101208),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.arrow_forward_rounded,
-                    color: AppTheme.primary,
+                    fontSize: 25,
+                    height: 1.22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.65,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: Color(0xFF35430E),
+                    fontSize: 14,
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF101208),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(17, 11, 10, 11),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              actionLabel,
+                              style: const TextStyle(
+                                color: AppTheme.primary,
+                                fontSize: 14,
+                                height: 1.35,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox.square(
+                            dimension: 28,
+                            child: Icon(
+                              Icons.arrow_forward_rounded,
+                              color: AppTheme.primary,
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+final class _StatsGrid extends StatelessWidget {
+  const _StatsGrid({
+    required this.inboxCount,
+    required this.organizedCount,
+    required this.onOpenInbox,
+    required this.onOpenLibrary,
+  });
+
+  final int inboxCount;
+  final int organizedCount;
+  final VoidCallback onOpenInbox;
+  final VoidCallback onOpenLibrary;
+
+  @override
+  Widget build(BuildContext context) {
+    final textIsLarge = MediaQuery.textScalerOf(context).scale(14) > 18;
+    final inbox = _StatCard(
+      key: const Key('home-inbox-card'),
+      eyebrow: '받은 콘텐츠',
+      value: '$inboxCount',
+      unit: '개',
+      icon: Icons.inbox_outlined,
+      color: AppTheme.accent,
+      onTap: onOpenInbox,
+    );
+    final library = _StatCard(
+      key: const Key('home-library-card'),
+      eyebrow: '정리 완료',
+      value: '$organizedCount',
+      unit: '개',
+      icon: Icons.bookmark_border_rounded,
+      color: AppTheme.positive,
+      onTap: onOpenLibrary,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (textIsLarge || constraints.maxWidth < 330) {
+          return Column(children: [inbox, const SizedBox(height: 10), library]);
+        }
+        return Row(
+          children: [
+            Expanded(child: inbox),
+            const SizedBox(width: 12),
+            Expanded(child: library),
+          ],
+        );
+      },
     );
   }
 }
@@ -321,53 +471,69 @@ final class _StatCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
+        child: Semantics(
+          button: true,
+          label: '$eyebrow $value$unit',
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: color, size: 22),
                 ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                eyebrow,
-                style: const TextStyle(
-                  color: AppTheme.muted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: value,
-                      style: const TextStyle(
-                        color: AppTheme.ink,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        eyebrow,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppTheme.muted,
+                          fontSize: 13,
+                          height: 1.3,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    TextSpan(
-                      text: ' $unit',
-                      style: const TextStyle(
-                        color: AppTheme.subtle,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                      const SizedBox(height: 2),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: value,
+                              style: const TextStyle(
+                                color: AppTheme.ink,
+                                fontSize: 27,
+                                height: 1.15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            TextSpan(
+                              text: ' $unit',
+                              style: const TextStyle(
+                                color: AppTheme.subtle,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                Icon(Icons.chevron_right_rounded, color: color, size: 22),
+              ],
+            ),
           ),
         ),
       ),
@@ -412,50 +578,71 @@ final class _CategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textIsLarge = MediaQuery.textScalerOf(context).scale(14) > 18;
     return SizedBox(
-      width: 126,
+      width: textIsLarge ? 160 : 142,
       child: Material(
-        color: AppTheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppTheme.border),
-        ),
+        color: folder.color,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          child: Semantics(
+            button: true,
+            label: '${folder.label} $count개, 정리함에서 보기',
+            child: Padding(
+              padding: const EdgeInsets.all(15),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(folder.icon, color: folder.color, size: 22),
+                      Icon(
+                        folder.icon,
+                        color: const Color(0xFF171717),
+                        size: 22,
+                      ),
                       const Spacer(),
-                      Text(
-                        folder.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.ink,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(
+                            0xFF101010,
+                          ).withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(
+                              color: Color(0xFF171717),
+                              fontSize: 12,
+                              height: 1.2,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                Text(
-                  '$count',
-                  style: TextStyle(
-                    color: folder.color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                  const Spacer(),
+                  Text(
+                    folder.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF171717),
+                      fontSize: 17,
+                      height: 1.15,
+                      letterSpacing: -0.4,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
