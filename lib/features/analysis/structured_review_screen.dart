@@ -42,18 +42,79 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
         _selectedSubcategory ?? capture.contentSubcategory;
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(title: Text(isOrganized ? '저장한 정보' : '분석 결과')),
       body: ListView(
-        padding: EdgeInsets.fromLTRB(20, 4, 20, isOrganized ? 40 : 124),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 48),
         children: [
           Row(
             children: [
+              const _ResultMark(),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isOrganized ? '정리함에 저장됨' : 'AI 분석 결과',
+                  style: const TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            structured.title.value?.trim().isNotEmpty == true
+                ? structured.title.value!
+                : '제목을 확인해 주세요',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          if (structured.title.status != ObservedStatus.observed) ...[
+            const SizedBox(height: 8),
+            Text(
+              structured.title.status == ObservedStatus.inferred
+                  ? '이미지 내용으로 추정한 제목이에요.'
+                  : '이미지에서 제목을 확인하지 못했어요.',
+              style: const TextStyle(
+                color: AppTheme.caution,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          if (structured.summary.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              structured.summary,
+              style: const TextStyle(
+                color: AppTheme.muted,
+                fontSize: 15,
+                height: 1.55,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
               _KindBadge(kind: structured.contentKind),
-              const SizedBox(width: 8),
               _CompletenessBadge(completeness: structured.completeness),
             ],
           ),
-          const SizedBox(height: 16),
+          if (capture.raw.attachments.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _SourceGallery(attachments: capture.raw.attachments),
+          ],
+          const SizedBox(height: 32),
+          const _SectionTitle(
+            title: 'AI 분류',
+            subtitle: '카드를 눌러 저장할 폴더를 바꿀 수 있어요.',
+            editable: true,
+          ),
+          const SizedBox(height: 14),
           ContentFolderPicker(
             key: const Key('content-folder-picker'),
             value: selectedFolder,
@@ -91,43 +152,10 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
               }
             },
           ),
-          const SizedBox(height: 24),
-          Text(
-            structured.title.value?.trim().isNotEmpty == true
-                ? structured.title.value!
-                : '제목을 확인해 주세요',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          if (structured.title.status != ObservedStatus.observed) ...[
-            const SizedBox(height: 6),
-            Text(
-              structured.title.status == ObservedStatus.inferred
-                  ? '이미지 내용으로 추정한 제목이에요.'
-                  : '이미지에서 제목을 확인하지 못했어요.',
-              style: const TextStyle(
-                color: Color(0xFFB26A00),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-          if (structured.summary.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              structured.summary,
-              style: const TextStyle(
-                color: AppTheme.muted,
-                fontSize: 15,
-                height: 1.55,
-              ),
-            ),
-          ],
-          if (capture.raw.attachments.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            _SourceImage(attachment: capture.raw.attachments.first),
-          ],
           if (structured.place case final place? when place.hasAddress) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 32),
+            const _SectionTitle(title: '장소'),
+            const SizedBox(height: 12),
             _PlaceCard(
               captureId: capture.raw.id,
               title: place.name ?? structured.title.value ?? '저장한 장소',
@@ -136,7 +164,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
           ],
           if (structured.conflicts.isNotEmpty ||
               structured.warnings.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             _ReviewNotice(structured: structured),
           ],
           if (structured.ingredientGroups.isNotEmpty) ...[
@@ -175,13 +203,15 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
           ? null
           : SafeArea(
               top: false,
+              minimum: const EdgeInsets.only(bottom: 12),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppTheme.surface,
+                  border: const Border(top: BorderSide(color: AppTheme.border)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.045),
+                      color: Colors.black.withValues(alpha: 0.22),
                       blurRadius: 20,
                       offset: const Offset(0, -6),
                     ),
@@ -191,7 +221,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _saving ? null : _confirm,
-                    child: Text(_saving ? '저장하고 있어요…' : '확인하고 정리하기'),
+                    child: Text(_saving ? '저장하고 있어요…' : '정리함에 저장'),
                   ),
                 ),
               ),
@@ -214,6 +244,14 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
       if (mounted) {
         Navigator.of(context).pop();
       }
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(content: Text('저장하지 못했어요. 잠시 후 다시 시도해 주세요.')),
+          );
+      }
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -222,32 +260,94 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
   }
 }
 
-final class _SourceImage extends StatelessWidget {
-  const _SourceImage({required this.attachment});
+final class _SourceGallery extends StatefulWidget {
+  const _SourceGallery({required this.attachments});
 
-  final IncomingAttachment attachment;
+  final List<IncomingAttachment> attachments;
+
+  @override
+  State<_SourceGallery> createState() => _SourceGalleryState();
+}
+
+final class _SourceGalleryState extends State<_SourceGallery> {
+  var _page = 0;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: AspectRatio(
-        aspectRatio: 4 / 5,
-        child: ColoredBox(
-          color: const Color(0xFFF1F3F5),
-          child: Image.file(
-            File(attachment.filePath),
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => const Center(
-              child: Icon(
-                Icons.broken_image_outlined,
-                color: AppTheme.subtle,
-                size: 36,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '원본 캡처',
+                style: TextStyle(
+                  color: AppTheme.ink,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
+            if (widget.attachments.length > 1)
+              Text(
+                '${_page + 1} / ${widget.attachments.length}',
+                style: const TextStyle(
+                  color: AppTheme.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        AspectRatio(
+          aspectRatio: 4 / 5,
+          child: PageView.builder(
+            itemCount: widget.attachments.length,
+            onPageChanged: (page) => setState(() => _page = page),
+            itemBuilder: (context, index) {
+              final attachment = widget.attachments[index];
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: index == widget.attachments.length - 1 ? 0 : 8,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: ColoredBox(
+                    color: AppTheme.surfaceRaised,
+                    child: Image.file(
+                      File(attachment.filePath),
+                      fit: BoxFit.cover,
+                      semanticLabel: '원본 캡처 ${index + 1}',
+                      errorBuilder: (_, _, _) => const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.broken_image_outlined,
+                              color: AppTheme.subtle,
+                              size: 36,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              '이미지를 불러오지 못했어요',
+                              style: TextStyle(
+                                color: AppTheme.muted,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -281,13 +381,10 @@ final class _CompletenessBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (completeness) {
-      StructuredCompleteness.complete => ('내용 충분', const Color(0xFF16815D)),
-      StructuredCompleteness.partial => ('일부만 확인', const Color(0xFFB26A00)),
-      StructuredCompleteness.conflicted => (
-        '서로 다른 내용',
-        const Color(0xFFD14343),
-      ),
-      StructuredCompleteness.needsReview => ('확인 필요', const Color(0xFFB26A00)),
+      StructuredCompleteness.complete => ('내용 충분', AppTheme.positive),
+      StructuredCompleteness.partial => ('일부만 확인', AppTheme.caution),
+      StructuredCompleteness.conflicted => ('서로 다른 내용', AppTheme.negative),
+      StructuredCompleteness.needsReview => ('확인 필요', AppTheme.caution),
       StructuredCompleteness.unsupported => ('분류 어려움', AppTheme.muted),
     };
     return _Badge(label: label, icon: Icons.check_circle_outline, color: color);
@@ -306,8 +403,9 @@ final class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(10),
+        color: color.withValues(alpha: 0.13),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -329,23 +427,46 @@ final class _Badge extends StatelessWidget {
 }
 
 final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, this.subtitle});
+  const _SectionTitle({
+    required this.title,
+    this.subtitle,
+    this.editable = false,
+  });
 
   final String title;
   final String? subtitle;
+  final bool editable;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppTheme.ink,
-            fontSize: 19,
-            fontWeight: FontWeight.w700,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: AppTheme.ink,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            if (editable) ...[
+              const Icon(Icons.edit_rounded, size: 16, color: AppTheme.muted),
+              const SizedBox(width: 4),
+              const Text(
+                '수정 가능',
+                style: TextStyle(
+                  color: AppTheme.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
         ),
         if (subtitle case final value?) ...[
           const SizedBox(height: 5),
@@ -373,7 +494,8 @@ final class _IngredientGroupCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -448,7 +570,8 @@ final class _StepsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -536,7 +659,8 @@ final class _FactsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -587,7 +711,8 @@ final class _EvidenceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -641,7 +766,8 @@ final class _ReviewNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3E6),
+        color: const Color(0xFF2B1F13),
+        border: Border.all(color: AppTheme.caution),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -649,7 +775,7 @@ final class _ReviewNotice extends StatelessWidget {
         children: [
           const Icon(
             Icons.info_outline_rounded,
-            color: Color(0xFFB26A00),
+            color: AppTheme.caution,
             size: 20,
           ),
           const SizedBox(width: 10),
@@ -657,8 +783,8 @@ final class _ReviewNotice extends StatelessWidget {
             child: Text(
               messages.join('\n'),
               style: const TextStyle(
-                color: Color(0xFF7A4A00),
-                fontSize: 13,
+                color: AppTheme.ink,
+                fontSize: 14,
                 height: 1.5,
               ),
             ),
@@ -825,7 +951,7 @@ final class _PlaceCardState extends State<_PlaceCard>
             title: const Text('앱을 닫아도 알려드릴까요?'),
             content: Text(
               '설정에서 위치 권한을 “$label”으로 선택해 주세요. '
-              '현재 위치는 챙김 서버로 전송하지 않아요.',
+              '현재 위치는 Trun On 서버로 전송하지 않아요.',
             ),
             actions: [
               TextButton(
@@ -867,7 +993,8 @@ final class _PlaceCardState extends State<_PlaceCard>
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
@@ -898,7 +1025,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                   ),
                   child: const Icon(
                     Icons.location_on_rounded,
-                    color: Colors.white,
+                    color: AppTheme.background,
                     size: 26,
                   ),
                 ),
@@ -939,10 +1066,13 @@ final class _PlaceCardState extends State<_PlaceCard>
                   ),
                 ),
                 const SizedBox(height: 14),
-                OutlinedButton.icon(
-                  onPressed: _openMap,
-                  icon: const Icon(Icons.map_outlined, size: 18),
-                  label: const Text('지도에서 보기'),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openMap,
+                    icon: const Icon(Icons.map_outlined, size: 18),
+                    label: const Text('지도에서 보기'),
+                  ),
                 ),
                 const Divider(height: 34),
                 Row(
@@ -1066,10 +1196,10 @@ final class _MapPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFFF1F5F3),
+      Paint()..color = const Color(0xFF1C211D),
     );
     final roadPaint = Paint()
-      ..color = Colors.white
+      ..color = const Color(0xFF333936)
       ..strokeWidth = 14
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(
@@ -1082,7 +1212,7 @@ final class _MapPainter extends CustomPainter {
       Offset(size.width * 0.72, size.height + 10),
       roadPaint..strokeWidth = 9,
     );
-    final blockPaint = Paint()..color = const Color(0xFFDDE9E2);
+    final blockPaint = Paint()..color = const Color(0xFF252C28);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(18, 14, size.width * 0.24, 29),
@@ -1101,4 +1231,27 @@ final class _MapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+final class _ResultMark extends StatelessWidget {
+  const _ResultMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withValues(alpha: 0.14),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.36)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Icon(
+        Icons.auto_awesome_rounded,
+        size: 22,
+        color: AppTheme.primary,
+      ),
+    );
+  }
 }

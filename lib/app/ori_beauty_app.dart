@@ -12,9 +12,10 @@ final class OriBeautyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '챙김',
+      title: 'Trun On',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.dark,
+      themeMode: ThemeMode.dark,
       home: HomeShell(controller: controller),
     );
   }

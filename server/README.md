@@ -1,4 +1,4 @@
-# 챙김 capture analysis server
+# Trun On capture analysis server
 
 Flutter 앱과 OpenAI 사이에서 이미지 분석을 수행하는 로컬 프록시입니다. API
 키는 앱이나 저장소에 포함하지 않으며, 요청 이미지·Base64·OpenAI 응답 내용도

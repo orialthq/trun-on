@@ -190,6 +190,42 @@ test("accepts an observed place with address evidence", async () => {
   assert.equal(result.place.address, "서울특별시 중구 세종대로 110");
 });
 
+test("routes a semantically mismatched place category to user review", async () => {
+  const mismatched = makeValidAnalysis({
+    contentKind: "place",
+    primaryCategory: "health_fitness",
+    categoryConfidence: 0.96,
+    subcategory: "클라이밍",
+    subcategoryConfidence: 0.93,
+    completeness: "complete",
+    place: {
+      name: "테스트 식당",
+      address: "서울특별시 중구 세종대로 110",
+      category: "restaurant",
+      confidence: 0.94,
+      evidenceIds: ["e1"],
+    },
+    warnings: [],
+  });
+  const service = createAnalysisService({
+    transport: {
+      async createResponse() {
+        return { output_text: JSON.stringify(mismatched) };
+      },
+    },
+  });
+
+  const result = await service.analyze(input);
+
+  assert.equal(result.primaryCategory, "health_fitness");
+  assert.equal(result.categoryConfidence, 0.5);
+  assert.equal(result.subcategoryConfidence, 0.5);
+  assert.equal(result.completeness, "needs_review");
+  assert.deepEqual(result.warnings, [
+    "콘텐츠 종류와 분류가 맞지 않아 저장할 폴더를 확인해 주세요.",
+  ]);
+});
+
 test("rejects dangling evidence references", async () => {
   const invalid = makeValidAnalysis({
     title: {

@@ -38,7 +38,12 @@ final class ProductDetailScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(title: const Text('제품별 정리')),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 44),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              4,
+              20,
+              44 + MediaQuery.paddingOf(context).bottom,
+            ),
             children: [
               _ProductHeader(group: group),
               const SizedBox(height: 24),
@@ -199,7 +204,10 @@ final class _SectionHeading extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        Semantics(
+          header: true,
+          child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+        ),
         if (description != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -229,8 +237,9 @@ final class _EvidenceList extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         children: [
@@ -280,7 +289,7 @@ final class _EvidenceRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: 12),
             decoration: const BoxDecoration(
               border: Border(
-                left: BorderSide(color: AppTheme.primarySoft, width: 3),
+                left: BorderSide(color: AppTheme.primary, width: 3),
               ),
             ),
             child: Text(
@@ -351,8 +360,9 @@ final class _DisclosureSummary extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
@@ -452,8 +462,9 @@ final class _SourceList extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         children: [
@@ -578,9 +589,8 @@ final class _SourceSectionState extends State<_SourceSection> {
                       key: ValueKey('source-toggle-${capture.raw.id}'),
                       onPressed: () => setState(() => _expanded = !_expanded),
                       style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 40),
-                        padding: EdgeInsets.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        minimumSize: const Size(44, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
                       ),
                       child: Text(_expanded ? '접기' : '원문 전체 보기'),
                     ),
@@ -610,7 +620,7 @@ final class _SourceSectionState extends State<_SourceSection> {
                     color: hasExplicitDisclosure
                         ? AppTheme.positive
                         : AppTheme.muted,
-                    fontSize: 12,
+                    fontSize: 13,
                     height: 1.4,
                     fontWeight: FontWeight.w600,
                   ),
@@ -632,8 +642,9 @@ final class _EmptyTopics extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: const Text(
         '아직 함께 묶을 만한 이야기가 없어요.',
@@ -651,8 +662,9 @@ final class _EmptySources extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: const Text(
         '연결된 원문이 없어요.',

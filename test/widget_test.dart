@@ -7,7 +7,7 @@ import 'package:ori_beauty/features/product/product_detail_screen.dart';
 import 'package:ori_beauty/state/app_controller.dart';
 
 void main() {
-  testWidgets('renders only content and organized product navigation', (
+  testWidgets('renders the Trun On home and organized library navigation', (
     tester,
   ) async {
     final service = InMemoryIncomingShareService();
@@ -18,8 +18,11 @@ void main() {
     await controller.initialize();
     await tester.pumpAndSettle();
 
-    expect(find.text('콘텐츠'), findsWidgets);
-    expect(find.text('확인할 콘텐츠가 1개 있어요'), findsOneWidget);
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.title, 'Trun On');
+    expect(find.text('TRUN ON'), findsOneWidget);
+    expect(find.text('1개만 확인하면 끝'), findsOneWidget);
+    expect(find.text('콘텐츠'), findsOneWidget);
     expect(find.text('INPUT → 정리'), findsNothing);
     expect(find.byIcon(Icons.auto_awesome_outlined), findsNothing);
     expect(find.text('비교'), findsNothing);
@@ -118,6 +121,38 @@ void main() {
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
   });
 
+  testWidgets('searches the organized library by saved content metadata', (
+    tester,
+  ) async {
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('library-search-field')),
+      '포어 밸런스',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('포어 밸런스 세럼'), findsOneWidget);
+    expect(find.text('워터리 선 세럼'), findsNothing);
+    expect(find.text('카밍 앰플'), findsNothing);
+
+    await tester.tap(find.byTooltip('검색어 지우기'));
+    await tester.pumpAndSettle();
+    final searchField = tester.widget<TextField>(
+      find.byKey(const Key('library-search-field')),
+    );
+    expect(searchField.controller?.text, isEmpty);
+    expect(find.text('검색 결과가 없어요'), findsNothing);
+  });
+
   testWidgets('reviews extracted fields and organizes a capture', (
     tester,
   ) async {
@@ -129,14 +164,16 @@ void main() {
     await controller.initialize();
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('데이라이트 에어리 선 플루이드'));
     await tester.pumpAndSettle();
 
-    expect(find.text('제품 정보를 확인해 주세요'), findsOneWidget);
-    expect(find.text('잘못된 부분만 고치면 돼요.'), findsOneWidget);
+    expect(find.text('이렇게 정리했어요'), findsOneWidget);
+    expect(find.text('저장하기 전에 잘못 읽힌 부분만 확인해 주세요.'), findsOneWidget);
     expect(find.textContaining('정규화된 URL'), findsNothing);
     expect(find.textContaining('신뢰도'), findsNothing);
-    expect(find.byKey(const Key('content-subcategory-picker')), findsOneWidget);
 
     final subcategoryPicker = find.byKey(
       const Key('content-subcategory-picker'),
@@ -147,6 +184,7 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
+    expect(subcategoryPicker, findsOneWidget);
     await tester.tap(subcategoryPicker);
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -162,7 +200,7 @@ void main() {
         .byKey(const ValueKey('analysis-field-용량·규격'))
         .first;
     await tester.enterText(amountField, '50mL');
-    final organizeButton = find.widgetWithText(FilledButton, '이 제품으로 정리하기');
+    final organizeButton = find.widgetWithText(FilledButton, '정리함에 저장');
     await tester.ensureVisible(organizeButton);
     await tester.pumpAndSettle();
     await tester.tap(organizeButton);
@@ -271,5 +309,33 @@ void main() {
     await tester.tap(find.byTooltip('닫기'));
     await tester.pumpAndSettle();
     expect(find.text('정리가 준비됐어요'), findsNothing);
+  });
+
+  testWidgets('core screens remain usable at 150 percent text scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 }

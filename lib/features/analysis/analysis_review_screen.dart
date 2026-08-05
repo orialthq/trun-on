@@ -83,22 +83,36 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(title: const Text('분석 결과')),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 132),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
           children: [
-            Text(
-              '제품 정보를 확인해 주세요',
-              style: Theme.of(context).textTheme.titleLarge,
+            const Row(
+              children: [
+                _ResultMark(icon: Icons.auto_awesome_rounded),
+                SizedBox(width: 10),
+                Text(
+                  'AI 분석 결과',
+                  style: TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 18),
+            Text('이렇게 정리했어요', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
             const Text(
-              '잘못된 부분만 고치면 돼요.',
+              '저장하기 전에 잘못 읽힌 부분만 확인해 주세요.',
               style: TextStyle(color: AppTheme.muted, fontSize: 15),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             _OriginalMaterialCard(capture: capture, platform: platform),
             if (capture.normalized.warnings.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -106,13 +120,14 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
                 icon: Icons.info_outline_rounded,
                 title: '확인할 내용이 있어요',
                 body: capture.normalized.warnings.join(' '),
-                background: const Color(0xFFFFF3E6),
+                background: const Color(0xFF2B1F13),
               ),
             ],
             const SizedBox(height: 32),
             const _SectionHeading(
-              title: '저장할 폴더',
-              description: '정리함에서 다시 찾을 기준이에요.',
+              title: 'AI 분류',
+              description: '카드를 눌러 저장할 폴더를 바꿀 수 있어요.',
+              editable: true,
             ),
             const SizedBox(height: 14),
             ContentFolderPicker(
@@ -185,13 +200,15 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
       ),
       bottomNavigationBar: SafeArea(
         top: false,
+        minimum: const EdgeInsets.only(bottom: 12),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           decoration: BoxDecoration(
             color: AppTheme.surface,
+            border: const Border(top: BorderSide(color: AppTheme.border)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.045),
+                color: Colors.black.withValues(alpha: 0.22),
                 blurRadius: 20,
                 offset: const Offset(0, -6),
               ),
@@ -204,13 +221,16 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _saving ? null : _confirm,
-                  child: Text(_saving ? '정리하고 있어요…' : '이 제품으로 정리하기'),
+                  child: Text(_saving ? '저장하고 있어요…' : '정리함에 저장'),
                 ),
               ),
               const SizedBox(height: 2),
               TextButton(
                 onPressed: _saving ? null : _keepUnresolved,
-                style: TextButton.styleFrom(foregroundColor: AppTheme.muted),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.muted,
+                  minimumSize: const Size(44, 48),
+                ),
                 child: const Text('제품을 찾지 못했어요'),
               ),
             ],
@@ -242,6 +262,10 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
       if (mounted) {
         Navigator.of(context).pop();
       }
+    } on Object {
+      if (mounted) {
+        _showMessage('저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      }
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -256,11 +280,21 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
       if (mounted) {
         Navigator.of(context).pop();
       }
+    } on Object {
+      if (mounted) {
+        _showMessage('보류 상태로 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      }
     } finally {
       if (mounted) {
         setState(() => _saving = false);
       }
     }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -273,7 +307,7 @@ final class _LinkOnlyReview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(title: const Text('가져온 링크')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
         children: [
@@ -282,7 +316,7 @@ final class _LinkOnlyReview extends StatelessWidget {
             height: 52,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
-              color: Color(0xFFFFF3E6),
+              color: Color(0xFF2B1F13),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -308,7 +342,7 @@ final class _LinkOnlyReview extends StatelessWidget {
           const SizedBox(height: 28),
           const _SectionHeading(
             title: '스크린샷으로 이어서 저장하기',
-            description: '보이는 화면 한 장이면 챙김이 이미지에서 내용을 읽을 수 있어요.',
+            description: '보이는 화면 한 장이면 Trun On이 이미지에서 내용을 읽을 수 있어요.',
           ),
           const SizedBox(height: 14),
           const _ScreenshotGuideCard(),
@@ -334,12 +368,13 @@ final class _ScreenshotGuideCard extends StatelessWidget {
     const steps = [
       ('1', '원래 게시물로 돌아가 화면을 캡처해요.'),
       ('2', '캡처 미리보기의 공유 버튼을 눌러요.'),
-      ('3', '챙김을 선택하면 바로 저장하고 분석해요.'),
+      ('3', 'Trun On을 선택하면 바로 저장하고 분석해요.'),
     ];
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -397,7 +432,7 @@ final class _ScreenshotGuideCard extends StatelessWidget {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '공유가 끝나면 갤러리 원본을 남길지 챙김에서 직접 선택할 수 있어요.',
+                  '공유가 끝나면 갤러리 원본을 남길지 Trun On에서 직접 선택할 수 있어요.',
                   style: TextStyle(
                     color: AppTheme.subtle,
                     fontSize: 12,
@@ -414,24 +449,47 @@ final class _ScreenshotGuideCard extends StatelessWidget {
 }
 
 final class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.title, this.description});
+  const _SectionHeading({
+    required this.title,
+    this.description,
+    this.editable = false,
+  });
 
   final String title;
   final String? description;
+  final bool editable;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppTheme.ink,
-            fontSize: 19,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: AppTheme.ink,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
+            if (editable) ...[
+              const Icon(Icons.edit_rounded, size: 16, color: AppTheme.muted),
+              const SizedBox(width: 4),
+              const Text(
+                '수정 가능',
+                style: TextStyle(
+                  color: AppTheme.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
         ),
         if (description case final description?) ...[
           const SizedBox(height: 5),
@@ -471,7 +529,8 @@ final class _OriginalMaterialCardState extends State<_OriginalMaterialCard> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -547,9 +606,8 @@ final class _OriginalMaterialCardState extends State<_OriginalMaterialCard> {
               child: TextButton(
                 onPressed: () => setState(() => _expanded = !_expanded),
                 style: TextButton.styleFrom(
-                  minimumSize: const Size(0, 40),
+                  minimumSize: const Size(44, 44),
                   padding: const EdgeInsets.symmetric(horizontal: 0),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(_expanded ? '접기' : '원문 전체 보기'),
               ),
@@ -614,13 +672,18 @@ final class _AnalysisField extends StatelessWidget {
               : null,
           decoration: InputDecoration(
             hintText: '$label을 입력해 주세요',
+            suffixIcon: const Icon(
+              Icons.edit_rounded,
+              size: 18,
+              color: AppTheme.muted,
+            ),
             helperText: guidance,
             helperMaxLines: 2,
             helperStyle: const TextStyle(color: AppTheme.caution, fontSize: 12),
             filled: true,
-            fillColor: AppTheme.surface,
-            border: _fieldBorder(Colors.transparent),
-            enabledBorder: _fieldBorder(Colors.transparent),
+            fillColor: AppTheme.surfaceRaised,
+            border: _fieldBorder(AppTheme.border),
+            enabledBorder: _fieldBorder(AppTheme.border),
             focusedBorder: _fieldBorder(AppTheme.primary, width: 1.5),
             errorBorder: _fieldBorder(AppTheme.negative),
             focusedErrorBorder: _fieldBorder(AppTheme.negative, width: 1.5),
@@ -660,7 +723,8 @@ final class _StatementList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -756,7 +820,8 @@ final class _DisclosureCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -802,7 +867,8 @@ final class _NoStatementsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Row(
@@ -817,6 +883,27 @@ final class _NoStatementsCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+final class _ResultMark extends StatelessWidget {
+  const _ResultMark({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withValues(alpha: 0.14),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.36)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(icon, size: 22, color: AppTheme.primary),
     );
   }
 }

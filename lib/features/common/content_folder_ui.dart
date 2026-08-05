@@ -57,19 +57,19 @@ extension ContentFolderUi on ContentFolder {
   };
 
   Color get color => switch (this) {
-    ContentFolder.beauty => const Color(0xFFB15BB6),
-    ContentFolder.healthFitness => const Color(0xFF16A085),
-    ContentFolder.restaurantCafe => const Color(0xFFE07832),
-    ContentFolder.recipe => const Color(0xFFCF5B60),
-    ContentFolder.shopping => const Color(0xFF3182F6),
-    ContentFolder.travelPlace => const Color(0xFF4F72C9),
-    ContentFolder.lifeTip => const Color(0xFF9A7425),
-    ContentFolder.other => const Color(0xFF6B7684),
-    ContentFolder.needsClassification => const Color(0xFFB26A00),
+    ContentFolder.beauty => const Color(0xFFF16AA6),
+    ContentFolder.healthFitness => const Color(0xFF9AE65B),
+    ContentFolder.restaurantCafe => const Color(0xFFFF8155),
+    ContentFolder.recipe => const Color(0xFFF1CC55),
+    ContentFolder.shopping => const Color(0xFFA47AF2),
+    ContentFolder.travelPlace => const Color(0xFF52D0C9),
+    ContentFolder.lifeTip => const Color(0xFF6595F4),
+    ContentFolder.other => const Color(0xFFB9B7B1),
+    ContentFolder.needsClassification => const Color(0xFFFFB84D),
   };
 
   Color get softColor =>
-      Color.alphaBlend(color.withValues(alpha: 0.11), Colors.white);
+      Color.alphaBlend(color.withValues(alpha: 0.16), AppTheme.surfaceRaised);
 }
 
 final class ContentFolderPicker extends StatelessWidget {
@@ -87,8 +87,12 @@ final class ContentFolderPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      color: AppTheme.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: needsReview ? value.color : AppTheme.border),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: () async {
@@ -100,38 +104,50 @@ final class ContentFolderPicker extends StatelessWidget {
             onChanged(selected);
           }
         },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              _FolderIcon(folder: value),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      needsReview ? '저장할 폴더를 확인해 주세요' : '저장할 폴더',
-                      style: const TextStyle(
-                        color: AppTheme.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+        child: Semantics(
+          button: true,
+          label: '저장할 폴더 ${value.label}, 수정',
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                _FolderIcon(folder: value),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        needsReview ? '저장할 폴더를 확인해 주세요' : '저장할 폴더',
+                        style: const TextStyle(
+                          color: AppTheme.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      value.label,
-                      style: const TextStyle(
-                        color: AppTheme.ink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                      const SizedBox(height: 3),
+                      Text(
+                        value.label,
+                        style: const TextStyle(
+                          color: AppTheme.ink,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: AppTheme.subtle),
-            ],
+                const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(
+                    Icons.edit_outlined,
+                    color: AppTheme.subtle,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -159,8 +175,12 @@ final class ContentSubcategoryPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = value.trim();
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      color: AppTheme.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: AppTheme.border),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: () async {
@@ -173,55 +193,67 @@ final class ContentSubcategoryPicker extends StatelessWidget {
             onChanged(updated);
           }
         },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: folder.softColor,
-                  borderRadius: BorderRadius.circular(15),
+        child: Semantics(
+          button: true,
+          label: '${folder.label} 하위 폴더 ${label.isEmpty ? '미지정' : label}, 수정',
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: folder.softColor,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.subdirectory_arrow_right_rounded,
+                    color: folder.color,
+                    size: 22,
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.subdirectory_arrow_right_rounded,
-                  color: folder.color,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      aiSuggested ? 'AI가 정한 하위 폴더' : '하위 폴더',
-                      style: const TextStyle(
-                        color: AppTheme.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        aiSuggested ? 'AI 분류 · 수정 가능' : '하위 폴더 · 수정 가능',
+                        style: const TextStyle(
+                          color: AppTheme.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      label.isEmpty
-                          ? '${folder.label} 안에 이름을 정해 주세요'
-                          : '${folder.label}  ·  $label',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: label.isEmpty ? AppTheme.muted : AppTheme.ink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                      const SizedBox(height: 3),
+                      Text(
+                        label.isEmpty
+                            ? '${folder.label} 안에 이름을 정해 주세요'
+                            : '${folder.label}  ·  $label',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: label.isEmpty ? AppTheme.muted : AppTheme.ink,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.edit_outlined, color: AppTheme.subtle, size: 20),
-            ],
+                const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(
+                    Icons.edit_outlined,
+                    color: AppTheme.subtle,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -236,7 +268,7 @@ Future<String?> showContentSubcategoryEditor(
 }) {
   return showModalBottomSheet<String>(
     context: context,
-    backgroundColor: Colors.white,
+    backgroundColor: AppTheme.surfaceRaised,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) =>
@@ -354,7 +386,7 @@ Future<ContentFolder?> showContentFolderSheet(
 }) {
   return showModalBottomSheet<ContentFolder>(
     context: context,
-    backgroundColor: Colors.white,
+    backgroundColor: AppTheme.surfaceRaised,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (context) => SafeArea(
@@ -385,18 +417,23 @@ Future<ContentFolder?> showContentFolderSheet(
                   final folder = contentFolderPickerItems[index];
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
+                    minVerticalPadding: 8,
                     leading: _FolderIcon(folder: folder, size: 42),
                     title: Text(
                       folder.label,
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text(folder.description),
-                    trailing: folder == selected
-                        ? const Icon(
-                            Icons.check_rounded,
-                            color: AppTheme.primary,
-                          )
-                        : null,
+                    trailing: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: folder == selected
+                          ? const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppTheme.primary,
+                            )
+                          : null,
+                    ),
                     onTap: () => Navigator.of(context).pop(folder),
                   );
                 },

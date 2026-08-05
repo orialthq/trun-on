@@ -36,10 +36,10 @@ final class ProductArt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (category) {
-      '선케어' => const Color(0xFFE8A020),
-      '클렌저' => const Color(0xFF3182F6),
-      '크림' || '로션' => const Color(0xFF8B6CE0),
-      _ => const Color(0xFF20A17A),
+      '선케어' => const Color(0xFFF1CC55),
+      '클렌저' => const Color(0xFF52D0C9),
+      '크림' || '로션' => const Color(0xFFA47AF2),
+      _ => const Color(0xFFF16AA6),
     };
     final icon = switch (category) {
       '선케어' => Icons.wb_sunny_outlined,
@@ -53,8 +53,12 @@ final class ProductArt extends StatelessWidget {
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: Color.alphaBlend(
+            color.withValues(alpha: 0.16),
+            AppTheme.surfaceRaised,
+          ),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.28)),
         ),
         child: Center(
           child: Icon(icon, color: color, size: width * 0.34),
@@ -115,6 +119,7 @@ final class InfoBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,7 +128,7 @@ final class InfoBanner extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: const BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.surfaceRaised,
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: AppTheme.muted, size: 17),

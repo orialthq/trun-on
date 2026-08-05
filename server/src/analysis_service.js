@@ -55,7 +55,7 @@ export function createAnalysisService({
           });
         }
         return applyDeterministicCompletenessGuards(
-          validateAnalysisResult(parsed),
+          applySemanticClassificationGuards(validateAnalysisResult(parsed)),
         );
       } catch (error) {
         if (
@@ -73,6 +73,55 @@ export function createAnalysisService({
       }
     },
   };
+}
+
+function applySemanticClassificationGuards(result) {
+  const expectedCategory = expectedPrimaryCategory(result);
+  if (
+    expectedCategory === null ||
+    result.primaryCategory === expectedCategory
+  ) {
+    return result;
+  }
+
+  const warning =
+    "콘텐츠 종류와 분류가 맞지 않아 저장할 폴더를 확인해 주세요.";
+  return {
+    ...result,
+    // Flutter treats confidence below 0.72 as `needsClassification`. Keeping
+    // the model's original category visible lets the user correct it without
+    // silently replacing one uncertain inference with another.
+    categoryConfidence: Math.min(result.categoryConfidence, 0.5),
+    subcategoryConfidence: Math.min(result.subcategoryConfidence, 0.5),
+    completeness:
+      result.completeness === "unsupported" ||
+      result.completeness === "conflicted"
+        ? result.completeness
+        : "needs_review",
+    warnings: result.warnings.includes(warning)
+      ? result.warnings
+      : [...result.warnings, warning],
+  };
+}
+
+function expectedPrimaryCategory(result) {
+  if (["recipe", "sauce_recipe"].includes(result.contentKind)) {
+    return "recipe";
+  }
+  if (result.contentKind === "beauty_product") {
+    return "beauty";
+  }
+  if (result.contentKind !== "place") {
+    return null;
+  }
+  return {
+    restaurant: "restaurant_cafe",
+    cafe: "restaurant_cafe",
+    beauty: "beauty",
+    shopping: "shopping",
+    lodging: "travel_place",
+    activity: "travel_place",
+  }[result.place.category] ?? null;
 }
 
 function applyDeterministicCompletenessGuards(result) {

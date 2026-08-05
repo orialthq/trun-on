@@ -10,6 +10,7 @@ import '../analysis/analysis_review_screen.dart';
 import '../analysis/structured_review_screen.dart';
 import '../inbox/inbox_screen.dart';
 import '../products/products_screen.dart';
+import 'trun_home_screen.dart';
 
 final class HomeShell extends StatefulWidget {
   const HomeShell({required this.controller, super.key});
@@ -50,7 +51,7 @@ final class _HomeShellState extends State<HomeShell> {
               return;
             }
             setState(() {
-              _selectedIndex = 0;
+              _selectedIndex = 1;
               _incomingCaptureId = captureId;
             });
             Navigator.of(context).popUntil((route) => route.isFirst);
@@ -86,7 +87,8 @@ final class _HomeShellState extends State<HomeShell> {
     _showMessage(switch (result) {
       SharedSourceDeletionResult.deleted => '갤러리 원본을 삭제했어요.',
       SharedSourceDeletionResult.kept => '갤러리 원본을 그대로 두었어요.',
-      SharedSourceDeletionResult.unavailable => '이 이미지의 원본은 챙김에서 삭제할 수 없어요.',
+      SharedSourceDeletionResult.unavailable =>
+        '이 이미지의 원본은 Trun On에서 삭제할 수 없어요.',
       SharedSourceDeletionResult.failed => '갤러리 원본을 삭제하지 못했어요.',
     });
   }
@@ -106,6 +108,13 @@ final class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final screens = [
+      TrunHomeScreen(
+        controller: widget.controller,
+        onAdd: () => InboxScreen.openManualInput(context, widget.controller),
+        onOpenInbox: () => setState(() => _selectedIndex = 1),
+        onOpenLibrary: () => setState(() => _selectedIndex = 2),
+        onOpenCapture: _openCapture,
+      ),
       InboxScreen(controller: widget.controller),
       ProductsScreen(controller: widget.controller),
     ];
@@ -157,23 +166,21 @@ final class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFF1F3F5))),
+          color: AppTheme.surface,
+          border: Border(top: BorderSide(color: AppTheme.border)),
         ),
         child: NavigationBarTheme(
           data: NavigationBarThemeData(
-            backgroundColor: Colors.white,
+            backgroundColor: AppTheme.surface,
             elevation: 0,
-            height: 68,
-            indicatorColor: Colors.transparent,
+            height: 72,
+            indicatorColor: AppTheme.primarySoft,
             labelTextStyle: WidgetStateProperty.resolveWith((states) {
               final selected = states.contains(WidgetState.selected);
               return TextStyle(
-                color: selected
-                    ? Theme.of(context).colorScheme.primary
-                    : const Color(0xFF8B95A1),
+                color: selected ? AppTheme.primary : AppTheme.subtle,
                 fontSize: 12,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
               );
             }),
           ),
@@ -184,15 +191,17 @@ final class _HomeShellState extends State<HomeShell> {
             },
             destinations: const [
               NavigationDestination(
-                icon: Icon(Icons.inbox_outlined, color: Color(0xFF8B95A1)),
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: '홈',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.inbox_outlined),
                 selectedIcon: Icon(Icons.inbox),
                 label: '콘텐츠',
               ),
               NavigationDestination(
-                icon: Icon(
-                  Icons.bookmark_border_rounded,
-                  color: Color(0xFF8B95A1),
-                ),
+                icon: Icon(Icons.bookmark_border_rounded),
                 selectedIcon: Icon(Icons.bookmark_rounded),
                 label: '정리함',
               ),
@@ -219,12 +228,24 @@ final class _HomeShellState extends State<HomeShell> {
     }
 
     setState(() => _incomingCaptureId = null);
+    _openCapture(capture);
+  }
+
+  void _openCapture(CaptureRecord capture) {
+    if (capture.status == CaptureStatus.analyzing) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('이미지를 정리하고 있어요. 잠시만 기다려 주세요.')),
+        );
+      return;
+    }
     if (capture.analysis?.structuredContent != null) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => StructuredReviewScreen(
             controller: widget.controller,
-            captureId: captureId,
+            captureId: capture.raw.id,
           ),
         ),
       );
@@ -234,7 +255,7 @@ final class _HomeShellState extends State<HomeShell> {
       MaterialPageRoute<void>(
         builder: (_) => AnalysisReviewScreen(
           controller: widget.controller,
-          captureId: captureId,
+          captureId: capture.raw.id,
         ),
       ),
     );
@@ -266,10 +287,13 @@ final class _IncomingCaptureCard extends StatelessWidget {
         final state = _CaptureArrivalState.from(capture);
 
         return Material(
-          color: Colors.white,
-          elevation: 10,
-          shadowColor: const Color(0x26000000),
-          borderRadius: BorderRadius.circular(20),
+          color: AppTheme.surfaceRaised,
+          elevation: 14,
+          shadowColor: const Color(0x99000000),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppTheme.border),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onOpen,
@@ -361,8 +385,8 @@ final class _CaptureArrivalState {
         title: '링크를 저장했어요',
         description: '게시물 내용은 전달되지 않았어요 · 스크린샷을 보내 주세요',
         icon: Icons.link_rounded,
-        iconColor: Color(0xFFB26A00),
-        iconBackground: Color(0xFFFFF3E6),
+        iconColor: AppTheme.caution,
+        iconBackground: AppTheme.accentSoft,
       );
     }
     return switch (capture.status) {
@@ -371,37 +395,37 @@ final class _CaptureArrivalState {
         description: '이미지 정리를 준비하고 있어요',
         icon: Icons.image_outlined,
         iconColor: AppTheme.primary,
-        iconBackground: Color(0xFFE8F3FF),
+        iconBackground: AppTheme.primarySoft,
       ),
       CaptureStatus.analyzing => const _CaptureArrivalState(
         title: '캡처를 받았어요',
         description: '이미지를 정리하고 있어요',
         icon: Icons.auto_awesome_rounded,
         iconColor: AppTheme.primary,
-        iconBackground: Color(0xFFE8F3FF),
+        iconBackground: AppTheme.primarySoft,
         isLoading: true,
       ),
       CaptureStatus.needsReview => const _CaptureArrivalState(
         title: '정리가 준비됐어요',
         description: '탭해서 내용을 확인해 주세요',
         icon: Icons.check_rounded,
-        iconColor: Color(0xFF00A86B),
-        iconBackground: Color(0xFFE8F8F1),
+        iconColor: AppTheme.positive,
+        iconBackground: Color(0xFF15322D),
       ),
       CaptureStatus.organized => const _CaptureArrivalState(
         title: '정리를 완료했어요',
         description: '콘텐츠에 안전하게 보관했어요',
         icon: Icons.bookmark_added_rounded,
         iconColor: AppTheme.primary,
-        iconBackground: Color(0xFFE8F3FF),
+        iconBackground: AppTheme.primarySoft,
       ),
       CaptureStatus.sourceLimited ||
       CaptureStatus.failed => const _CaptureArrivalState(
         title: '내용을 확인해 주세요',
         description: '탭해서 결과를 살펴볼 수 있어요',
         icon: Icons.error_outline_rounded,
-        iconColor: Color(0xFFE05252),
-        iconBackground: Color(0xFFFFEEEE),
+        iconColor: AppTheme.negative,
+        iconBackground: Color(0xFF381D1E),
       ),
     };
   }
@@ -430,7 +454,7 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFD1D6DB),
+                color: AppTheme.border,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -449,10 +473,13 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Text('챙김에 안전하게 저장했어요', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Trun On에 안전하게 저장했어요',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
           const Text(
-            '갤러리의 원본도 남겨둘까요? 어떤 선택을 해도 챙김 안의 복사본은 유지돼요.',
+            '갤러리의 원본도 남겨둘까요? 어떤 선택을 해도 Trun On 안의 복사본은 유지돼요.',
             style: TextStyle(color: AppTheme.muted, fontSize: 15, height: 1.5),
           ),
           const SizedBox(height: 24),
@@ -468,9 +495,7 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
             width: double.infinity,
             child: TextButton(
               onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFD14343),
-              ),
+              style: TextButton.styleFrom(foregroundColor: AppTheme.negative),
               child: const Text('갤러리 원본 삭제'),
             ),
           ),

@@ -27,6 +27,16 @@ final class InboxScreen extends StatelessWidget {
           key: const PageStorageKey('content-inbox'),
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
           children: [
+            const Text(
+              'CAPTURE INBOX',
+              style: TextStyle(
+                color: AppTheme.primary,
+                fontSize: 12,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -40,7 +50,7 @@ final class InboxScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        '모아둔 콘텐츠를 확인하고 정리해요',
+                        '들어온 내용을 확인하고 정리해요',
                         style: TextStyle(color: AppTheme.muted, fontSize: 15),
                       ),
                     ],
@@ -52,7 +62,7 @@ final class InboxScreen extends StatelessWidget {
                     minimumSize: const Size(82, 46),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
-                  onPressed: () => _showManualInput(context),
+                  onPressed: () => openManualInput(context, controller),
                   icon: const Icon(Icons.add, size: 20),
                   label: const Text('추가'),
                 ),
@@ -101,8 +111,11 @@ final class InboxScreen extends StatelessWidget {
               )
             else
               Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                color: AppTheme.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  side: const BorderSide(color: AppTheme.border),
+                ),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
@@ -124,7 +137,10 @@ final class InboxScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _showManualInput(BuildContext context) async {
+  static Future<void> openManualInput(
+    BuildContext context,
+    AppController controller,
+  ) async {
     final captureId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -216,8 +232,11 @@ final class _CaptureSummaryCard extends StatelessWidget {
         : '확인할 콘텐츠가 $needsReview개 있어요';
 
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      color: AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: const BorderSide(color: AppTheme.border),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 21),
         child: Column(
@@ -267,21 +286,27 @@ final class _FilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected
-          ? AppTheme.primary.withValues(alpha: 0.1)
-          : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      color: selected ? AppTheme.primarySoft : AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: selected ? AppTheme.primary : AppTheme.border),
+      ),
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Text(
-            '$label $count',
-            style: TextStyle(
-              color: selected ? AppTheme.primary : AppTheme.muted,
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Center(
+              child: Text(
+                '$label $count',
+                style: TextStyle(
+                  color: selected ? AppTheme.primary : AppTheme.muted,
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),
@@ -302,14 +327,14 @@ final class _CaptureStatusLabel extends StatelessWidget {
         capture.raw.attachments.isEmpty &&
         capture.normalized.completeness == MaterialCompleteness.linkOnly;
     final (label, color) = isLinkOnly
-        ? ('링크 저장', const Color(0xFFB26A00))
+        ? ('링크 저장', AppTheme.caution)
         : switch (capture.status) {
             CaptureStatus.received ||
             CaptureStatus.analyzing => ('분석 중', AppTheme.primary),
-            CaptureStatus.sourceLimited => ('내용 부족', const Color(0xFFB26A00)),
-            CaptureStatus.needsReview => ('확인 필요', const Color(0xFFB26A00)),
-            CaptureStatus.organized => ('정리 완료', const Color(0xFF16815D)),
-            CaptureStatus.failed => ('분석 실패', const Color(0xFFD14343)),
+            CaptureStatus.sourceLimited => ('내용 부족', AppTheme.caution),
+            CaptureStatus.needsReview => ('확인 필요', AppTheme.caution),
+            CaptureStatus.organized => ('정리 완료', AppTheme.positive),
+            CaptureStatus.failed => ('분석 실패', AppTheme.negative),
           };
 
     return Row(
@@ -402,36 +427,34 @@ final class _CaptureCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 5,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Icon(
-                        capture.raw.attachments.isNotEmpty
-                            ? Icons.image_outlined
-                            : sourcePlatformIcon(platform),
-                        color: AppTheme.muted,
-                        size: 16,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            capture.raw.attachments.isNotEmpty
+                                ? Icons.image_outlined
+                                : sourcePlatformIcon(platform),
+                            color: AppTheme.muted,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            capture.raw.attachments.isNotEmpty
+                                ? '이미지'
+                                : sourcePlatformLabel(platform),
+                            style: const TextStyle(
+                              color: AppTheme.muted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        capture.raw.attachments.isNotEmpty
-                            ? '이미지'
-                            : sourcePlatformLabel(platform),
-                        style: const TextStyle(
-                          color: AppTheme.muted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 7),
-                      Container(
-                        width: 2,
-                        height: 2,
-                        decoration: const BoxDecoration(
-                          color: AppTheme.muted,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 7),
                       Text(
                         formatCaptureTime(capture.raw.receivedAt),
                         style: const TextStyle(
@@ -439,7 +462,6 @@ final class _CaptureCard extends StatelessWidget {
                           fontSize: 12,
                         ),
                       ),
-                      const Spacer(),
                       _CaptureStatusLabel(capture: capture),
                     ],
                   ),
@@ -476,8 +498,8 @@ final class _CaptureCard extends StatelessWidget {
                   ? Icons.refresh
                   : Icons.chevron_right,
               color: capture.status == CaptureStatus.failed
-                  ? const Color(0xFFD14343)
-                  : const Color(0xFFB0B8C1),
+                  ? AppTheme.negative
+                  : AppTheme.subtle,
               size: 22,
             ),
           ],
@@ -512,7 +534,7 @@ final class _CaptureThumbnail extends StatelessWidget {
         width: 64,
         height: 80,
         child: ColoredBox(
-          color: const Color(0xFFF1F3F5),
+          color: AppTheme.fill,
           child: Image.file(
             File(attachment.filePath),
             fit: BoxFit.cover,
@@ -566,7 +588,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFD1D6DB),
+                color: AppTheme.border,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -588,7 +610,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               hintText: '본문 텍스트 또는 URL을 입력해 주세요',
-              hintStyle: const TextStyle(color: Color(0xFFADB5BD)),
+              hintStyle: const TextStyle(color: AppTheme.subtle),
               filled: true,
               fillColor: AppTheme.background,
               border: OutlineInputBorder(
@@ -621,7 +643,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
                       Navigator.of(context).pop(captureId);
                     }
                   : null,
-              child: const Text('콘텐츠 추가하기'),
+              child: const Text('AI로 분석하기'),
             ),
           ),
         ],
@@ -645,7 +667,7 @@ final class _EmptyInbox extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: const BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.surface,
               shape: BoxShape.circle,
             ),
             child: const Icon(
