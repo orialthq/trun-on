@@ -11,6 +11,53 @@ enum PlaceReminderEnableStatus {
   unavailable,
 }
 
+enum MapProvider {
+  naver(id: 'naver', label: '네이버 지도'),
+  kakao(id: 'kakao', label: '카카오맵'),
+  google(id: 'google', label: '구글 지도');
+
+  const MapProvider({required this.id, required this.label});
+
+  final String id;
+  final String label;
+
+  static MapProvider? fromId(Object? id) {
+    for (final provider in values) {
+      if (provider.id == id) {
+        return provider;
+      }
+    }
+    return null;
+  }
+}
+
+final class MapProviderOption {
+  const MapProviderOption({
+    required this.provider,
+    required this.appInstalled,
+    required this.available,
+  });
+
+  const MapProviderOption.unavailable(this.provider)
+    : appInstalled = false,
+      available = false;
+
+  final MapProvider provider;
+  final bool appInstalled;
+  final bool available;
+
+  String get label => provider.label;
+
+  String get destinationLabel => appInstalled ? '앱으로 열기' : '웹으로 열기';
+}
+
+final class MapOpenResult {
+  const MapOpenResult({required this.provider, required this.openedInApp});
+
+  final MapProvider provider;
+  final bool openedInApp;
+}
+
 final class PlaceReminderState {
   const PlaceReminderState({
     required this.enabled,
@@ -55,6 +102,11 @@ final class PlaceReminderService {
   static const _channel = MethodChannel(
     'com.orialthq.ori_beauty/place_reminders/v1',
   );
+  static const orderedMapProviders = <MapProvider>[
+    MapProvider.naver,
+    MapProvider.kakao,
+    MapProvider.google,
+  ];
 
   Future<PlaceReminderState> getState(String id) async {
     if (!Platform.isAndroid) {
@@ -138,13 +190,65 @@ final class PlaceReminderService {
         false;
   }
 
-  Future<void> openMap({String? name, required String address}) async {
-    if (!Platform.isAndroid) {
-      throw MissingPluginException('Map opening is not implemented.');
+  Future<List<MapProviderOption>> getMapProviderOptions() async {
+    try {
+      final raw = await _channel.invokeMethod<List<Object?>>('getMapProviders');
+      final optionsByProvider = <MapProvider, MapProviderOption>{};
+      for (final entry in raw ?? const <Object?>[]) {
+        if (entry is! Map<Object?, Object?>) {
+          continue;
+        }
+        final provider = MapProvider.fromId(entry['id']);
+        if (provider == null) {
+          continue;
+        }
+        optionsByProvider[provider] = MapProviderOption(
+          provider: provider,
+          appInstalled: entry['appInstalled'] == true,
+          available: entry['available'] == true,
+        );
+      }
+      return [
+        for (final provider in orderedMapProviders)
+          optionsByProvider[provider] ??
+              MapProviderOption.unavailable(provider),
+      ];
+    } on MissingPluginException {
+      return [
+        for (final provider in orderedMapProviders)
+          MapProviderOption.unavailable(provider),
+      ];
     }
-    await _channel.invokeMethod<void>('openMap', {
-      'name': name,
-      'address': address,
-    });
+  }
+
+  Future<MapOpenResult> openMapWithProvider({
+    required MapProvider provider,
+    String? name,
+    required String address,
+  }) async {
+    final query = [name, address]
+        .whereType<String>()
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .join(' ');
+    if (query.isEmpty) {
+      throw ArgumentError.value(query, 'address', 'A map query is required.');
+    }
+    final raw = await _channel.invokeMapMethod<Object?, Object?>(
+      'openMapProvider',
+      {'provider': provider.id, 'name': name, 'address': address},
+    );
+    return MapOpenResult(
+      provider: MapProvider.fromId(raw?['provider']) ?? provider,
+      openedInApp: raw?['openedInApp'] == true,
+    );
+  }
+
+  Future<void> openMap({String? name, required String address}) async {
+    await openMapWithProvider(
+      provider: MapProvider.naver,
+      name: name,
+      address: address,
+    );
   }
 }

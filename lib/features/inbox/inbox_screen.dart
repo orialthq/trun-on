@@ -1,10 +1,12 @@
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/formatters.dart';
 import '../../domain/models.dart';
+import '../../domain/portable_tip_package.dart';
 import '../../state/app_controller.dart';
 import '../analysis/analysis_review_screen.dart';
 import '../analysis/structured_review_screen.dart';
@@ -390,6 +392,7 @@ final class _CaptureCard extends StatelessWidget {
     final platform = capture.normalized.urls.isEmpty
         ? SourcePlatform.textOnly
         : capture.normalized.urls.first.platform;
+    final isPortableTip = capture.raw.origin == CaptureOrigin.portableTip;
     final mention = capture.primaryMention;
     final structured = capture.analysis?.structuredContent;
     final isLinkOnly =
@@ -446,13 +449,17 @@ final class _CaptureCard extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              sourcePlatformIcon(platform),
+                              isPortableTip
+                                  ? Icons.redeem_outlined
+                                  : sourcePlatformIcon(platform),
                               color: AppTheme.muted,
                               size: 16,
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              sourcePlatformLabel(platform),
+                              isPortableTip
+                                  ? '받은 팁'
+                                  : sourcePlatformLabel(platform),
                               style: const TextStyle(
                                 color: AppTheme.muted,
                                 fontSize: 13,
@@ -597,6 +604,7 @@ final class _ManualInputSheet extends StatefulWidget {
 
 final class _ManualInputSheetState extends State<_ManualInputSheet> {
   final _textController = TextEditingController();
+  var _importingTip = false;
 
   @override
   void dispose() {
@@ -636,6 +644,34 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
             'SNS에서 공유한 본문이나 링크를 붙여넣어 주세요.\n'
             '링크만 입력하면 원본 링크만 저장돼요.',
             style: TextStyle(color: AppTheme.muted, height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _importingTip ? null : _importTipFile,
+              icon: _importingTip
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.redeem_rounded, size: 20),
+              label: Text(_importingTip ? '팁을 확인하고 있어요…' : '받은 팁 파일 가져오기'),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const Row(
+            children: [
+              Expanded(child: Divider()),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '또는 직접 입력',
+                  style: TextStyle(color: AppTheme.subtle, fontSize: 12),
+                ),
+              ),
+              Expanded(child: Divider()),
+            ],
           ),
           const SizedBox(height: 20),
           TextField(
@@ -685,6 +721,58 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
         ],
       ),
     );
+  }
+
+  Future<void> _importTipFile() async {
+    setState(() => _importingTip = true);
+    try {
+      const typeGroup = XTypeGroup(
+        label: 'Trun On 팁',
+        extensions: [PortableTipPackageCodec.fileExtension],
+        // Chat and file-provider apps often replace a custom MIME type while
+        // preserving the .trunon filename. The codec below still enforces the
+        // 64 KiB limit and exact privacy-safe JSON schema after selection.
+        mimeTypes: [
+          PortableTipPackageCodec.mimeType,
+          'application/octet-stream',
+          'application/json',
+        ],
+        uniformTypeIdentifiers: [PortableTipPackageCodec.uniformTypeIdentifier],
+      );
+      final file = await openFile(acceptedTypeGroups: const [typeGroup]);
+      if (file == null) return;
+      final fileLength = await file.length();
+      if (fileLength <= 0 || fileLength > PortableTipLimits.maxPackageBytes) {
+        throw const FormatException('팁 파일이 비어 있거나 너무 커서 열 수 없어요.');
+      }
+      final bytes = await file.readAsBytes();
+      final tip = PortableTipPackageCodec.decodeUtf8(bytes);
+      if (!mounted) return;
+      final transportId = widget.controller.stagePortableTip(
+        PortableTipPackageCodec.encode(tip),
+        announce: false,
+      );
+      Navigator.of(context).pop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.controller.announcePortableTip(transportId);
+      });
+    } on FormatException catch (error) {
+      debugPrint('Portable tip manual import rejected: ${error.message}');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error.message)));
+    } on Object catch (error, stackTrace) {
+      debugPrint('Portable tip manual import failed: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('이 파일은 Trun On 팁으로 열 수 없어요.')),
+        );
+    } finally {
+      if (mounted) setState(() => _importingTip = false);
+    }
   }
 }
 

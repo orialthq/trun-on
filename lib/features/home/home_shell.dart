@@ -12,6 +12,7 @@ import '../analysis/analysis_review_screen.dart';
 import '../analysis/structured_review_screen.dart';
 import '../inbox/inbox_screen.dart';
 import '../products/products_screen.dart';
+import '../sharing/received_tip_sheet.dart';
 import 'trun_home_screen.dart';
 
 final class HomeShell extends StatefulWidget {
@@ -33,12 +34,15 @@ final class _HomeShellState extends State<HomeShell> {
   var _returningToSourceApp = false;
   Timer? _exitConfirmationTimer;
   late StreamSubscription<String> _incomingCaptureSubscription;
+  late StreamSubscription<String> _portableTipSubscription;
   Future<void> _sourceChoiceTail = Future<void>.value();
+  Future<void> _portableTipChoiceTail = Future<void>.value();
 
   @override
   void initState() {
     super.initState();
     _listenForIncomingCaptures();
+    _listenForPortableTips();
   }
 
   @override
@@ -48,7 +52,46 @@ final class _HomeShellState extends State<HomeShell> {
       return;
     }
     unawaited(_incomingCaptureSubscription.cancel());
+    unawaited(_portableTipSubscription.cancel());
     _listenForIncomingCaptures();
+    _listenForPortableTips();
+  }
+
+  void _listenForPortableTips() {
+    _portableTipSubscription = widget.controller.portableTipReceived.listen((
+      transportId,
+    ) {
+      _portableTipChoiceTail = _portableTipChoiceTail.then(
+        (_) => _showPortableTip(transportId),
+      );
+    });
+  }
+
+  Future<void> _showPortableTip(String transportId) async {
+    if (!mounted) return;
+    final tip = widget.controller.pendingPortableTip(transportId);
+    if (tip == null) return;
+    final decision = await showReceivedTipSheet(context, tip);
+    if (!mounted) return;
+    if (decision == ReceivedTipDecision.discard) {
+      await widget.controller.discardPortableTip(transportId);
+      if (mounted) _showMessage('받은 팁을 저장하지 않았어요.');
+      return;
+    }
+    final captureId = await widget.controller.acceptPortableTip(transportId);
+    if (!mounted) return;
+    if (captureId == null) {
+      _showMessage('팁을 저장하지 못했어요. 다시 시도해 주세요.');
+      return;
+    }
+    final capture = widget.controller.captureById(captureId);
+    if (capture == null) return;
+    setState(() {
+      _selectedIndex = 2;
+      _canReturnToSourceApp = true;
+      _exitArmed = false;
+    });
+    _openCapture(capture);
   }
 
   void _listenForIncomingCaptures() {
@@ -176,6 +219,7 @@ final class _HomeShellState extends State<HomeShell> {
   void dispose() {
     _exitConfirmationTimer?.cancel();
     unawaited(_incomingCaptureSubscription.cancel());
+    unawaited(_portableTipSubscription.cancel());
     super.dispose();
   }
 

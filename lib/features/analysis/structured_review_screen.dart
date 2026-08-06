@@ -8,6 +8,7 @@ import '../../data/place_reminder_service.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
 import '../common/content_folder_ui.dart';
+import '../sharing/share_tip_screen.dart';
 
 final class StructuredReviewScreen extends StatefulWidget {
   const StructuredReviewScreen({
@@ -37,12 +38,29 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
       return const Scaffold(body: Center(child: Text('분석 결과를 찾지 못했어요.')));
     }
     final isOrganized = capture.status == CaptureStatus.organized;
+    final isPortableTip = capture.raw.origin == CaptureOrigin.portableTip;
     final selectedFolder = _selectedFolder ?? capture.contentFolder;
     final selectedSubcategory =
         _selectedSubcategory ?? capture.contentSubcategory;
 
     return Scaffold(
-      appBar: AppBar(title: Text(isOrganized ? '저장한 정보' : '분석 결과')),
+      appBar: AppBar(
+        title: Text(
+          isPortableTip
+              ? '받은 팁'
+              : isOrganized
+              ? '저장한 정보'
+              : '분석 결과',
+        ),
+        actions: [
+          IconButton(
+            tooltip: '정보 보내기',
+            onPressed: () => ShareTipScreen.open(context, capture),
+            icon: const Icon(Icons.ios_share_rounded),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
       body: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 48),
@@ -53,7 +71,11 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  isOrganized ? '정리함에 저장됨' : 'AI 분석 결과',
+                  isPortableTip
+                      ? '친구에게 받은 정보'
+                      : isOrganized
+                      ? '정리함에 저장됨'
+                      : 'AI 분석 결과',
                   style: const TextStyle(
                     color: AppTheme.primary,
                     fontSize: 13,
@@ -109,7 +131,10 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
             _SourceGallery(attachments: capture.raw.attachments),
           ],
           const SizedBox(height: 32),
-          const _SectionTitle(title: 'AI 분류', editable: true),
+          _SectionTitle(
+            title: isPortableTip ? '저장 분류' : 'AI 분류',
+            editable: true,
+          ),
           const SizedBox(height: 14),
           ContentFolderPicker(
             key: const Key('content-folder-picker'),
@@ -132,7 +157,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
             key: const Key('content-subcategory-picker'),
             folder: selectedFolder,
             value: selectedSubcategory,
-            aiSuggested: !_subcategoryEdited,
+            aiSuggested: !isPortableTip && !_subcategoryEdited,
             onChanged: (subcategory) {
               setState(() {
                 _selectedSubcategory = subcategory;
@@ -1086,7 +1111,19 @@ final class _PlaceCardState extends State<_PlaceCard>
 
   Future<void> _openMap() async {
     try {
-      await _service.openMap(name: widget.place.name, address: _address);
+      final options = await _service.getMapProviderOptions();
+      if (!mounted) return;
+      final provider = await showModalBottomSheet<MapProvider>(
+        context: context,
+        useSafeArea: true,
+        builder: (_) => _MapProviderSheet(options: options),
+      );
+      if (provider == null) return;
+      await _service.openMapWithProvider(
+        provider: provider,
+        name: widget.place.name,
+        address: _address,
+      );
     } on Object {
       if (mounted) _showMessage('지도를 열지 못했어요.');
     }
@@ -1348,6 +1385,97 @@ final class _PlaceCardState extends State<_PlaceCard>
         PlaceCategory.other => '장소',
         null => null,
       };
+}
+
+final class _MapProviderSheet extends StatelessWidget {
+  const _MapProviderSheet({required this.options});
+
+  final List<MapProviderOption> options;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('어떤 지도로 볼까요?', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 5),
+            const Text(
+              '설치된 앱을 먼저 열고, 없으면 웹 지도로 연결해요.',
+              style: TextStyle(color: AppTheme.muted, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            for (final option in options) ...[
+              Material(
+                color: AppTheme.surfaceRaised,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: ListTile(
+                  key: ValueKey('map-provider-${option.provider.id}'),
+                  enabled: option.available,
+                  minTileHeight: 64,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                  leading: _MapProviderMark(provider: option.provider),
+                  title: Text(
+                    option.label,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    option.available ? option.destinationLabel : '열 수 없음',
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_rounded, size: 19),
+                  onTap: option.available
+                      ? () => Navigator.pop(context, option.provider)
+                      : null,
+                ),
+              ),
+              if (option != options.last) const SizedBox(height: 8),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _MapProviderMark extends StatelessWidget {
+  const _MapProviderMark({required this.provider});
+
+  final MapProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, background, foreground) = switch (provider) {
+      MapProvider.naver => ('N', const Color(0xFF03C75A), Colors.white),
+      MapProvider.kakao => (
+        'K',
+        const Color(0xFFFEE500),
+        const Color(0xFF191919),
+      ),
+      MapProvider.google => ('G', const Color(0xFF4285F4), Colors.white),
+    };
+    return Container(
+      width: 42,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 18,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
 }
 
 final class _AnimatedMapRadius extends StatefulWidget {

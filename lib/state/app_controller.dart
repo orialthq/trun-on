@@ -7,14 +7,18 @@ import '../data/app_snapshot_store.dart';
 import '../data/content_analysis_service.dart';
 import '../data/demo_catalog.dart';
 import '../data/incoming_share_service.dart';
+import '../data/portable_tip_importer.dart';
+import '../data/portable_tip_service.dart';
 import '../data/remote_content_analysis_service.dart';
 import '../domain/models.dart';
+import '../domain/portable_tip_package.dart';
 
 final class AppController extends ChangeNotifier {
   AppController(
     this._incomingShareService, [
     this._contentAnalysisService = const BaselineContentAnalysisService(),
     AppSnapshotStore? snapshotStore,
+    this._portableTipInbox,
   ]) : _captures = [...DemoCatalog.captures],
        _groups = [...DemoCatalog.groups],
        _snapshotStore = snapshotStore ?? InMemoryAppSnapshotStore();
@@ -22,16 +26,22 @@ final class AppController extends ChangeNotifier {
   final IncomingShareService _incomingShareService;
   final ContentAnalysisService _contentAnalysisService;
   final AppSnapshotStore _snapshotStore;
+  final PortableTipInbox? _portableTipInbox;
   final List<CaptureRecord> _captures;
   final List<ProductGroup> _groups;
   final Set<String> _durablySavedTransportIds = {};
   final Set<String> _sourceDeletionAvailableCaptureIds = {};
+  final Map<String, _PendingPortableTip> _pendingPortableTips = {};
   final StreamController<String> _incomingCaptureController =
+      StreamController<String>.broadcast();
+  final StreamController<String> _portableTipController =
       StreamController<String>.broadcast();
 
   StreamSubscription<void>? _incomingSubscription;
+  StreamSubscription<void>? _portableTipSubscription;
   Future<void> _snapshotWriteTail = Future<void>.value();
   Future<void> _incomingDrainTail = Future<void>.value();
+  Future<void> _portableTipDrainTail = Future<void>.value();
   CaptureFilter _filter = CaptureFilter.all;
   bool _initialized = false;
 
@@ -39,6 +49,10 @@ final class AppController extends ChangeNotifier {
   List<ProductGroup> get groups => List.unmodifiable(_groups);
   CaptureFilter get filter => _filter;
   Stream<String> get incomingCaptureAdded => _incomingCaptureController.stream;
+  Stream<String> get portableTipReceived => _portableTipController.stream;
+
+  PortableTipPackage? pendingPortableTip(String transportId) =>
+      _pendingPortableTips[transportId]?.tip;
 
   List<CaptureRecord> get filteredCaptures {
     return _captures
@@ -172,7 +186,143 @@ final class AppController extends ChangeNotifier {
     _incomingSubscription = _incomingShareService.pendingChanged.listen((_) {
       unawaited(_drainIncomingShares());
     });
+    _portableTipSubscription = _portableTipInbox?.pendingChanged.listen((_) {
+      unawaited(_drainPortableTips());
+    });
     await _drainIncomingShares();
+    await _drainPortableTips();
+  }
+
+  Future<void> _drainPortableTips() {
+    final operation = _portableTipDrainTail.then(
+      (_) => _drainPortableTipsOnce(),
+    );
+    _portableTipDrainTail = operation;
+    return operation;
+  }
+
+  Future<void> _drainPortableTipsOnce() async {
+    final inbox = _portableTipInbox;
+    if (inbox == null) return;
+    try {
+      final envelopes = await inbox.pending();
+      if (envelopes.isEmpty) return;
+      final knownTransportIds = _captures
+          .map((capture) => capture.raw.transportEventId)
+          .toSet();
+      knownTransportIds.addAll(
+        _pendingPortableTips.values.map(
+          (pending) => 'portable-${pending.tip.packageId}',
+        ),
+      );
+      final rejectedTransportIds = <String>[];
+      final receivedTransportIds = <String>[];
+      for (final envelope in envelopes) {
+        if (_pendingPortableTips.containsKey(envelope.transportId)) continue;
+        try {
+          final decoded = PortableTipPackageCodec.decode(envelope.contents);
+          final transportId = 'portable-${decoded.packageId}';
+          if (knownTransportIds.contains(transportId)) {
+            rejectedTransportIds.add(envelope.transportId);
+            continue;
+          }
+          _pendingPortableTips[envelope.transportId] = _PendingPortableTip(
+            envelope: envelope,
+            tip: decoded,
+          );
+          knownTransportIds.add(transportId);
+          receivedTransportIds.add(envelope.transportId);
+        } on UnsupportedPortableTipVersionException catch (error) {
+          // Keep a future-version package in the native inbox. Deleting it
+          // automatically would make an app update unable to recover it.
+          debugPrint('Portable tip needs an app update: $error');
+        } on FormatException catch (error) {
+          debugPrint('Portable tip was rejected: $error');
+          rejectedTransportIds.add(envelope.transportId);
+        }
+      }
+      if (rejectedTransportIds.isNotEmpty) {
+        await inbox.acknowledge(rejectedTransportIds);
+      }
+      for (final transportId in receivedTransportIds) {
+        _portableTipController.add(transportId);
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Portable tip drain failed: $error\n$stackTrace');
+    }
+  }
+
+  Future<String?> acceptPortableTip(String transportId) async {
+    final pending = _pendingPortableTips[transportId];
+    final inbox = _portableTipInbox;
+    if (pending == null) return null;
+    final imported = PortableTipPackageCodec.import(
+      pending.envelope.contents,
+      createLocalId: () => 'import-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    final capture = captureFromImportedPortableTip(imported);
+    _captures.insert(0, capture);
+    _filter = CaptureFilter.all;
+    final saved = await _persistState();
+    if (!saved) {
+      _captures.removeWhere((item) => item.raw.id == capture.raw.id);
+      return null;
+    }
+    _pendingPortableTips.remove(transportId);
+    notifyListeners();
+    if (pending.nativeEnvelope && inbox != null) {
+      try {
+        await inbox.acknowledge([transportId]);
+      } catch (error, stackTrace) {
+        // The content is already durably saved. Keep the successful result;
+        // a later drain will recognize the package id and retry cleanup.
+        debugPrint('Portable tip acknowledge failed: $error\n$stackTrace');
+      }
+    }
+    return capture.raw.id;
+  }
+
+  Future<void> discardPortableTip(String transportId) async {
+    final inbox = _portableTipInbox;
+    final pending = _pendingPortableTips.remove(transportId);
+    if (pending == null) return;
+    if (pending.nativeEnvelope && inbox != null) {
+      await inbox.acknowledge([transportId]);
+    }
+  }
+
+  String stagePortableTip(String contents, {bool announce = true}) {
+    final tip = PortableTipPackageCodec.decode(contents);
+    final existing =
+        _captures.any(
+          (capture) =>
+              capture.raw.transportEventId == 'portable-${tip.packageId}',
+        ) ||
+        _pendingPortableTips.values.any(
+          (pending) => pending.tip.packageId == tip.packageId,
+        );
+    if (existing) {
+      throw const FormatException('이미 받은 팁이에요.');
+    }
+    final transportId = 'manual-${DateTime.now().microsecondsSinceEpoch}';
+    _pendingPortableTips[transportId] = _PendingPortableTip(
+      envelope: PendingPortableTipEnvelope(
+        transportId: transportId,
+        contents: contents,
+      ),
+      tip: tip,
+      nativeEnvelope: false,
+    );
+    if (announce) {
+      _portableTipController.add(transportId);
+    }
+    return transportId;
+  }
+
+  void announcePortableTip(String transportId) {
+    if (_pendingPortableTips.containsKey(transportId)) {
+      _portableTipController.add(transportId);
+    }
   }
 
   Future<void> _drainIncomingShares() {
@@ -965,8 +1115,23 @@ final class AppController extends ChangeNotifier {
   @override
   void dispose() {
     unawaited(_incomingSubscription?.cancel());
+    unawaited(_portableTipSubscription?.cancel());
     unawaited(_incomingShareService.dispose());
+    unawaited(_portableTipInbox?.dispose());
     unawaited(_incomingCaptureController.close());
+    unawaited(_portableTipController.close());
     super.dispose();
   }
+}
+
+final class _PendingPortableTip {
+  const _PendingPortableTip({
+    required this.envelope,
+    required this.tip,
+    this.nativeEnvelope = true,
+  });
+
+  final PendingPortableTipEnvelope envelope;
+  final PortableTipPackage tip;
+  final bool nativeEnvelope;
 }

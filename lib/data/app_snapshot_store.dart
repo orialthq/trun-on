@@ -241,7 +241,7 @@ final class MethodChannelAppSnapshotStore implements AppSnapshotStore {
       AppSnapshotCodec.encode(captures),
     );
     if (saved != true) {
-      throw StateError('The Android app snapshot was not saved.');
+      throw StateError('The app snapshot was not saved.');
     }
   }
 }

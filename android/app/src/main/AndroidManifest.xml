@@ -51,6 +51,38 @@
                 <data android:scheme="content" android:mimeType="image/png"/>
                 <data android:scheme="content" android:mimeType="image/webp"/>
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/vnd.orialthq.trunon.tip+json"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="content"
+                    android:mimeType="application/vnd.orialthq.trunon.tip+json"/>
+            </intent-filter>
+            <!-- Some chat/file apps preserve the .trunon filename but replace
+                 an unknown MIME type. Restrict the compatibility routes by
+                 extension so Trun On does not claim unrelated JSON/binary files. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data
+                    android:scheme="content"
+                    android:mimeType="application/octet-stream"
+                    android:pathPattern=".*\\.trunon"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data
+                    android:scheme="content"
+                    android:mimeType="application/json"
+                    android:pathPattern=".*\\.trunon"/>
+            </intent-filter>
         </activity>
         <service
             android:name=".CaptureQuickTileService"
@@ -86,6 +118,9 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <package android:name="com.nhn.android.nmap"/>
+        <package android:name="net.daum.android.map"/>
+        <package android:name="com.google.android.apps.maps"/>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

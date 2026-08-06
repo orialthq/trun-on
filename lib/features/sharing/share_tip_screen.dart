@@ -1,0 +1,791 @@
+import 'package:flutter/material.dart';
+
+import '../../core/app_theme.dart';
+import '../../data/content_share_service.dart';
+import '../../domain/models.dart';
+import '../../domain/portable_tip_package.dart';
+import '../common/content_folder_ui.dart';
+
+final class ShareTipScreen extends StatefulWidget {
+  const ShareTipScreen({required this.capture, super.key});
+
+  final CaptureRecord capture;
+
+  static Future<void> open(BuildContext context, CaptureRecord capture) {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ShareTipScreen(capture: capture)),
+    );
+  }
+
+  @override
+  State<ShareTipScreen> createState() => _ShareTipScreenState();
+}
+
+final class _ShareTipScreenState extends State<ShareTipScreen> {
+  static const _maxSelectedDetails = 6;
+  static const _shareService = ContentShareService();
+
+  final _cardKey = GlobalKey();
+  final _messageController = TextEditingController();
+  late final List<_SelectableTipDetail> _details;
+  final Set<String> _selectedIds = {};
+  var _sharingCard = false;
+  var _sharingPackage = false;
+
+  StructuredContentAnalysis get _analysis =>
+      widget.capture.analysis!.structuredContent!;
+
+  @override
+  void initState() {
+    super.initState();
+    _details = _buildDetails(widget.capture);
+    _selectedIds.addAll(_defaultSelection(_details));
+    _messageController.addListener(_refreshPreview);
+  }
+
+  @override
+  void dispose() {
+    _messageController
+      ..removeListener(_refreshPreview)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _refreshPreview() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _analysis.title.value?.trim().isNotEmpty == true
+        ? _analysis.title.value!
+        : '제목 없음';
+    final selectedDetails = _details
+        .where((detail) => _selectedIds.contains(detail.id))
+        .toList(growable: false);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('정보 보내기')),
+      body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          36 + MediaQuery.paddingOf(context).bottom,
+        ),
+        children: [
+          Text('친구에게 건넬 카드', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 7),
+          const Text(
+            '제목과 요약은 기본으로 담고, 아래에서 필요한 정보만 골라 보내요.',
+            style: TextStyle(color: AppTheme.muted, fontSize: 14, height: 1.45),
+          ),
+          const SizedBox(height: 20),
+          Semantics(
+            label: '공유 카드 미리보기',
+            child: FittedBox(
+              fit: BoxFit.contain,
+              alignment: Alignment.topCenter,
+              child: RepaintBoundary(
+                key: _cardKey,
+                child: SizedBox(
+                  width: 360,
+                  height: 450,
+                  child: _GiftTipCard(
+                    title: title,
+                    summary: _analysis.summary,
+                    folder: widget.capture.contentFolder,
+                    subcategory: widget.capture.contentSubcategory,
+                    message: _messageController.text,
+                    details: selectedDetails,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 26),
+          TextField(
+            controller: _messageController,
+            maxLength: 80,
+            minLines: 1,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: '짧은 편지 · 선택',
+              hintText: '예: 이번 주말에 같이 가볼래?',
+            ),
+          ),
+          const SizedBox(height: 22),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '함께 보낼 내용',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              Text(
+                '${_selectedIds.length} / $_maxSelectedDetails',
+                style: const TextStyle(
+                  color: AppTheme.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '카드에서 한눈에 읽히도록 핵심 정보 6개까지 고를 수 있어요.',
+            style: TextStyle(color: AppTheme.muted, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          if (_details.isEmpty)
+            const _NoExtraDetails()
+          else
+            Material(
+              color: AppTheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: AppTheme.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  for (var index = 0; index < _details.length; index++) ...[
+                    _DetailChoiceTile(
+                      detail: _details[index],
+                      selected: _selectedIds.contains(_details[index].id),
+                      onChanged: (selected) =>
+                          _toggleDetail(_details[index], selected),
+                    ),
+                    if (index != _details.length - 1)
+                      const Divider(indent: 18, endIndent: 18),
+                  ],
+                ],
+              ),
+            ),
+          const SizedBox(height: 12),
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.lock_outline_rounded,
+                color: AppTheme.subtle,
+                size: 16,
+              ),
+              SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  '원본 캡처와 OCR 근거는 보내지 않아요. 원문 링크도 직접 선택할 때만 포함돼요.',
+                  style: TextStyle(
+                    color: AppTheme.subtle,
+                    fontSize: 12,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          Builder(
+            builder: (buttonContext) => SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _sharingCard || _sharingPackage
+                    ? null
+                    : () => _shareCard(buttonContext, title),
+                icon: _sharingCard
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.ios_share_rounded),
+                label: Text(_sharingCard ? '카드를 만들고 있어요…' : '카톡·SNS에 카드 보내기'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Builder(
+            builder: (buttonContext) => SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _sharingCard || _sharingPackage
+                    ? null
+                    : () => _sharePackage(buttonContext),
+                icon: _sharingPackage
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_to_mobile_rounded),
+                label: Text(
+                  _sharingPackage ? '파일을 준비하고 있어요…' : 'Trun On으로 보내기',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 9),
+          const Text(
+            '첫 번째는 앱 없이 읽는 이미지 카드, 두 번째는 Trun On에서 다시 저장하고 활용하는 팁 파일이에요.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppTheme.subtle,
+              fontSize: 12,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleDetail(_SelectableTipDetail detail, bool selected) {
+    if (selected && _selectedIds.length >= _maxSelectedDetails) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('한 카드에는 핵심 정보 6개까지 담을 수 있어요.')),
+        );
+      return;
+    }
+    setState(() {
+      if (selected) {
+        _selectedIds.add(detail.id);
+      } else {
+        _selectedIds.remove(detail.id);
+      }
+    });
+  }
+
+  Future<void> _shareCard(BuildContext buttonContext, String title) async {
+    setState(() => _sharingCard = true);
+    try {
+      await _shareService.shareCard(
+        previewKey: _cardKey,
+        title: title,
+        sharePositionOrigin: _shareOrigin(buttonContext),
+      );
+    } on Object {
+      if (mounted) _showMessage('카드를 공유하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      if (mounted) setState(() => _sharingCard = false);
+    }
+  }
+
+  Future<void> _sharePackage(BuildContext buttonContext) async {
+    setState(() => _sharingPackage = true);
+    try {
+      final package = _createPackage();
+      await _shareService.sharePortableTip(
+        tip: package,
+        sharePositionOrigin: _shareOrigin(buttonContext),
+      );
+    } on Object {
+      if (mounted) _showMessage('팁 파일을 공유하지 못했어요.');
+    } finally {
+      if (mounted) setState(() => _sharingPackage = false);
+    }
+  }
+
+  PortableTipPackage _createPackage() {
+    final selectedFacts = <AnalysisFact>[];
+    final selectedSteps = <RecipeStep>[];
+    final selectedIngredientIds = <String>{};
+    var includePlace = false;
+    var includeSource = false;
+    for (final detail in _details) {
+      if (!_selectedIds.contains(detail.id)) continue;
+      switch (detail.kind) {
+        case _TipDetailKind.fact:
+          selectedFacts.add(_analysis.facts[detail.primaryIndex]);
+        case _TipDetailKind.ingredient:
+          selectedIngredientIds.add(detail.id);
+        case _TipDetailKind.step:
+          selectedSteps.add(_analysis.steps[detail.primaryIndex]);
+        case _TipDetailKind.place:
+          includePlace = true;
+        case _TipDetailKind.source:
+          includeSource = true;
+      }
+    }
+    final selectedGroups = <IngredientGroup>[];
+    for (
+      var groupIndex = 0;
+      groupIndex < _analysis.ingredientGroups.length;
+      groupIndex++
+    ) {
+      final group = _analysis.ingredientGroups[groupIndex];
+      final ingredients = <RecipeIngredient>[];
+      for (
+        var itemIndex = 0;
+        itemIndex < group.ingredients.length;
+        itemIndex++
+      ) {
+        if (selectedIngredientIds.contains(
+          'ingredient-$groupIndex-$itemIndex',
+        )) {
+          ingredients.add(group.ingredients[itemIndex]);
+        }
+      }
+      if (ingredients.isNotEmpty) {
+        selectedGroups.add(
+          IngredientGroup(name: group.name, ingredients: ingredients),
+        );
+      }
+    }
+    final fingerprint = widget.capture.raw.semanticFingerprint;
+    final suffix = String.fromCharCodes(fingerprint.runes.take(10));
+    return PortableTipPackage.fromStructuredCapture(
+      packageId: 'tip-${DateTime.now().microsecondsSinceEpoch}-$suffix',
+      exportedAt: DateTime.now(),
+      capture: widget.capture,
+      selectedFacts: selectedFacts,
+      selectedIngredientGroups: selectedGroups,
+      selectedSteps: selectedSteps,
+      includePlace: includePlace,
+      includeSource: includeSource,
+      sourceLabel: '원문 게시물',
+      message: _messageController.text,
+    );
+  }
+
+  Rect? _shareOrigin(BuildContext context) {
+    final box = context.findRenderObject() as RenderBox?;
+    return box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+final class _GiftTipCard extends StatelessWidget {
+  const _GiftTipCard({
+    required this.title,
+    required this.summary,
+    required this.folder,
+    required this.subcategory,
+    required this.message,
+    required this.details,
+  });
+
+  final String title;
+  final String summary;
+  final ContentFolder folder;
+  final String subcategory;
+  final String message;
+  final List<_SelectableTipDetail> details;
+
+  @override
+  Widget build(BuildContext context) {
+    const dark = Color(0xFF17130F);
+    final cleanMessage = message.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: folder.color,
+          borderRadius: BorderRadius.circular(34),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -34,
+              top: -36,
+              child: Container(
+                width: 132,
+                height: 132,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.18),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(25, 24, 25, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: const BoxDecoration(
+                          color: dark,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.redeem_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Trun On에서 보냈어요',
+                          style: TextStyle(
+                            color: dark,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: dark.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          folder.label,
+                          style: const TextStyle(
+                            color: dark,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  if (cleanMessage.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Text(
+                        '“$cleanMessage”',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: dark,
+                          fontSize: 13,
+                          height: 1.35,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 13),
+                  ],
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: dark,
+                      fontSize: 29,
+                      height: 1.08,
+                      letterSpacing: -1,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    summary.trim().isEmpty ? subcategory : summary,
+                    maxLines: cleanMessage.isEmpty ? 3 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: dark.withValues(alpha: 0.76),
+                      fontSize: 13,
+                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.fromLTRB(
+                        14,
+                        details.length > 4 ? 6 : 12,
+                        14,
+                        details.length > 4 ? 6 : 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: dark,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: details.isEmpty
+                          ? const Center(
+                              child: Text(
+                                '저장해두고 직접 써봐요.',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                for (
+                                  var index = 0;
+                                  index < details.length;
+                                  index++
+                                ) ...[
+                                  _GiftDetailRow(
+                                    detail: details[index],
+                                    dense: details.length > 4,
+                                  ),
+                                  if (index != details.length - 1)
+                                    Divider(
+                                      color: const Color(0x33FFFFFF),
+                                      height: details.length > 4 ? 4 : 9,
+                                    ),
+                                ],
+                              ],
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Row(
+                    children: [
+                      Text(
+                        '보는 데서 끝내지 말고, 직접 해보기',
+                        style: TextStyle(
+                          color: dark,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Spacer(),
+                      Icon(Icons.arrow_forward_rounded, color: dark, size: 17),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _GiftDetailRow extends StatelessWidget {
+  const _GiftDetailRow({required this.detail, required this.dense});
+
+  final _SelectableTipDetail detail;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(detail.icon, color: Colors.white70, size: dense ? 11 : 14),
+        SizedBox(width: dense ? 6 : 8),
+        SizedBox(
+          width: dense ? 52 : 58,
+          child: Text(
+            detail.cardLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: dense ? 8.5 : 10,
+              height: 1,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        SizedBox(width: dense ? 5 : 7),
+        Expanded(
+          child: Text(
+            detail.cardValue,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: dense ? 9.5 : 11,
+              height: 1,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+final class _DetailChoiceTile extends StatelessWidget {
+  const _DetailChoiceTile({
+    required this.detail,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final _SelectableTipDetail detail;
+  final bool selected;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return CheckboxListTile(
+      value: selected,
+      onChanged: (value) => onChanged(value ?? false),
+      controlAffinity: ListTileControlAffinity.trailing,
+      secondary: Icon(
+        detail.icon,
+        color: selected ? AppTheme.primary : AppTheme.subtle,
+      ),
+      title: Text(
+        detail.cardLabel,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Text(
+        detail.cardValue,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+final class _NoExtraDetails extends StatelessWidget {
+  const _NoExtraDetails();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: const Text(
+        '추가로 고를 정보가 없어 제목과 요약만 카드에 담아요.',
+        style: TextStyle(color: AppTheme.muted, fontSize: 13),
+      ),
+    );
+  }
+}
+
+enum _TipDetailKind { fact, ingredient, step, place, source }
+
+final class _SelectableTipDetail {
+  const _SelectableTipDetail({
+    required this.id,
+    required this.kind,
+    required this.cardLabel,
+    required this.cardValue,
+    required this.icon,
+    required this.primaryIndex,
+    this.secondaryIndex,
+  });
+
+  final String id;
+  final _TipDetailKind kind;
+  final String cardLabel;
+  final String cardValue;
+  final IconData icon;
+  final int primaryIndex;
+  final int? secondaryIndex;
+}
+
+List<_SelectableTipDetail> _buildDetails(CaptureRecord capture) {
+  final analysis = capture.analysis!.structuredContent!;
+  final details = <_SelectableTipDetail>[];
+  final place = analysis.place;
+  if (place != null &&
+      (place.name?.trim().isNotEmpty == true ||
+          place.address?.trim().isNotEmpty == true)) {
+    details.add(
+      _SelectableTipDetail(
+        id: 'place',
+        kind: _TipDetailKind.place,
+        cardLabel: '장소',
+        cardValue: [place.name, place.address]
+            .whereType<String>()
+            .where((value) => value.trim().isNotEmpty)
+            .join(' · '),
+        icon: Icons.location_on_outlined,
+        primaryIndex: 0,
+      ),
+    );
+  }
+  for (var index = 0; index < analysis.facts.length; index++) {
+    final fact = analysis.facts[index];
+    details.add(
+      _SelectableTipDetail(
+        id: 'fact-$index',
+        kind: _TipDetailKind.fact,
+        cardLabel: fact.label,
+        cardValue: fact.value,
+        icon: Icons.check_circle_outline_rounded,
+        primaryIndex: index,
+      ),
+    );
+  }
+  for (
+    var groupIndex = 0;
+    groupIndex < analysis.ingredientGroups.length;
+    groupIndex++
+  ) {
+    final group = analysis.ingredientGroups[groupIndex];
+    for (var itemIndex = 0; itemIndex < group.ingredients.length; itemIndex++) {
+      final ingredient = group.ingredients[itemIndex];
+      details.add(
+        _SelectableTipDetail(
+          id: 'ingredient-$groupIndex-$itemIndex',
+          kind: _TipDetailKind.ingredient,
+          cardLabel: group.name,
+          cardValue: ingredient.originalText,
+          icon: Icons.soup_kitchen_outlined,
+          primaryIndex: groupIndex,
+          secondaryIndex: itemIndex,
+        ),
+      );
+    }
+  }
+  for (var index = 0; index < analysis.steps.length; index++) {
+    final step = analysis.steps[index];
+    details.add(
+      _SelectableTipDetail(
+        id: 'step-$index',
+        kind: _TipDetailKind.step,
+        cardLabel: '순서 ${step.order}',
+        cardValue: step.instruction,
+        icon: Icons.format_list_numbered_rounded,
+        primaryIndex: index,
+      ),
+    );
+  }
+  final sourceUrl = capture.raw.rawUrl;
+  if (sourceUrl != null) {
+    details.add(
+      _SelectableTipDetail(
+        id: 'source',
+        kind: _TipDetailKind.source,
+        cardLabel: '원문 전체 주소',
+        cardValue: sourceUrl,
+        icon: Icons.link_rounded,
+        primaryIndex: 0,
+      ),
+    );
+  }
+  return details;
+}
+
+Iterable<String> _defaultSelection(List<_SelectableTipDetail> details) sync* {
+  var count = 0;
+  for (final detail in details) {
+    if (detail.kind == _TipDetailKind.source) continue;
+    if (count >= 4) break;
+    yield detail.id;
+    count++;
+  }
+}

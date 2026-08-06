@@ -1,0 +1,135 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ori_beauty/data/app_snapshot_store.dart';
+import 'package:ori_beauty/data/content_analysis_service.dart';
+import 'package:ori_beauty/data/incoming_share_service.dart';
+import 'package:ori_beauty/data/portable_tip_service.dart';
+import 'package:ori_beauty/domain/models.dart';
+import 'package:ori_beauty/domain/portable_tip_package.dart';
+import 'package:ori_beauty/state/app_controller.dart';
+
+void main() {
+  test(
+    'previews a received tip before saving and acknowledges after save',
+    () async {
+      final shares = InMemoryIncomingShareService();
+      final inbox = InMemoryPortableTipInbox();
+      final controller = AppController(
+        shares,
+        const BaselineContentAnalysisService(),
+        InMemoryAppSnapshotStore(),
+        inbox,
+      );
+      addTearDown(controller.dispose);
+      final tip = _tip('tip-received-0001');
+      inbox.add(
+        PortableTipPackageCodec.encode(tip),
+        transportId: 'transport-received-0001',
+      );
+      final received = Completer<String>();
+      controller.portableTipReceived.listen(received.complete);
+
+      await controller.initialize();
+      final transportId = await received.future;
+
+      expect(controller.pendingPortableTip(transportId)?.title, '동묘집');
+      expect(
+        controller.captures.where(
+          (capture) => capture.raw.origin == CaptureOrigin.portableTip,
+        ),
+        isEmpty,
+      );
+
+      final captureId = await controller.acceptPortableTip(transportId);
+      final imported = controller.captureById(captureId!);
+
+      expect(imported?.raw.origin, CaptureOrigin.portableTip);
+      expect(imported?.status, CaptureStatus.organized);
+      expect(imported?.analysis?.model, 'portable-tip-v1');
+      expect(
+        imported?.analysis?.structuredContent?.facts
+            .singleWhere((fact) => fact.label == '대표 메뉴')
+            .value,
+        '철판쭈꾸미',
+      );
+      expect(await inbox.pending(), isEmpty);
+    },
+  );
+
+  test('discarding a received tip does not create organized content', () async {
+    final shares = InMemoryIncomingShareService();
+    final inbox = InMemoryPortableTipInbox();
+    final controller = AppController(
+      shares,
+      const BaselineContentAnalysisService(),
+      InMemoryAppSnapshotStore(),
+      inbox,
+    );
+    addTearDown(controller.dispose);
+    inbox.add(
+      PortableTipPackageCodec.encode(_tip('tip-discard-0001')),
+      transportId: 'transport-discard-0001',
+    );
+    final received = Completer<String>();
+    controller.portableTipReceived.listen(received.complete);
+
+    await controller.initialize();
+    final transportId = await received.future;
+    await controller.discardPortableTip(transportId);
+
+    expect(
+      controller.captures.where(
+        (capture) => capture.raw.origin == CaptureOrigin.portableTip,
+      ),
+      isEmpty,
+    );
+    expect(await inbox.pending(), isEmpty);
+  });
+
+  test('stages only one pending copy of the same package id', () async {
+    final shares = InMemoryIncomingShareService();
+    final inbox = InMemoryPortableTipInbox();
+    final controller = AppController(
+      shares,
+      const BaselineContentAnalysisService(),
+      InMemoryAppSnapshotStore(),
+      inbox,
+    );
+    addTearDown(controller.dispose);
+    final encoded = PortableTipPackageCodec.encode(_tip('tip-duplicate-0001'));
+    inbox
+      ..add(encoded, transportId: 'transport-duplicate-0001')
+      ..add(encoded, transportId: 'transport-duplicate-0002');
+    final receivedIds = <String>[];
+    final subscription = controller.portableTipReceived.listen(receivedIds.add);
+    addTearDown(subscription.cancel);
+
+    await controller.initialize();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(receivedIds, ['transport-duplicate-0001']);
+    expect(await inbox.pending(), hasLength(1));
+    expect(
+      () => controller.stagePortableTip(encoded),
+      throwsA(isA<FormatException>()),
+    );
+
+    await controller.acceptPortableTip(receivedIds.single);
+    expect(await inbox.pending(), isEmpty);
+  });
+}
+
+PortableTipPackage _tip(String id) {
+  return PortableTipPackage.create(
+    packageId: id,
+    exportedAt: DateTime.utc(2026, 8, 5),
+    title: '동묘집',
+    summary: '철판쭈꾸미가 소개된 종로 맛집',
+    category: ContentFolder.restaurantCafe,
+    subcategory: '한식',
+    facts: [PortableTipFact(label: '대표 메뉴', value: '철판쭈꾸미')],
+    place: PortableTipPlace(name: '동묘집', address: '서울 종로구 종로52길'),
+    message: '이번 주말에 같이 갈래?',
+  );
+}

@@ -1,4 +1,4 @@
-enum CaptureOrigin { androidShare, manual, demo }
+enum CaptureOrigin { androidShare, manual, portableTip, demo }
 
 enum CaptureStatus {
   received,
@@ -876,7 +876,7 @@ final class StructuredContentAnalysis {
     );
     final model = _requiredString(normalizedJson['model'], 'analysis.model');
     if (!const {'1.0', '1.1', '1.2'}.contains(schemaVersion) ||
-        model != 'gpt-5.6-luna') {
+        !const {'gpt-5.6-luna', 'portable-tip-v1'}.contains(model)) {
       throw const FormatException(
         'Structured analysis version or model is unsupported.',
       );

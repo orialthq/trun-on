@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private var incomingChannel: MethodChannel? = null
     private var placeReminderChannel: MethodChannel? = null
     private var appNavigationChannel: MethodChannel? = null
+    private var portableTipChannel: MethodChannel? = null
     private val incomingStore: IncomingShareStore by lazy {
         IncomingShareStore(applicationContext)
     }
@@ -32,6 +33,9 @@ class MainActivity : FlutterActivity() {
     }
     private val sharedMediaDeletionManager: SharedMediaDeletionManager by lazy {
         SharedMediaDeletionManager(applicationContext)
+    }
+    private val portableTipStore: PortableTipStore by lazy {
+        PortableTipStore(applicationContext)
     }
     private var pendingCaptureNotificationId: String? = null
     private var pendingLocationPermissionResult: MethodChannel.Result? = null
@@ -149,6 +153,8 @@ class MainActivity : FlutterActivity() {
                         }
                         "enablePlaceReminder" -> enablePlaceReminder(call.arguments, result)
                         "disablePlaceReminder" -> disablePlaceReminder(call.arguments, result)
+                        "getMapProviders" -> getMapProviders(result)
+                        "openMapProvider" -> openMapProvider(call.arguments, result)
                         "openMap" -> openMap(call.arguments, result)
                         else -> result.notImplemented()
                     }
@@ -163,6 +169,27 @@ class MainActivity : FlutterActivity() {
                 channel.setMethodCallHandler { call, result ->
                     when (call.method) {
                         "returnToPreviousApp" -> returnToPreviousApp(result)
+                        else -> result.notImplemented()
+                    }
+                }
+            }
+
+        portableTipChannel =
+            MethodChannel(
+                flutterEngine.dartExecutor.binaryMessenger,
+                PORTABLE_TIP_CHANNEL,
+            ).also { channel ->
+                channel.setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "pendingPackages" -> result.success(portableTipStore.pending())
+                        "acknowledgePackages" -> {
+                            val transportIds =
+                                ((call.arguments as? Map<*, *>)?.get("transportIds") as? List<*>)
+                                    ?.filterIsInstance<String>()
+                                    .orEmpty()
+                            portableTipStore.acknowledge(transportIds)
+                            result.success(null)
+                        }
                         else -> result.notImplemented()
                     }
                 }
@@ -219,6 +246,12 @@ class MainActivity : FlutterActivity() {
     private fun handleIncomingIntent(intent: Intent?) {
         if (intent?.action == ACTION_PICK_CAPTURE) {
             launchCapturePicker()
+            return
+        }
+        if (portableTipStore.isPortableIntent(intent)) {
+            if (portableTipStore.stage(intent) != null) {
+                portableTipChannel?.invokeMethod("pendingPackagesChanged", null)
+            }
             return
         }
         stageIncomingShare(intent)
@@ -377,8 +410,42 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun openMap(arguments: Any?, result: MethodChannel.Result) {
+    private enum class MapProvider(
+        val wireName: String,
+        val packageName: String?,
+    ) {
+        NAVER("naver", "com.nhn.android.nmap"),
+        KAKAO("kakao", "net.daum.android.map"),
+        GOOGLE("google", "com.google.android.apps.maps"),
+        ;
+
+        companion object {
+            fun fromWireName(value: String?): MapProvider? =
+                entries.firstOrNull { it.wireName == value }
+        }
+    }
+
+    private fun getMapProviders(result: MethodChannel.Result) {
+        val probeQuery = "Trun On"
+        result.success(
+            MapProvider.entries.map { provider ->
+                mapOf(
+                    "id" to provider.wireName,
+                    "appInstalled" to canOpen(mapAppIntent(provider, probeQuery)),
+                    "available" to true,
+                )
+            },
+        )
+    }
+
+    private fun openMapProvider(arguments: Any?, result: MethodChannel.Result) {
         val values = arguments as? Map<*, *>
+        val provider =
+            MapProvider.fromWireName(values?.get("provider") as? String)
+        if (provider == null) {
+            result.error("invalid_map_provider", "A supported map provider is required.", null)
+            return
+        }
         val name = values?.get("name") as? String
         val address = values?.get("address") as? String
         val query = listOfNotNull(name, address).joinToString(" ").trim()
@@ -386,13 +453,95 @@ class MainActivity : FlutterActivity() {
             result.error("invalid_place", "A map query is required.", null)
             return
         }
-        val uri =
-            Uri.parse(
-                "https://www.google.com/maps/search/?api=1&query=${Uri.encode(query)}",
-            )
-        startActivity(Intent(Intent.ACTION_VIEW, uri))
-        result.success(null)
+
+        val appIntent = mapAppIntent(provider, query)
+        val openedInApp = canOpen(appIntent) && tryOpen(appIntent)
+        if (!openedInApp && !tryOpen(mapWebIntent(provider, query))) {
+            result.error("map_unavailable", "No map app or browser could open the place.", null)
+            return
+        }
+        result.success(
+            mapOf(
+                "provider" to provider.wireName,
+                "openedInApp" to openedInApp,
+            ),
+        )
     }
+
+    private fun openMap(arguments: Any?, result: MethodChannel.Result) {
+        val values = (arguments as? Map<*, *>).orEmpty()
+        openMapProvider(values + ("provider" to MapProvider.NAVER.wireName), result)
+    }
+
+    private fun mapAppIntent(provider: MapProvider, query: String): Intent {
+        val uri =
+            when (provider) {
+                MapProvider.NAVER ->
+                    Uri.Builder()
+                        .scheme("nmap")
+                        .authority("search")
+                        .appendQueryParameter("query", query)
+                        .appendQueryParameter("appname", packageName)
+                        .build()
+                MapProvider.KAKAO ->
+                    Uri.Builder()
+                        .scheme("kakaomap")
+                        .authority("search")
+                        .appendQueryParameter("q", query)
+                        .build()
+                MapProvider.GOOGLE -> mapWebUri(provider, query)
+            }
+        return Intent(Intent.ACTION_VIEW, uri).apply {
+            addCategory(Intent.CATEGORY_BROWSABLE)
+            provider.packageName?.let { setPackage(it) }
+        }
+    }
+
+    private fun mapWebIntent(provider: MapProvider, query: String): Intent =
+        Intent(Intent.ACTION_VIEW, mapWebUri(provider, query)).apply {
+            addCategory(Intent.CATEGORY_BROWSABLE)
+        }
+
+    private fun mapWebUri(provider: MapProvider, query: String): Uri =
+        when (provider) {
+            MapProvider.NAVER ->
+                Uri.Builder()
+                    .scheme("https")
+                    .authority("map.naver.com")
+                    .appendPath("p")
+                    .appendPath("search")
+                    .appendPath(query)
+                    .build()
+            MapProvider.KAKAO ->
+                Uri.Builder()
+                    .scheme("https")
+                    .authority("map.kakao.com")
+                    .appendPath("link")
+                    .appendPath("search")
+                    .appendPath(query)
+                    .build()
+            MapProvider.GOOGLE ->
+                Uri.Builder()
+                    .scheme("https")
+                    .authority("www.google.com")
+                    .appendPath("maps")
+                    .appendPath("search")
+                    .appendPath("")
+                    .appendQueryParameter("api", "1")
+                    .appendQueryParameter("query", query)
+                    .build()
+        }
+
+    private fun canOpen(intent: Intent): Boolean =
+        intent.resolveActivity(packageManager) != null
+
+    private fun tryOpen(intent: Intent): Boolean =
+        try {
+            startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
 
     private fun requestSharedSourceDeletion(
         arguments: Any?,
@@ -526,6 +675,8 @@ class MainActivity : FlutterActivity() {
             "com.orialthq.ori_beauty/place_reminders/v1"
         private const val APP_NAVIGATION_CHANNEL =
             "com.orialthq.ori_beauty/app_navigation/v1"
+        private const val PORTABLE_TIP_CHANNEL =
+            "com.orialthq.ori_beauty/portable_tip/v1"
         private const val PICK_CAPTURE_REQUEST_CODE = 4109
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 4107
         private const val LOCATION_PERMISSION_REQUEST_CODE = 4111
