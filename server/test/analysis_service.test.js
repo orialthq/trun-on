@@ -227,29 +227,41 @@ test("routes a semantically mismatched place category to user review", async () 
   ]);
 });
 
-test("rejects dangling evidence references", async () => {
-  const invalid = makeValidAnalysis({
+test("repairs dangling evidence references and routes the result to review", async () => {
+  const incompleteReferences = makeValidAnalysis({
+    completeness: "complete",
     title: {
       value: "된장찌개",
       status: "observed",
       confidence: 0.9,
-      evidenceIds: ["missing"],
+      evidenceIds: ["e1", "missing"],
     },
+    facts: [
+      {
+        label: "가격",
+        value: "9,000원",
+        confidence: 0.9,
+        evidenceIds: ["missing"],
+      },
+    ],
+    warnings: [],
   });
   const service = createAnalysisService({
     transport: {
       async createResponse() {
-        return { output_text: JSON.stringify(invalid) };
+        return { output_text: JSON.stringify(incompleteReferences) };
       },
     },
   });
 
-  await assert.rejects(
-    service.analyze(input),
-    (error) =>
-      error instanceof OpenAITransportError &&
-      error.kind === "invalid_response",
-  );
+  const result = await service.analyze(input);
+
+  assert.deepEqual(result.title.evidenceIds, ["e1"]);
+  assert.deepEqual(result.facts[0].evidenceIds, []);
+  assert.equal(result.completeness, "needs_review");
+  assert.deepEqual(result.warnings, [
+    "일부 정보는 확인이 필요해요.",
+  ]);
 });
 
 test("downgrades a complete recipe when a numeric amount has no unit", async () => {

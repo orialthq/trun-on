@@ -4,6 +4,7 @@ import '../../core/app_theme.dart';
 import '../../core/formatters.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
+import '../common/capture_action_ui.dart';
 import '../common/content_folder_ui.dart';
 import '../common/product_ui.dart';
 
@@ -79,11 +80,26 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
     if (capture.status == CaptureStatus.sourceLimited &&
         capture.raw.attachments.isEmpty &&
         capture.normalized.completeness == MaterialCompleteness.linkOnly) {
-      return _LinkOnlyReview(capture: capture, platform: platform);
+      return _LinkOnlyReview(
+        capture: capture,
+        platform: platform,
+        onDelete: _delete,
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('분석 결과')),
+      appBar: AppBar(
+        title: const Text('분석 결과'),
+        actions: [
+          IconButton(
+            key: const Key('delete-capture-detail'),
+            tooltip: '콘텐츠 삭제',
+            onPressed: _saving ? null : _delete,
+            icon: const Icon(Icons.delete_outline_rounded),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -287,6 +303,17 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
     }
   }
 
+  Future<void> _delete() async {
+    final deleted = await confirmCaptureDeletion(
+      context,
+      controller: widget.controller,
+      captureId: widget.captureId,
+    );
+    if (deleted && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -295,15 +322,31 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
 }
 
 final class _LinkOnlyReview extends StatelessWidget {
-  const _LinkOnlyReview({required this.capture, required this.platform});
+  const _LinkOnlyReview({
+    required this.capture,
+    required this.platform,
+    required this.onDelete,
+  });
 
   final CaptureRecord capture;
   final SourcePlatform platform;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('가져온 링크')),
+      appBar: AppBar(
+        title: const Text('가져온 링크'),
+        actions: [
+          IconButton(
+            key: const Key('delete-capture-detail'),
+            tooltip: '콘텐츠 삭제',
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline_rounded),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
         children: [

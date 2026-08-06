@@ -7,6 +7,7 @@ import '../../core/app_theme.dart';
 import '../../data/place_reminder_service.dart';
 import '../../domain/models.dart';
 import '../../state/app_controller.dart';
+import '../common/capture_action_ui.dart';
 import '../common/content_folder_ui.dart';
 import '../sharing/share_tip_screen.dart';
 
@@ -57,6 +58,12 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
             tooltip: '정보 보내기',
             onPressed: () => ShareTipScreen.open(context, capture),
             icon: const Icon(Icons.ios_share_rounded),
+          ),
+          IconButton(
+            key: const Key('delete-capture-detail'),
+            tooltip: '콘텐츠 삭제',
+            onPressed: _saving ? null : _delete,
+            icon: const Icon(Icons.delete_outline_rounded),
           ),
           const SizedBox(width: 6),
         ],
@@ -272,6 +279,17 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
       if (mounted) {
         setState(() => _saving = false);
       }
+    }
+  }
+
+  Future<void> _delete() async {
+    final deleted = await confirmCaptureDeletion(
+      context,
+      controller: widget.controller,
+      captureId: widget.captureId,
+    );
+    if (deleted && mounted) {
+      Navigator.of(context).pop();
     }
   }
 }

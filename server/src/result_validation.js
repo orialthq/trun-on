@@ -42,6 +42,8 @@ const SUBCATEGORY_MIN_LENGTH = 2;
 const SUBCATEGORY_MAX_LENGTH = 20;
 const SUBCATEGORY_PATTERN =
   /^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$/u;
+const EVIDENCE_REPAIR_WARNING =
+  "일부 정보는 확인이 필요해요.";
 const ROOT_KEYS = new Set([
   "schemaVersion",
   "model",
@@ -330,11 +332,21 @@ export function validateAnalysisResult(result) {
 
   assertStringArray(result.warnings, "warnings");
 
-  for (const [path, ids] of referenceLists) {
-    for (const id of ids) {
-      if (!evidenceIdSet.has(id)) {
-        throw invalid(`${path} references unknown evidence id: ${id}`);
-      }
+  let repairedEvidenceReferences = false;
+  for (const [, ids] of referenceLists) {
+    const validIds = ids.filter((id) => evidenceIdSet.has(id));
+    if (validIds.length !== ids.length) {
+      ids.splice(0, ids.length, ...validIds);
+      repairedEvidenceReferences = true;
+    }
+  }
+
+  if (repairedEvidenceReferences) {
+    if (!new Set(["unsupported", "conflicted"]).has(result.completeness)) {
+      result.completeness = "needs_review";
+    }
+    if (!result.warnings.includes(EVIDENCE_REPAIR_WARNING)) {
+      result.warnings.push(EVIDENCE_REPAIR_WARNING);
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -236,6 +237,167 @@ void main() {
   });
 
   test(
+    'deletes a capture from the durable snapshot and restored state',
+    () async {
+      final snapshotStore = InMemoryAppSnapshotStore();
+      final firstController = AppController(
+        InMemoryIncomingShareService(),
+        const BaselineContentAnalysisService(),
+        snapshotStore,
+      );
+      await firstController.initialize();
+      final captureId = firstController.addManualInput(
+        '데이라이트 에어리 선 플루이드 50ml. 가볍게 발려요.',
+      );
+      await firstController.updateContentSubcategory(captureId, '선케어');
+
+      expect(await firstController.deleteCapture(captureId), isTrue);
+      expect(firstController.captureById(captureId), isNull);
+      expect(
+        AppSnapshotCodec.decode(snapshotStore.snapshot!).where(
+          (capture) => 'capture-${capture.transportEventId}' == captureId,
+        ),
+        isEmpty,
+      );
+      expect(await firstController.deleteCapture(captureId), isFalse);
+      firstController.dispose();
+
+      final restoredController = AppController(
+        InMemoryIncomingShareService(),
+        const BaselineContentAnalysisService(),
+        snapshotStore,
+      );
+      addTearDown(restoredController.dispose);
+      await restoredController.initialize();
+
+      expect(restoredController.captureById(captureId), isNull);
+    },
+  );
+
+  test(
+    'quick organizes legacy content and rebuilds product groups on delete',
+    () async {
+      final snapshotStore = InMemoryAppSnapshotStore();
+      final quickController = AppController(
+        InMemoryIncomingShareService(),
+        const BaselineContentAnalysisService(),
+        snapshotStore,
+      );
+      addTearDown(quickController.dispose);
+      await quickController.initialize();
+      const existingGroupId = 'group-baumlab-pore-balance';
+      final sourceCountBefore = quickController
+          .groupById(existingGroupId)!
+          .sourceCount;
+      final captureId = quickController.addManualInput(
+        '바움랩 포어 밸런스 세럼 30ml. 모공이 신경 쓰일 때 가벼워요.',
+      );
+
+      expect(quickController.canQuickOrganize(captureId), isTrue);
+      expect(await quickController.quickOrganize(captureId), isTrue);
+      expect(
+        quickController.captureById(captureId)?.status,
+        CaptureStatus.organized,
+      );
+      expect(quickController.captureById(captureId)?.groupId, existingGroupId);
+      expect(
+        quickController.groupById(existingGroupId)?.sourceCount,
+        sourceCountBefore + 1,
+      );
+      expect(
+        AppSnapshotCodec.decode(snapshotStore.snapshot!).single.status,
+        CaptureStatus.organized,
+      );
+
+      expect(await quickController.deleteCapture(captureId), isTrue);
+      final rebuilt = quickController.groupById(existingGroupId)!;
+      expect(rebuilt.sourceCount, sourceCountBefore);
+      expect(rebuilt.sourceCaptureIds, isNot(contains(captureId)));
+      expect(
+        rebuilt.statements.where(
+          (statement) => statement.captureId == captureId,
+        ),
+        isEmpty,
+      );
+
+      final soleSourceId = quickController.addManualInput(
+        '데이라이트 에어리 선 플루이드 50ml. 백탁이 적고 가벼워요.',
+      );
+      expect(await quickController.quickOrganize(soleSourceId), isTrue);
+      final soleGroupId = quickController.captureById(soleSourceId)!.groupId!;
+      expect(quickController.groupById(soleGroupId)?.sourceCaptureIds, [
+        soleSourceId,
+      ]);
+
+      expect(await quickController.deleteCapture(soleSourceId), isTrue);
+      expect(quickController.groupById(soleGroupId), isNull);
+    },
+  );
+
+  test(
+    'quick organizes structured content into the organized library',
+    () async {
+      final snapshotStore = InMemoryAppSnapshotStore();
+      final structuredController = AppController(
+        InMemoryIncomingShareService(),
+        const _StructuredAnalysisService(),
+        snapshotStore,
+      );
+      addTearDown(structuredController.dispose);
+      await structuredController.initialize();
+      final captureId = structuredController.addManualInput('두부조림 레시피 이미지');
+
+      expect(structuredController.canQuickOrganize(captureId), isTrue);
+      expect(await structuredController.quickOrganize(captureId), isTrue);
+
+      final organized = structuredController.captureById(captureId)!;
+      expect(organized.status, CaptureStatus.organized);
+      expect(organized.contentFolder, ContentFolder.recipe);
+      expect(organized.contentSubcategory, '밑반찬');
+      expect(
+        structuredController.organizedStructuredCaptures.map(
+          (capture) => capture.raw.id,
+        ),
+        contains(captureId),
+      );
+      expect(
+        AppSnapshotCodec.decode(snapshotStore.snapshot!).single.status,
+        CaptureStatus.organized,
+      );
+    },
+  );
+
+  test(
+    'rolls back capture and group deletion when durable save fails',
+    () async {
+      final originalDebugPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) {};
+      addTearDown(() => debugPrint = originalDebugPrint);
+      final snapshotStore = _ToggleAppSnapshotStore();
+      final rollbackController = AppController(
+        InMemoryIncomingShareService(),
+        const BaselineContentAnalysisService(),
+        snapshotStore,
+      );
+      addTearDown(rollbackController.dispose);
+      await rollbackController.initialize();
+      final captureId = rollbackController.addManualInput(
+        '데이라이트 에어리 선 플루이드 50ml. 가볍게 발려요.',
+      );
+      expect(await rollbackController.quickOrganize(captureId), isTrue);
+      final groupId = rollbackController.captureById(captureId)!.groupId!;
+      snapshotStore.failWrites = true;
+
+      expect(await rollbackController.deleteCapture(captureId), isFalse);
+      expect(rollbackController.captureById(captureId), isNotNull);
+      expect(
+        rollbackController.groupById(groupId)?.sourceCaptureIds,
+        contains(captureId),
+      );
+    },
+  );
+
+  test(
     'acknowledges a durably saved pending share recovered before review',
     () async {
       final snapshotStore = InMemoryAppSnapshotStore();
@@ -380,6 +542,112 @@ void main() {
     expect(imageController.canDeleteSharedSource(capture.raw.id), isFalse);
   });
 
+  test(
+    'deletes an unreferenced retained image but keeps shared and source originals',
+    () async {
+      final temporaryRoot = await Directory.systemTemp.createTemp(
+        'ori-image-deletion-',
+      );
+      addTearDown(() async {
+        if (await temporaryRoot.exists()) {
+          await temporaryRoot.delete(recursive: true);
+        }
+      });
+      final incomingDirectory = Directory(
+        '${temporaryRoot.path}${Platform.pathSeparator}'
+        'incoming_share_attachments',
+      );
+      await incomingDirectory.create();
+      final firstSource = File(
+        '${incomingDirectory.path}${Platform.pathSeparator}first.jpg',
+      );
+      final secondSource = File(
+        '${incomingDirectory.path}${Platform.pathSeparator}second.jpg',
+      );
+      const imageBytes = [0xff, 0xd8, 0xff];
+      await firstSource.writeAsBytes(imageBytes, flush: true);
+      await secondSource.writeAsBytes(imageBytes, flush: true);
+      final sha256 = List.filled(64, 'c').join();
+      final imageService = _RecordingIncomingShareService()
+        ..add(
+          IncomingShare(
+            id: 'share-image-first',
+            receivedAt: DateTime(2026, 8, 6),
+            sharedText: '',
+            discoveredUrl: null,
+            mimeType: 'image/jpeg',
+            shareKind: ShareKind.image,
+            sourceDeletionAvailable: true,
+            attachments: [
+              IncomingAttachment(
+                id: 'attachment-first',
+                filePath: firstSource.path,
+                mimeType: 'image/jpeg',
+                byteSize: imageBytes.length,
+                width: 1,
+                height: 1,
+                sha256: sha256,
+              ),
+            ],
+          ),
+        )
+        ..add(
+          IncomingShare(
+            id: 'share-image-second',
+            receivedAt: DateTime(2026, 8, 6),
+            sharedText: '',
+            discoveredUrl: null,
+            mimeType: 'image/jpeg',
+            shareKind: ShareKind.image,
+            sourceDeletionAvailable: true,
+            attachments: [
+              IncomingAttachment(
+                id: 'attachment-second',
+                filePath: secondSource.path,
+                mimeType: 'image/jpeg',
+                byteSize: imageBytes.length,
+                width: 1,
+                height: 1,
+                sha256: sha256,
+              ),
+            ],
+          ),
+        );
+      final imageController = AppController(
+        imageService,
+        const BaselineContentAnalysisService(),
+        InMemoryAppSnapshotStore(),
+      );
+      addTearDown(imageController.dispose);
+
+      await imageController.initialize();
+
+      final firstCapture = imageController.captures.firstWhere(
+        (capture) => capture.raw.transportEventId == 'share-image-first',
+      );
+      final secondCapture = imageController.captures.firstWhere(
+        (capture) => capture.raw.transportEventId == 'share-image-second',
+      );
+      final retainedPath = firstCapture.raw.attachments.single.filePath;
+      expect(secondCapture.raw.attachments.single.filePath, retainedPath);
+
+      expect(await imageController.deleteCapture(firstCapture.raw.id), isTrue);
+      expect(await File(retainedPath).exists(), isTrue);
+      expect(await firstSource.exists(), isTrue);
+      expect(await secondSource.exists(), isTrue);
+
+      expect(await imageController.deleteCapture(secondCapture.raw.id), isTrue);
+      expect(await File(retainedPath).exists(), isFalse);
+      expect(await firstSource.exists(), isTrue);
+      expect(await secondSource.exists(), isTrue);
+      expect(
+        imageService.keptTransportIds,
+        containsAll(['share-image-first', 'share-image-second']),
+      );
+      expect(imageService.deletedTransportIds, isEmpty);
+    },
+  );
+
   test('keeps a native image pending when retained size is invalid', () async {
     final originalDebugPrint = debugPrint;
     debugPrint = (message, {wrapWidth}) {};
@@ -440,6 +708,129 @@ void main() {
     );
     expect(await imageService.drainPending(), hasLength(1));
   });
+}
+
+final class _StructuredAnalysisService implements ContentAnalysisService {
+  const _StructuredAnalysisService();
+
+  static const _baseline = BaselineContentAnalysisService();
+  static const _structured = StructuredContentAnalysis(
+    schemaVersion: '1.2',
+    model: 'gpt-5.6-luna',
+    domain: ContentDomain.food,
+    contentKind: ContentKind.recipe,
+    primaryCategory: ContentFolder.recipe,
+    categoryConfidence: 0.96,
+    subcategory: '밑반찬',
+    subcategoryConfidence: 0.93,
+    completeness: StructuredCompleteness.complete,
+    title: StructuredTitle(
+      value: '두부조림',
+      status: ObservedStatus.observed,
+      confidence: 0.95,
+      evidenceIds: [],
+    ),
+    place: null,
+    summary: '간단한 두부조림 레시피',
+    evidence: [],
+    ingredientGroups: [],
+    steps: [],
+    facts: [],
+    conflicts: [],
+    warnings: [],
+  );
+
+  @override
+  CaptureRecord analyzeShare(
+    IncomingShare share, {
+    CaptureOrigin origin = CaptureOrigin.androidShare,
+  }) {
+    final prepared = _baseline.prepareShare(share, origin: origin);
+    return prepared.copyWith(
+      status: CaptureStatus.needsReview,
+      analysis: _analysisFor(prepared),
+    );
+  }
+
+  @override
+  CaptureRecord prepareShare(
+    IncomingShare share, {
+    CaptureOrigin origin = CaptureOrigin.androidShare,
+  }) => _baseline.prepareShare(share, origin: origin);
+
+  @override
+  Future<AnalysisRun> analyze(CaptureRecord capture) async =>
+      capture.analysis ?? _analysisFor(capture);
+
+  static AnalysisRun _analysisFor(CaptureRecord capture) => AnalysisRun(
+    id: 'analysis-${capture.raw.transportEventId}',
+    inputId: capture.raw.id,
+    normalizerVersion: capture.normalized.normalizerVersion,
+    analyzerVersion: 'test-structured-v1',
+    status: AnalysisRunStatus.succeeded,
+    completedAt: capture.raw.receivedAt,
+    evidence: const [],
+    productMentions: const [],
+    statements: const [],
+    disclosure: DisclosureObservation.unknown,
+    structuredContent: _structured,
+  );
+}
+
+final class _RecordingIncomingShareService implements IncomingShareService {
+  final _pendingController = StreamController<void>.broadcast();
+  final _shares = <IncomingShare>[];
+  final keptTransportIds = <String>[];
+  final deletedTransportIds = <String>[];
+
+  void add(IncomingShare share) {
+    _shares.add(share);
+    _pendingController.add(null);
+  }
+
+  @override
+  Stream<void> get pendingChanged => _pendingController.stream;
+
+  @override
+  Future<List<IncomingShare>> drainPending() async => List.of(_shares);
+
+  @override
+  Future<void> acknowledge(Iterable<String> ids) async {
+    final acknowledged = ids.toSet();
+    _shares.removeWhere((share) => acknowledged.contains(share.id));
+  }
+
+  @override
+  Future<SharedSourceDeletionResult> deleteSharedSource(
+    String transportId,
+  ) async {
+    deletedTransportIds.add(transportId);
+    return SharedSourceDeletionResult.deleted;
+  }
+
+  @override
+  Future<void> keepSharedSource(String transportId) async {
+    keptTransportIds.add(transportId);
+  }
+
+  @override
+  Future<void> dispose() => _pendingController.close();
+}
+
+final class _ToggleAppSnapshotStore implements AppSnapshotStore {
+  final _delegate = InMemoryAppSnapshotStore();
+  bool failWrites = false;
+
+  @override
+  Future<List<PersistedCapture>> load() => _delegate.load();
+
+  @override
+  Future<void> save(List<PersistedCapture> captures) {
+    if (failWrites) {
+      throw StateError('simulated durable write failure');
+    }
+    return _delegate.save(captures);
+  }
 }
 
 final class _FailingAppSnapshotStore implements AppSnapshotStore {

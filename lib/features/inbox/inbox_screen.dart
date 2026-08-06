@@ -10,6 +10,7 @@ import '../../domain/portable_tip_package.dart';
 import '../../state/app_controller.dart';
 import '../analysis/analysis_review_screen.dart';
 import '../analysis/structured_review_screen.dart';
+import '../common/capture_action_ui.dart';
 import '../common/product_ui.dart';
 import '../product/product_detail_screen.dart';
 
@@ -112,6 +113,8 @@ final class InboxScreen extends StatelessWidget {
                         capture: captures[index],
                         controller: controller,
                         onTap: () => _openCapture(context, captures[index]),
+                        onLongPress: () =>
+                            _openCaptureActions(context, captures[index]),
                       ),
                       if (index != captures.length - 1)
                         const Divider(height: 1, indent: 18, endIndent: 18),
@@ -185,6 +188,42 @@ final class InboxScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _openCaptureActions(
+    BuildContext context,
+    CaptureRecord capture,
+  ) async {
+    final action = await showCaptureActionSheet(
+      context,
+      canOrganize: capture.status == CaptureStatus.needsReview,
+    );
+    if (action == null || !context.mounted) return;
+
+    switch (action) {
+      case CaptureListAction.organize:
+        final saved = controller.canQuickOrganize(capture.raw.id)
+            ? await controller.quickOrganize(capture.raw.id)
+            : false;
+        if (!context.mounted) return;
+        if (saved) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(content: Text('정리함에 저장했어요.')));
+        }
+        if (!saved) {
+          final current = controller.captureById(capture.raw.id);
+          if (current != null) _openCapture(context, current);
+        }
+        return;
+      case CaptureListAction.delete:
+        await confirmCaptureDeletion(
+          context,
+          controller: controller,
+          captureId: capture.raw.id,
+        );
+        return;
+    }
+  }
+
   static int _countForFilter(AppController controller, CaptureFilter filter) {
     return switch (filter) {
       CaptureFilter.all => controller.captures.length,
@@ -247,17 +286,6 @@ final class _CaptureSummaryCard extends StatelessWidget {
                 height: 1.4,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              '전체 ${controller.captures.length}개  ·  '
-              '정리 완료 ${controller.organizedCount}개  ·  '
-              '분석 중 ${controller.analyzingCount}개',
-              style: const TextStyle(
-                color: AppTheme.muted,
-                fontSize: 14,
-                height: 1.4,
               ),
             ),
           ],
@@ -381,11 +409,13 @@ final class _CaptureCard extends StatelessWidget {
     required this.capture,
     required this.controller,
     required this.onTap,
+    required this.onLongPress,
   });
 
   final CaptureRecord capture;
   final AppController controller;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -426,6 +456,7 @@ final class _CaptureCard extends StatelessWidget {
       onTap: capture.status == CaptureStatus.failed
           ? () => controller.retryAnalysis(capture.raw.id)
           : onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 18, 12, 18),
         child: Row(

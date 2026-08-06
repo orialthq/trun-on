@@ -36,13 +36,28 @@ void main() {
       find.byKey(const PageStorageKey('home-category-roulette')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('home-inbox-card')), findsOneWidget);
-    expect(find.byKey(const Key('home-library-card')), findsOneWidget);
+    expect(find.byKey(const Key('home-inbox-card')), findsNothing);
+    expect(find.byKey(const Key('home-library-card')), findsNothing);
+    expect(find.text('들어온 것'), findsNothing);
+    expect(find.text('최근 들어온 것'), findsNothing);
+    expect(find.text('정리함 보기'), findsNothing);
+    expect(find.text('최근 콘텐츠'), findsOneWidget);
     expect(find.text('콘텐츠'), findsOneWidget);
     expect(find.text('INPUT → 정리'), findsNothing);
     expect(find.byIcon(Icons.auto_awesome_outlined), findsNothing);
     expect(find.text('비교'), findsNothing);
     expect(find.text('내 기준'), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        '전체 ${controller.captures.length}개  ·  '
+        '정리 완료 ${controller.organizedCount}개  ·  '
+        '분석 중 ${controller.analyzingCount}개',
+      ),
+      findsNothing,
+    );
 
     await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
     await tester.pumpAndSettle();
@@ -204,6 +219,64 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<Text>(filter).style?.color, color);
     }
+  });
+
+  testWidgets('long press offers contextual organize and delete actions', (
+    tester,
+  ) async {
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.text('데이라이트 에어리 선 플루이드'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('capture-action-organize')), findsOneWidget);
+    expect(find.byKey(const Key('capture-action-delete')), findsOneWidget);
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
+
+    final organizedItem = find.text('리프온 카밍 앰플');
+    await tester.ensureVisible(organizedItem);
+    await tester.pumpAndSettle();
+    await tester.longPress(organizedItem);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('capture-action-organize')), findsNothing);
+    expect(find.byKey(const Key('capture-action-delete')), findsOneWidget);
+  });
+
+  testWidgets('incomplete content can be deleted from its detail screen', (
+    tester,
+  ) async {
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    final captureId = controller.addManualInput('오늘 다시 보고 싶은 짧은 메모');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('제품을 특정하지 못했어요').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('delete-capture-detail')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('delete-capture-detail')));
+    await tester.pumpAndSettle();
+    expect(find.text('이 콘텐츠를 삭제할까요?'), findsOneWidget);
+    expect(find.textContaining('갤러리 원본은 그대로'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-capture-delete')));
+    await tester.pumpAndSettle();
+
+    expect(controller.captureById(captureId), isNull);
+    expect(find.text('콘텐츠'), findsWidgets);
   });
 
   testWidgets('reviews extracted fields and organizes a capture', (

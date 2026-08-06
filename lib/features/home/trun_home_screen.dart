@@ -31,9 +31,6 @@ final class TrunHomeScreen extends StatelessWidget {
         final recent = controller.captures.take(3).toList(growable: false);
         final hasPendingWork =
             controller.needsReviewCount > 0 || controller.analyzingCount > 0;
-        final organizedLibraryCount =
-            controller.groups.length +
-            controller.organizedStructuredCaptures.length;
         return ListView(
           key: const PageStorageKey('trun-home'),
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
@@ -45,19 +42,8 @@ final class TrunHomeScreen extends StatelessWidget {
               analyzing: controller.analyzingCount,
               onTap: hasPendingWork ? onOpenInbox : onAdd,
             ),
-            const SizedBox(height: 14),
-            _StatsGrid(
-              inboxCount: controller.captures.length,
-              organizedCount: organizedLibraryCount,
-              onOpenInbox: onOpenInbox,
-              onOpenLibrary: onOpenLibrary,
-            ),
             const SizedBox(height: 28),
-            _SectionTitle(
-              title: '카테고리',
-              actionLabel: '정리함 보기',
-              onAction: onOpenLibrary,
-            ),
+            const _SectionTitle(title: '카테고리'),
             const SizedBox(height: 14),
             _CategoryRoulette(
               controller: controller,
@@ -65,7 +51,7 @@ final class TrunHomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 34),
             _SectionTitle(
-              title: '최근 들어온 것',
+              title: '최근 콘텐츠',
               actionLabel: '전체 보기',
               onAction: onOpenInbox,
             ),
@@ -266,162 +252,12 @@ final class _NextStepCard extends StatelessWidget {
   }
 }
 
-final class _StatsGrid extends StatelessWidget {
-  const _StatsGrid({
-    required this.inboxCount,
-    required this.organizedCount,
-    required this.onOpenInbox,
-    required this.onOpenLibrary,
-  });
-
-  final int inboxCount;
-  final int organizedCount;
-  final VoidCallback onOpenInbox;
-  final VoidCallback onOpenLibrary;
-
-  @override
-  Widget build(BuildContext context) {
-    final textIsLarge = MediaQuery.textScalerOf(context).scale(14) > 18;
-    final inbox = _StatMetric(
-      key: const Key('home-inbox-card'),
-      label: '들어온 것',
-      value: '$inboxCount',
-      unit: '개',
-      icon: Icons.inbox_outlined,
-      color: AppTheme.accent,
-      onTap: onOpenInbox,
-    );
-    final library = _StatMetric(
-      key: const Key('home-library-card'),
-      label: '정리함',
-      value: '$organizedCount',
-      unit: '개',
-      icon: Icons.bookmark_border_rounded,
-      color: AppTheme.positive,
-      onTap: onOpenLibrary,
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final vertical = textIsLarge || constraints.maxWidth < 330;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: vertical
-              ? Column(
-                  children: [
-                    inbox,
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    library,
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(child: inbox),
-                    const SizedBox(
-                      height: 54,
-                      child: VerticalDivider(width: 1),
-                    ),
-                    Expanded(child: library),
-                  ],
-                ),
-        );
-      },
-    );
-  }
-}
-
-final class _StatMetric extends StatelessWidget {
-  const _StatMetric({
-    required this.label,
-    required this.value,
-    required this.unit,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    super.key,
-  });
-
-  final String label;
-  final String value;
-  final String unit;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(21),
-        onTap: onTap,
-        child: Semantics(
-          button: true,
-          label: '$label $value$unit',
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 17),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.16),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: color, size: 19),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text.rich(
-                    maxLines: 2,
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: value,
-                          style: const TextStyle(
-                            color: AppTheme.ink,
-                            fontSize: 29,
-                            height: 1.05,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        TextSpan(
-                          text: ' $unit\n$label',
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 12,
-                            height: 1.35,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.title,
-    required this.actionLabel,
-    required this.onAction,
-  });
+  const _SectionTitle({required this.title, this.actionLabel, this.onAction});
 
   final String title;
-  final String actionLabel;
-  final VoidCallback onAction;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -430,7 +266,8 @@ final class _SectionTitle extends StatelessWidget {
         Expanded(
           child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
-        TextButton(onPressed: onAction, child: Text(actionLabel)),
+        if (actionLabel case final actionLabel?)
+          TextButton(onPressed: onAction, child: Text(actionLabel)),
       ],
     );
   }
@@ -493,17 +330,25 @@ final class _CategoryRouletteState extends State<_CategoryRoulette> {
                           _pageController.position.hasContentDimensions
                       ? _pageController.page ?? _selectedIndex.toDouble()
                       : _selectedIndex.toDouble();
-                  final distance = (page - index).abs().clamp(0.0, 1.0);
+                  final pageOffset = (page - index).clamp(-1.0, 1.0);
+                  final distance = pageOffset.abs();
                   final scale = 1 - (distance * 0.1);
-                  final verticalOffset = distance * 9;
-                  return Transform.translate(
-                    offset: Offset(0, verticalOffset),
-                    child: Transform.scale(
-                      scale: scale,
-                      child: Opacity(
-                        opacity: 1 - (distance * 0.2),
-                        child: child,
-                      ),
+                  final transform = Matrix4.identity()
+                    ..setEntry(3, 2, 0.0012)
+                    // Positive Z increases homogeneous W with this perspective,
+                    // making side cards recede instead of projecting forward.
+                    ..translateByDouble(0, distance * 11, distance * 22, 1)
+                    ..rotateY(pageOffset * 0.2)
+                    ..scaleByDouble(scale, scale, scale, 1);
+                  return Transform(
+                    key: Key('home-category-transform-${folder.name}'),
+                    transform: transform,
+                    alignment: Alignment.center,
+                    filterQuality: FilterQuality.medium,
+                    child: Opacity(
+                      key: Key('home-category-opacity-${folder.name}'),
+                      opacity: 1 - (distance * 0.28),
+                      child: child,
                     ),
                   );
                 },

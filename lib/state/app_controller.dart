@@ -100,6 +100,110 @@ final class AppController extends ChangeNotifier {
     return null;
   }
 
+  bool canQuickOrganize(String captureId) {
+    final capture = captureById(captureId);
+    if (capture == null || capture.status != CaptureStatus.needsReview) {
+      return false;
+    }
+    if (capture.analysis?.structuredContent != null) {
+      return true;
+    }
+    return _quickOrganizationIdentity(capture.primaryMention) != null;
+  }
+
+  Future<bool> quickOrganize(String captureId) async {
+    final capture = captureById(captureId);
+    if (capture == null || !canQuickOrganize(captureId)) {
+      return false;
+    }
+
+    final previousCaptures = List<CaptureRecord>.of(_captures);
+    final previousGroups = List<ProductGroup>.of(_groups);
+    final structured = capture.analysis?.structuredContent;
+    CaptureRecord? organizedCapture;
+    if (structured != null) {
+      organizedCapture = _applyStructuredOrganization(
+        captureId,
+        folder: capture.contentFolder,
+        subcategory: capture.contentSubcategory,
+      );
+    } else {
+      final identity = _quickOrganizationIdentity(capture.primaryMention)!;
+      final existingGroupIndex = _groups.indexWhere(
+        (group) => group.identity.identityKey == identity.identityKey,
+      );
+      final folder = existingGroupIndex == -1
+          ? capture.contentFolder
+          : folderForGroup(_groups[existingGroupIndex].id);
+      organizedCapture = _applyProductOrganization(
+        captureId: captureId,
+        identity: identity,
+        folder: folder,
+      );
+    }
+    if (organizedCapture == null) {
+      return false;
+    }
+
+    final saved = await _persistState();
+    if (!saved) {
+      _captures
+        ..clear()
+        ..addAll(previousCaptures);
+      _groups
+        ..clear()
+        ..addAll(previousGroups);
+      return false;
+    }
+
+    notifyListeners();
+    await _acknowledgeAfterDurableSave(organizedCapture);
+    return true;
+  }
+
+  Future<bool> deleteCapture(String captureId) async {
+    final captureIndex = _captures.indexWhere(
+      (capture) => capture.raw.id == captureId,
+    );
+    if (captureIndex == -1) {
+      return false;
+    }
+
+    final previousCaptures = List<CaptureRecord>.of(_captures);
+    final previousGroups = List<ProductGroup>.of(_groups);
+    final sourceDeletionWasAvailable = _sourceDeletionAvailableCaptureIds
+        .remove(captureId);
+    final deletedCapture = _captures.removeAt(captureIndex);
+    _removeCaptureFromGroups(captureId);
+
+    final saved = await _persistState();
+    if (!saved) {
+      _captures
+        ..clear()
+        ..addAll(previousCaptures);
+      _groups
+        ..clear()
+        ..addAll(previousGroups);
+      if (sourceDeletionWasAvailable) {
+        _sourceDeletionAvailableCaptureIds.add(captureId);
+      }
+      return false;
+    }
+
+    notifyListeners();
+    if (sourceDeletionWasAvailable) {
+      try {
+        await _incomingShareService.keepSharedSource(
+          deletedCapture.raw.transportEventId,
+        );
+      } catch (error, stackTrace) {
+        debugPrint('Shared source keep failed: $error\n$stackTrace');
+      }
+    }
+    await _deleteUnreferencedManagedAttachments(deletedCapture);
+    return true;
+  }
+
   bool canDeleteSharedSource(String captureId) =>
       _sourceDeletionAvailableCaptureIds.contains(captureId);
 
@@ -580,6 +684,98 @@ final class AppController extends ChangeNotifier {
     );
   }
 
+  static ConfirmedProductIdentity? _quickOrganizationIdentity(
+    ProductMention? mention,
+  ) {
+    if (mention == null || !mention.canGroupAutomatically) {
+      return null;
+    }
+    final brand = mention.brand.value?.trim() ?? '';
+    final name = mention.name.value?.trim() ?? '';
+    final category = mention.category.value?.trim() ?? '';
+    final amount = mention.amount.value?.trim() ?? '';
+    if (brand.isEmpty || name.isEmpty || category.isEmpty || amount.isEmpty) {
+      return null;
+    }
+    return ConfirmedProductIdentity(
+      brand: brand,
+      name: name,
+      category: category,
+      amount: amount,
+    );
+  }
+
+  void _removeCaptureFromGroups(String captureId) {
+    for (var index = _groups.length - 1; index >= 0; index--) {
+      final group = _groups[index];
+      final sourceCaptureIds = group.sourceCaptureIds
+          .where((id) => id != captureId)
+          .toList(growable: false);
+      final statements = group.statements
+          .where((statement) => statement.captureId != captureId)
+          .toList(growable: false);
+      final changed =
+          sourceCaptureIds.length != group.sourceCaptureIds.length ||
+          statements.length != group.statements.length;
+      if (!changed) {
+        continue;
+      }
+      if (sourceCaptureIds.isEmpty) {
+        _groups.removeAt(index);
+        continue;
+      }
+      _groups[index] = ProductGroup(
+        id: group.id,
+        identity: group.identity,
+        sourceCaptureIds: sourceCaptureIds,
+        statements: statements,
+        updatedAt: DateTime.now(),
+        colorValue: group.colorValue,
+      );
+    }
+  }
+
+  Future<void> _deleteUnreferencedManagedAttachments(
+    CaptureRecord deletedCapture,
+  ) async {
+    final referencedPaths = _captures
+        .expand((capture) => capture.raw.attachments)
+        .map((attachment) => attachment.filePath)
+        .toSet();
+    final candidates = deletedCapture.raw.attachments
+        .map((attachment) => attachment.filePath)
+        .where(_isManagedAttachmentPath)
+        .where((path) => !referencedPaths.contains(path))
+        .toSet();
+    for (final path in candidates) {
+      final file = File(path);
+      try {
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (error, stackTrace) {
+        // The record is already durably deleted. A leftover private cache file
+        // is safer than undoing the committed deletion or touching its source.
+        debugPrint('Managed attachment cleanup failed: $error\n$stackTrace');
+      }
+    }
+  }
+
+  static bool _isManagedAttachmentPath(String path) =>
+      File(path).parent.path.split(Platform.pathSeparator).last ==
+      'ori_library_attachments';
+
+  Future<void> _acknowledgeAfterDurableSave(CaptureRecord capture) async {
+    if (capture.raw.origin != CaptureOrigin.androidShare) {
+      return;
+    }
+    try {
+      await _incomingShareService.acknowledge([capture.raw.transportEventId]);
+    } catch (error, stackTrace) {
+      debugPrint('Incoming share acknowledge failed: $error\n$stackTrace');
+    }
+  }
+
   void setFilter(CaptureFilter value) {
     if (_filter == value) {
       return;
@@ -621,16 +817,39 @@ final class AppController extends ChangeNotifier {
     ContentFolder folder = ContentFolder.beauty,
     String? subcategory,
   }) async {
+    final capture = _applyProductOrganization(
+      captureId: captureId,
+      identity: identity,
+      folder: folder,
+      subcategory: subcategory,
+    );
+    if (capture == null) {
+      return;
+    }
+    notifyListeners();
+
+    final saved = await _persistState();
+    if (saved && capture.raw.origin == CaptureOrigin.androidShare) {
+      await _incomingShareService.acknowledge([capture.raw.transportEventId]);
+    }
+  }
+
+  CaptureRecord? _applyProductOrganization({
+    required String captureId,
+    required ConfirmedProductIdentity identity,
+    required ContentFolder folder,
+    String? subcategory,
+  }) {
     final captureIndex = _captures.indexWhere(
       (capture) => capture.raw.id == captureId,
     );
     if (captureIndex == -1) {
-      return;
+      return null;
     }
     final capture = _captures[captureIndex];
     final analysis = capture.analysis;
     if (analysis == null) {
-      return;
+      return null;
     }
 
     final candidate = capture.primaryMention;
@@ -712,12 +931,7 @@ final class AppController extends ChangeNotifier {
         );
       }
     }
-    notifyListeners();
-
-    final saved = await _persistState();
-    if (saved && capture.raw.origin == CaptureOrigin.androidShare) {
-      await _incomingShareService.acknowledge([capture.raw.transportEventId]);
-    }
+    return capture;
   }
 
   Future<void> keepUnresolved(String captureId) async {
@@ -757,16 +971,37 @@ final class AppController extends ChangeNotifier {
     ContentFolder? folder,
     String? subcategory,
   }) async {
+    final capture = _applyStructuredOrganization(
+      captureId,
+      folder: folder,
+      subcategory: subcategory,
+    );
+    if (capture == null) {
+      return;
+    }
+    notifyListeners();
+
+    final saved = await _persistState();
+    if (saved && capture.raw.origin == CaptureOrigin.androidShare) {
+      await _incomingShareService.acknowledge([capture.raw.transportEventId]);
+    }
+  }
+
+  CaptureRecord? _applyStructuredOrganization(
+    String captureId, {
+    ContentFolder? folder,
+    String? subcategory,
+  }) {
     final captureIndex = _captures.indexWhere(
       (capture) => capture.raw.id == captureId,
     );
     if (captureIndex == -1) {
-      return;
+      return null;
     }
     final capture = _captures[captureIndex];
     final analysis = capture.analysis;
     if (analysis?.structuredContent == null) {
-      return;
+      return null;
     }
 
     _captures[captureIndex] = capture.copyWith(
@@ -783,12 +1018,7 @@ final class AppController extends ChangeNotifier {
         subcategory ?? capture.contentSubcategory,
       ),
     );
-    notifyListeners();
-
-    final saved = await _persistState();
-    if (saved && capture.raw.origin == CaptureOrigin.androidShare) {
-      await _incomingShareService.acknowledge([capture.raw.transportEventId]);
-    }
+    return capture;
   }
 
   Future<void> updateContentFolder(
