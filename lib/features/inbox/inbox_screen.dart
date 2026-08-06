@@ -492,7 +492,7 @@ final class _CaptureCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     description,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppTheme.muted,
@@ -534,7 +534,7 @@ final class _CaptureCard extends StatelessWidget {
       return '게시물 내용이 없어 스크린샷이 필요해요.';
     }
     if (capture.status == CaptureStatus.analyzing) {
-      return 'AI가 이미지의 핵심 내용을 정리하고 있어요.';
+      return '이미지의 핵심 내용을 정리하고 있어요.';
     }
     if (capture.status == CaptureStatus.failed) {
       return _failureMessage(capture.analysis?.failureCode);
@@ -544,7 +544,7 @@ final class _CaptureCard extends StatelessWidget {
       return _singleLine(statements.first.originalExpression);
     }
     return capture.raw.attachments.isNotEmpty
-        ? 'AI가 읽은 세부 내용을 확인해 주세요.'
+        ? '정리된 세부 내용을 확인해 주세요.'
         : '저장한 내용의 세부 정보를 확인해 주세요.';
   }
 
@@ -715,7 +715,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
                       Navigator.of(context).pop(captureId);
                     }
                   : null,
-              child: const Text('AI로 분석하기'),
+              child: const Text('내용 분석하기'),
             ),
           ),
         ],

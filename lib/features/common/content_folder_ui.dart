@@ -220,7 +220,7 @@ final class ContentSubcategoryPicker extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        aiSuggested ? 'AI 분류 · 수정 가능' : '하위 폴더 · 수정 가능',
+                        aiSuggested ? '자동 분류 · 수정 가능' : '하위 폴더 · 수정 가능',
                         style: const TextStyle(
                           color: AppTheme.muted,
                           fontSize: 12,

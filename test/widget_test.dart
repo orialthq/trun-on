@@ -29,6 +29,15 @@ void main() {
     expect(find.textContaining('오늘 들어온 걸'), findsNothing);
     expect(find.text('CAPTURE INBOX'), findsNothing);
     expect(find.text('들어온 내용을 확인하고 정리해요'), findsNothing);
+    expect(find.text('발견만으로는 달라지지 않으니까.'), findsNothing);
+    expect(find.text('정리된 내용을 확인하고 폴더에 넣어 두세요.'), findsNothing);
+    expect(find.text('정리된 내용을 확인하고 저장해 주세요.'), findsNothing);
+    expect(
+      find.byKey(const PageStorageKey('home-category-roulette')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('home-inbox-card')), findsOneWidget);
+    expect(find.byKey(const Key('home-library-card')), findsOneWidget);
     expect(find.text('콘텐츠'), findsOneWidget);
     expect(find.text('INPUT → 정리'), findsNothing);
     expect(find.byIcon(Icons.auto_awesome_outlined), findsNothing);
@@ -146,7 +155,7 @@ void main() {
     expect(find.byKey(Key('subcategory-$beautySubcategory')), findsOneWidget);
     await tester.tap(find.byKey(Key('subcategory-$beautySubcategory')));
     await tester.pumpAndSettle();
-    expect(find.text('AI 하위 분류'), findsOneWidget);
+    expect(find.text('세부 분류'), findsOneWidget);
     expect(find.text('하위 분류'), findsOneWidget);
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
   });
@@ -349,7 +358,7 @@ void main() {
     expect(find.text('방금 연 스크린샷'), findsNothing);
     final compactSummary = find.text('저장한 내용의 세부 정보를 확인해 주세요.');
     expect(compactSummary, findsOneWidget);
-    expect(tester.widget<Text>(compactSummary).maxLines, 1);
+    expect(tester.widget<Text>(compactSummary).maxLines, 2);
     expect(find.text('정리가 준비됐어요'), findsOneWidget);
     expect(find.text('탭해서 내용을 확인해 주세요'), findsOneWidget);
 

@@ -185,7 +185,7 @@ final class _NeedsClassificationBanner extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       const Text(
-                        '눌러서 AI 분류 결과를 확인해요',
+                        '눌러서 세부 분류를 확인해요',
                         style: TextStyle(
                           color: AppTheme.muted,
                           fontSize: 12,
@@ -810,7 +810,7 @@ final class _OpenSubcategoriesButton extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'AI 하위 분류 열기 · $subcategoryCount',
+                    '세부 분류 열기 · $subcategoryCount',
                     style: TextStyle(
                       color: folder.color,
                       fontSize: 14,

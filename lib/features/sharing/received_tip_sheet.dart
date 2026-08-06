@@ -208,28 +208,6 @@ final class _ReceivedTipSheet extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 14),
-            const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.lock_outline_rounded,
-                  color: AppTheme.subtle,
-                  size: 16,
-                ),
-                SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    '보낸 사람이 고른 정보예요. 원본 캡처·OCR은 제외했고, 중요한 내용은 원문에서 확인해 주세요.',
-                    style: TextStyle(
-                      color: AppTheme.subtle,
-                      fontSize: 12,
-                      height: 1.45,
-                    ),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,

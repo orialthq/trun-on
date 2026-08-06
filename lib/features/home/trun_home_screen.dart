@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/formatters.dart';
@@ -51,33 +52,16 @@ final class TrunHomeScreen extends StatelessWidget {
               onOpenInbox: onOpenInbox,
               onOpenLibrary: onOpenLibrary,
             ),
-            const SizedBox(height: 18),
-            const _BrandStatement(),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             _SectionTitle(
               title: '카테고리',
               actionLabel: '정리함 보기',
               onAction: onOpenLibrary,
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              height: MediaQuery.textScalerOf(context).scale(14) > 18
-                  ? 148
-                  : 116,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                clipBehavior: Clip.none,
-                itemCount: defaultContentFolders.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 10),
-                itemBuilder: (context, index) {
-                  final folder = defaultContentFolders[index];
-                  return _CategoryCard(
-                    folder: folder,
-                    count: controller.organizedCountForFolder(folder),
-                    onTap: onOpenLibrary,
-                  );
-                },
-              ),
+            _CategoryRoulette(
+              controller: controller,
+              onOpenLibrary: onOpenLibrary,
             ),
             const SizedBox(height: 34),
             _SectionTitle(
@@ -111,66 +95,6 @@ final class TrunHomeScreen extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-final class _BrandStatement extends StatelessWidget {
-  const _BrandStatement();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: const Padding(
-        padding: EdgeInsets.fromLTRB(18, 17, 18, 18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 4,
-              height: 52,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppTheme.accent,
-                  borderRadius: BorderRadius.all(Radius.circular(99)),
-                ),
-              ),
-            ),
-            SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '발견만으로는 달라지지 않으니까.',
-                    style: TextStyle(
-                      color: AppTheme.ink,
-                      fontSize: 16,
-                      height: 1.35,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  SizedBox(height: 5),
-                  Text(
-                    'AI가 읽은 내용을 확인하고 폴더에 넣어 두세요.',
-                    style: TextStyle(
-                      color: AppTheme.muted,
-                      fontSize: 13,
-                      height: 1.45,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -250,10 +174,10 @@ final class _NextStepCard extends StatelessWidget {
         : needsReview > 0
         ? '$needsReview개만 확인하면 끝'
         : '콘텐츠를 추가해 보세요';
-    final description = analyzing > 0
+    final String? description = analyzing > 0
         ? '분석이 끝나면 바로 알려드릴게요.'
         : needsReview > 0
-        ? 'AI가 정리한 내용을 확인하고 저장해 주세요.'
+        ? null
         : '캡처나 링크·텍스트를 추가해 시작할 수 있어요.';
     final actionLabel = analyzing > 0
         ? '분석 상태 보기'
@@ -285,16 +209,18 @@ final class _NextStepCard extends StatelessWidget {
                     letterSpacing: -0.65,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    color: Color(0xFF35430E),
-                    fontSize: 14,
-                    height: 1.45,
-                    fontWeight: FontWeight.w600,
+                if (description != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: Color(0xFF35430E),
+                      fontSize: 14,
+                      height: 1.45,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 16),
                 ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 48),
@@ -356,18 +282,18 @@ final class _StatsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textIsLarge = MediaQuery.textScalerOf(context).scale(14) > 18;
-    final inbox = _StatCard(
+    final inbox = _StatMetric(
       key: const Key('home-inbox-card'),
-      eyebrow: '받은 콘텐츠',
+      label: '들어온 것',
       value: '$inboxCount',
       unit: '개',
       icon: Icons.inbox_outlined,
       color: AppTheme.accent,
       onTap: onOpenInbox,
     );
-    final library = _StatCard(
+    final library = _StatMetric(
       key: const Key('home-library-card'),
-      eyebrow: '정리 완료',
+      label: '정리함',
       value: '$organizedCount',
       unit: '개',
       icon: Icons.bookmark_border_rounded,
@@ -377,24 +303,40 @@ final class _StatsGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (textIsLarge || constraints.maxWidth < 330) {
-          return Column(children: [inbox, const SizedBox(height: 10), library]);
-        }
-        return Row(
-          children: [
-            Expanded(child: inbox),
-            const SizedBox(width: 12),
-            Expanded(child: library),
-          ],
+        final vertical = textIsLarge || constraints.maxWidth < 330;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: vertical
+              ? Column(
+                  children: [
+                    inbox,
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    library,
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: inbox),
+                    const SizedBox(
+                      height: 54,
+                      child: VerticalDivider(width: 1),
+                    ),
+                    Expanded(child: library),
+                  ],
+                ),
         );
       },
     );
   }
 }
 
-final class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.eyebrow,
+final class _StatMetric extends StatelessWidget {
+  const _StatMetric({
+    required this.label,
     required this.value,
     required this.unit,
     required this.icon,
@@ -403,7 +345,7 @@ final class _StatCard extends StatelessWidget {
     super.key,
   });
 
-  final String eyebrow;
+  final String label;
   final String value;
   final String unit;
   final IconData icon;
@@ -413,75 +355,54 @@ final class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppTheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      clipBehavior: Clip.antiAlias,
+      color: Colors.transparent,
       child: InkWell(
+        borderRadius: BorderRadius.circular(21),
         onTap: onTap,
         child: Semantics(
           button: true,
-          label: '$eyebrow $value$unit',
+          label: '$label $value$unit',
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 17),
             child: Row(
               children: [
                 Container(
-                  width: 46,
-                  height: 46,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(14),
+                    shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: color, size: 22),
+                  child: Icon(icon, color: color, size: 19),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        eyebrow,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.muted,
-                          fontSize: 13,
-                          height: 1.3,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text.rich(
+                  child: Text.rich(
+                    maxLines: 2,
+                    TextSpan(
+                      children: [
                         TextSpan(
-                          children: [
-                            TextSpan(
-                              text: value,
-                              style: const TextStyle(
-                                color: AppTheme.ink,
-                                fontSize: 27,
-                                height: 1.15,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            TextSpan(
-                              text: ' $unit',
-                              style: const TextStyle(
-                                color: AppTheme.subtle,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                          text: value,
+                          style: const TextStyle(
+                            color: AppTheme.ink,
+                            fontSize: 29,
+                            height: 1.05,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                      ),
-                    ],
+                        TextSpan(
+                          text: ' $unit\n$label',
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 12,
+                            height: 1.35,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: color, size: 22),
               ],
             ),
           ),
@@ -515,84 +436,190 @@ final class _SectionTitle extends StatelessWidget {
   }
 }
 
-final class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({
-    required this.folder,
-    required this.count,
-    required this.onTap,
+final class _CategoryRoulette extends StatefulWidget {
+  const _CategoryRoulette({
+    required this.controller,
+    required this.onOpenLibrary,
   });
 
-  final ContentFolder folder;
-  final int count;
-  final VoidCallback onTap;
+  final AppController controller;
+  final VoidCallback onOpenLibrary;
+
+  @override
+  State<_CategoryRoulette> createState() => _CategoryRouletteState();
+}
+
+final class _CategoryRouletteState extends State<_CategoryRoulette> {
+  late final PageController _pageController;
+  var _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.72);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final textIsLarge = MediaQuery.textScalerOf(context).scale(14) > 18;
-    return SizedBox(
-      width: textIsLarge ? 160 : 142,
-      child: Material(
-        color: folder.color,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Semantics(
-            button: true,
-            label: '${folder.label} $count개, 정리함에서 보기',
-            child: Padding(
-              padding: const EdgeInsets.all(15),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        folder.icon,
-                        color: const Color(0xFF171717),
-                        size: 22,
+    return Column(
+      children: [
+        SizedBox(
+          height: textIsLarge ? 184 : 154,
+          child: PageView.builder(
+            key: const PageStorageKey('home-category-roulette'),
+            controller: _pageController,
+            clipBehavior: Clip.none,
+            physics: const BouncingScrollPhysics(),
+            itemCount: defaultContentFolders.length,
+            onPageChanged: (index) {
+              if (_selectedIndex == index) return;
+              setState(() => _selectedIndex = index);
+              HapticFeedback.selectionClick();
+            },
+            itemBuilder: (context, index) {
+              final folder = defaultContentFolders[index];
+              return AnimatedBuilder(
+                animation: _pageController,
+                builder: (context, child) {
+                  final page =
+                      _pageController.hasClients &&
+                          _pageController.position.hasContentDimensions
+                      ? _pageController.page ?? _selectedIndex.toDouble()
+                      : _selectedIndex.toDouble();
+                  final distance = (page - index).abs().clamp(0.0, 1.0);
+                  final scale = 1 - (distance * 0.1);
+                  final verticalOffset = distance * 9;
+                  return Transform.translate(
+                    offset: Offset(0, verticalOffset),
+                    child: Transform.scale(
+                      scale: scale,
+                      child: Opacity(
+                        opacity: 1 - (distance * 0.2),
+                        child: child,
                       ),
-                      const Spacer(),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF101010,
-                          ).withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            '$count',
-                            style: const TextStyle(
-                              color: Color(0xFF171717),
-                              fontSize: 12,
-                              height: 1.2,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  Text(
-                    folder.label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF171717),
-                      fontSize: 17,
-                      height: 1.15,
-                      letterSpacing: -0.4,
-                      fontWeight: FontWeight.w900,
                     ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _CategoryCard(
+                    key: Key('home-category-${folder.name}'),
+                    folder: folder,
+                    count: widget.controller.organizedCountForFolder(folder),
+                    active: index == _selectedIndex,
+                    onTap: widget.onOpenLibrary,
                   ),
-                ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 9),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var index = 0; index < defaultContentFolders.length; index++)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                width: index == _selectedIndex ? 20 : 5,
+                height: 5,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: index == _selectedIndex
+                      ? AppTheme.primary
+                      : AppTheme.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+final class _CategoryCard extends StatelessWidget {
+  const _CategoryCard({
+    required this.folder,
+    required this.count,
+    required this.active,
+    required this.onTap,
+    super.key,
+  });
+
+  final ContentFolder folder;
+  final int count;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: folder.color,
+      elevation: active ? 10 : 0,
+      shadowColor: folder.color.withValues(alpha: 0.32),
+      animationDuration: const Duration(milliseconds: 180),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Semantics(
+          button: true,
+          label: '${folder.label} $count개, 정리함에서 보기',
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(folder.icon, color: const Color(0xFF171717), size: 25),
+                    const Spacer(),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF101010).withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        child: Text(
+                          '$count',
+                          style: const TextStyle(
+                            color: Color(0xFF171717),
+                            fontSize: 13,
+                            height: 1.2,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  folder.label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF171717),
+                    fontSize: 21,
+                    height: 1.12,
+                    letterSpacing: -0.55,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

@@ -159,13 +159,17 @@ import UIKit
       return
     }
 
+    let explicitQuery =
+      (values?["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
     let name = (values?["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
     let address =
       (values?["address"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-    let query = [name, address]
-      .compactMap { $0 }
-      .filter { !$0.isEmpty }
-      .joined(separator: " ")
+    let query = explicitQuery?.isEmpty == false
+      ? explicitQuery!
+      : [name, address]
+        .compactMap { $0 }
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
     guard !query.isEmpty else {
       result(
         FlutterError(

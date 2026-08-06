@@ -64,7 +64,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('정보 보내기')),
-      body: ListView(
+      body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
           20,
@@ -72,169 +72,145 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
           20,
           36 + MediaQuery.paddingOf(context).bottom,
         ),
-        children: [
-          Text('친구에게 건넬 카드', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 7),
-          const Text(
-            '제목과 요약은 기본으로 담고, 아래에서 필요한 정보만 골라 보내요.',
-            style: TextStyle(color: AppTheme.muted, fontSize: 14, height: 1.45),
-          ),
-          const SizedBox(height: 20),
-          Semantics(
-            label: '공유 카드 미리보기',
-            child: FittedBox(
-              fit: BoxFit.contain,
-              alignment: Alignment.topCenter,
-              child: RepaintBoundary(
-                key: _cardKey,
-                child: SizedBox(
-                  width: 360,
-                  height: 450,
-                  child: _GiftTipCard(
-                    title: title,
-                    summary: _analysis.summary,
-                    folder: widget.capture.contentFolder,
-                    subcategory: widget.capture.contentSubcategory,
-                    message: _messageController.text,
-                    details: selectedDetails,
-                  ),
-                ),
-              ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '친구에게 건넬 카드',
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
-          ),
-          const SizedBox(height: 26),
-          TextField(
-            controller: _messageController,
-            maxLength: 80,
-            minLines: 1,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: '짧은 편지 · 선택',
-              hintText: '예: 이번 주말에 같이 가볼래?',
-            ),
-          ),
-          const SizedBox(height: 22),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '함께 보낼 내용',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              Text(
-                '${_selectedIds.length} / $_maxSelectedDetails',
-                style: const TextStyle(
-                  color: AppTheme.primary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '카드에서 한눈에 읽히도록 핵심 정보 6개까지 고를 수 있어요.',
-            style: TextStyle(color: AppTheme.muted, fontSize: 13),
-          ),
-          const SizedBox(height: 12),
-          if (_details.isEmpty)
-            const _NoExtraDetails()
-          else
-            Material(
-              color: AppTheme.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: const BorderSide(color: AppTheme.border),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  for (var index = 0; index < _details.length; index++) ...[
-                    _DetailChoiceTile(
-                      detail: _details[index],
-                      selected: _selectedIds.contains(_details[index].id),
-                      onChanged: (selected) =>
-                          _toggleDetail(_details[index], selected),
+            const SizedBox(height: 16),
+            Semantics(
+              key: const Key('share-card-preview'),
+              label: '공유 카드 미리보기',
+              child: FittedBox(
+                fit: BoxFit.contain,
+                alignment: Alignment.topCenter,
+                child: RepaintBoundary(
+                  key: _cardKey,
+                  child: SizedBox(
+                    width: 360,
+                    height: 450,
+                    child: _GiftTipCard(
+                      title: title,
+                      summary: _analysis.summary,
+                      folder: widget.capture.contentFolder,
+                      subcategory: widget.capture.contentSubcategory,
+                      message: _messageController.text,
+                      details: selectedDetails,
                     ),
-                    if (index != _details.length - 1)
-                      const Divider(indent: 18, endIndent: 18),
-                  ],
-                ],
-              ),
-            ),
-          const SizedBox(height: 12),
-          const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.lock_outline_rounded,
-                color: AppTheme.subtle,
-                size: 16,
-              ),
-              SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  '원본 캡처와 OCR 근거는 보내지 않아요. 원문 링크도 직접 선택할 때만 포함돼요.',
-                  style: TextStyle(
-                    color: AppTheme.subtle,
-                    fontSize: 12,
-                    height: 1.45,
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 28),
-          Builder(
-            builder: (buttonContext) => SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _sharingCard || _sharingPackage
-                    ? null
-                    : () => _shareCard(buttonContext, title),
-                icon: _sharingCard
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.ios_share_rounded),
-                label: Text(_sharingCard ? '카드를 만들고 있어요…' : '카톡·SNS에 카드 보내기'),
-              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Builder(
-            builder: (buttonContext) => SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _sharingCard || _sharingPackage
-                    ? null
-                    : () => _sharePackage(buttonContext),
-                icon: _sharingPackage
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send_to_mobile_rounded),
-                label: Text(
-                  _sharingPackage ? '파일을 준비하고 있어요…' : 'Trun On으로 보내기',
+            const SizedBox(height: 26),
+            _LetterComposer(
+              controller: _messageController,
+              onSuggestion: _useMessageSuggestion,
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '함께 보낼 내용',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Text(
+                  '${_selectedIds.length} / $_maxSelectedDetails',
+                  style: const TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_details.isEmpty)
+              const _NoExtraDetails()
+            else
+              Material(
+                color: AppTheme.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: const BorderSide(color: AppTheme.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    for (var index = 0; index < _details.length; index++) ...[
+                      _DetailChoiceTile(
+                        detail: _details[index],
+                        selected: _selectedIds.contains(_details[index].id),
+                        onChanged: (selected) =>
+                            _toggleDetail(_details[index], selected),
+                      ),
+                      if (index != _details.length - 1)
+                        const Divider(indent: 18, endIndent: 18),
+                    ],
+                  ],
+                ),
+              ),
+            const SizedBox(height: 28),
+            Builder(
+              builder: (buttonContext) => SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _sharingCard || _sharingPackage
+                      ? null
+                      : () => _shareCard(buttonContext, title),
+                  icon: _sharingCard
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.ios_share_rounded),
+                  label: Text(_sharingCard ? '카드를 만들고 있어요…' : 'SNS에 카드 보내기'),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 9),
-          const Text(
-            '첫 번째는 앱 없이 읽는 이미지 카드, 두 번째는 Trun On에서 다시 저장하고 활용하는 팁 파일이에요.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppTheme.subtle,
-              fontSize: 12,
-              height: 1.45,
+            const SizedBox(height: 10),
+            Builder(
+              builder: (buttonContext) => SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _sharingCard || _sharingPackage
+                      ? null
+                      : () => _sharePackage(buttonContext),
+                  icon: _sharingPackage
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_to_mobile_rounded),
+                  label: Text(
+                    _sharingPackage ? '파일을 준비하고 있어요…' : 'Trun On으로 보내기',
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 9),
+            const Text(
+              '첫 번째는 앱 없이 읽는 이미지 카드,\n두 번째는 Trun On에서 다시 저장하고 활용하는 팁 파일이에요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppTheme.subtle,
+                fontSize: 12,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  void _useMessageSuggestion(String message) {
+    _messageController.value = TextEditingValue(
+      text: message,
+      selection: TextSelection.collapsed(offset: message.length),
     );
   }
 
@@ -264,7 +240,8 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
         title: title,
         sharePositionOrigin: _shareOrigin(buttonContext),
       );
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      debugPrint('Share card failed: $error\n$stackTrace');
       if (mounted) _showMessage('카드를 공유하지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
       if (mounted) setState(() => _sharingCard = false);
@@ -357,6 +334,149 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+final class _LetterComposer extends StatelessWidget {
+  const _LetterComposer({required this.controller, required this.onSuggestion});
+
+  static const _suggestions = <String>[
+    '이거 보니 네 생각났어',
+    '이번 주말에 같이 가볼래?',
+    '우리 이거 해보자!',
+  ];
+
+  final TextEditingController controller;
+  final ValueChanged<String> onSuggestion;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2B2518), Color(0xFF1D1C18)],
+        ),
+        border: Border.all(color: AppTheme.primarySoft),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppTheme.primarySoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: SizedBox.square(
+                    dimension: 36,
+                    child: Icon(
+                      Icons.mail_outline_rounded,
+                      color: AppTheme.primary,
+                      size: 19,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    '짧은 편지',
+                    style: TextStyle(
+                      color: AppTheme.ink,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    child: Text(
+                      '선택',
+                      style: TextStyle(
+                        color: AppTheme.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 13),
+            TextField(
+              key: const Key('share-letter-field'),
+              controller: controller,
+              maxLength: 80,
+              minLines: 3,
+              maxLines: 4,
+              textInputAction: TextInputAction.newline,
+              decoration: InputDecoration(
+                hintText: '이 정보를 왜 보내고 싶은지 적어보세요.\n예: 이번 주말에 같이 가볼래?',
+                hintStyle: const TextStyle(
+                  color: AppTheme.subtle,
+                  fontSize: 14,
+                  height: 1.45,
+                ),
+                filled: true,
+                fillColor: Colors.black.withValues(alpha: 0.18),
+                contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.09),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(
+                    color: AppTheme.primary,
+                    width: 1.4,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (final suggestion in _suggestions)
+                  ActionChip(
+                    label: Text(suggestion),
+                    labelStyle: const TextStyle(
+                      color: AppTheme.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    backgroundColor: Colors.white.withValues(alpha: 0.055),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.09),
+                    ),
+                    onPressed: () => onSuggestion(suggestion),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

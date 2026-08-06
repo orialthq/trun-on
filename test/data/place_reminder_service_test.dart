@@ -60,11 +60,106 @@ void main() {
     expect(recordedCall?.method, 'openMapProvider');
     expect(recordedCall?.arguments, <String, Object?>{
       'provider': 'kakao',
+      'query': '동묘집 서울 종로구 종로52길 43-9',
       'name': '동묘집',
       'address': '서울 종로구 종로52길 43-9',
     });
     expect(result.provider, MapProvider.kakao);
     expect(result.openedInApp, isTrue);
+  });
+
+  test('removes a non-address prefix from a Naver map query', () async {
+    MethodCall? recordedCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          recordedCall = call;
+          return <Object?, Object?>{'provider': 'naver', 'openedInApp': true};
+        });
+
+    await service.openMapWithProvider(
+      provider: MapProvider.naver,
+      name: '화석',
+      address: '화석 서울 서초구 강남대로 123 1층',
+    );
+
+    expect(recordedCall?.arguments, <String, Object?>{
+      'provider': 'naver',
+      'query': '서울 서초구 강남대로 123',
+      'name': '화석',
+      'address': '화석 서울 서초구 강남대로 123 1층',
+    });
+  });
+
+  test(
+    'keeps address details while removing a terminal floor for Naver',
+    () async {
+      MethodCall? recordedCall;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            recordedCall = call;
+            return <Object?, Object?>{
+              'provider': 'naver',
+              'openedInApp': false,
+            };
+          });
+
+      await service.openMapWithProvider(
+        provider: MapProvider.naver,
+        name: '동묘집',
+        address: '서울 종로구 종로52길 43-9 (창신동) 지하 1층 101호',
+      );
+
+      expect(
+        (recordedCall?.arguments as Map<Object?, Object?>)['query'],
+        '서울 종로구 종로52길 43-9 (창신동)',
+      );
+    },
+  );
+
+  test(
+    'uses the place name for Naver only when the address is blank',
+    () async {
+      MethodCall? recordedCall;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            recordedCall = call;
+            return <Object?, Object?>{'provider': 'naver', 'openedInApp': true};
+          });
+
+      await service.openMapWithProvider(
+        provider: MapProvider.naver,
+        name: '화석',
+        address: '  ',
+      );
+
+      expect((recordedCall?.arguments as Map<Object?, Object?>)['query'], '화석');
+    },
+  );
+
+  test('keeps the combined query for Kakao and Google maps', () async {
+    final queries = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          final arguments = call.arguments as Map<Object?, Object?>;
+          queries.add(arguments['query']! as String);
+          return <Object?, Object?>{
+            'provider': arguments['provider'],
+            'openedInApp': true,
+          };
+        });
+
+    for (final provider in [MapProvider.kakao, MapProvider.google]) {
+      await service.openMapWithProvider(
+        provider: provider,
+        name: '화석',
+        address: '화석 서울 서초구 강남대로 123 1층',
+      );
+    }
+
+    expect(queries, <String>[
+      '화석 화석 서울 서초구 강남대로 123 1층',
+      '화석 화석 서울 서초구 강남대로 123 1층',
+    ]);
   });
 
   test('rejects a blank map query before calling the platform', () async {

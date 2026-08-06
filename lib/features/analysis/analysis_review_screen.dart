@@ -95,7 +95,7 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
                 _ResultMark(icon: Icons.auto_awesome_rounded),
                 SizedBox(width: 10),
                 Text(
-                  'AI 분석 결과',
+                  '분석 결과',
                   style: TextStyle(
                     color: AppTheme.primary,
                     fontSize: 13,
@@ -124,7 +124,7 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
               ),
             ],
             const SizedBox(height: 32),
-            const _SectionHeading(title: 'AI 분류', editable: true),
+            const _SectionHeading(title: '자동 분류', editable: true),
             const SizedBox(height: 14),
             ContentFolderPicker(
               key: const Key('content-folder-picker'),

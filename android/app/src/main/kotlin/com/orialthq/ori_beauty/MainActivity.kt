@@ -446,9 +446,13 @@ class MainActivity : FlutterActivity() {
             result.error("invalid_map_provider", "A supported map provider is required.", null)
             return
         }
+        val explicitQuery = (values?.get("query") as? String)?.trim().orEmpty()
         val name = values?.get("name") as? String
         val address = values?.get("address") as? String
-        val query = listOfNotNull(name, address).joinToString(" ").trim()
+        val query =
+            explicitQuery.ifEmpty {
+                listOfNotNull(name, address).joinToString(" ").trim()
+            }
         if (query.isEmpty()) {
             result.error("invalid_place", "A map query is required.", null)
             return

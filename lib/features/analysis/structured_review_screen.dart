@@ -75,7 +75,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
                       ? '친구에게 받은 정보'
                       : isOrganized
                       ? '정리함에 저장됨'
-                      : 'AI 분석 결과',
+                      : '분석 결과',
                   style: const TextStyle(
                     color: AppTheme.primary,
                     fontSize: 13,
@@ -132,7 +132,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
           ],
           const SizedBox(height: 32),
           _SectionTitle(
-            title: isPortableTip ? '저장 분류' : 'AI 분류',
+            title: isPortableTip ? '저장 분류' : '자동 분류',
             editable: true,
           ),
           const SizedBox(height: 14),
@@ -672,7 +672,7 @@ final class _FactsCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
-                    width: 94,
+                    width: 138,
                     child: Text(
                       fact.label,
                       style: const TextStyle(
@@ -681,6 +681,7 @@ final class _FactsCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       fact.value,
@@ -713,6 +714,21 @@ final class _EvidenceDisclosure extends StatefulWidget {
 final class _EvidenceDisclosureState extends State<_EvidenceDisclosure> {
   var _expanded = false;
 
+  void _toggle() {
+    final expanding = !_expanded;
+    setState(() => _expanded = expanding);
+    if (!expanding) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.08,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -727,7 +743,7 @@ final class _EvidenceDisclosureState extends State<_EvidenceDisclosure> {
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             key: const Key('analysis-evidence-disclosure'),
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: _toggle,
             child: Semantics(
               button: true,
               label: _expanded ? '원본 근거 접기' : '원본 근거 펼치기',
@@ -744,27 +760,14 @@ final class _EvidenceDisclosureState extends State<_EvidenceDisclosure> {
                       size: 20,
                     ),
                     const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '원본 근거',
-                            style: TextStyle(
-                              color: AppTheme.ink,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${widget.evidence.length}개 · 필요할 때 펼쳐보세요',
-                            style: const TextStyle(
-                              color: AppTheme.muted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                    const Expanded(
+                      child: Text(
+                        '원본 근거',
+                        style: TextStyle(
+                          color: AppTheme.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     Icon(

@@ -149,7 +149,7 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'AI 하위 분류',
+                              '세부 분류',
                               style: TextStyle(
                                 color: Color(0xFF16120F),
                                 fontSize: 13,

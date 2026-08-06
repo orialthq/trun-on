@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ori_beauty/core/app_theme.dart';
 import 'package:ori_beauty/domain/models.dart';
@@ -23,18 +24,35 @@ void main() {
       find.byType(TextField),
       '이번 주말에 다 같이 가보고 각자 먹고 싶은 메뉴도 하나씩 골라보자!',
     );
+    expect(find.byKey(const Key('share-letter-field')), findsOneWidget);
+    expect(find.textContaining('제목과 요약은 기본으로'), findsNothing);
+    expect(find.textContaining('핵심 정보 6개까지 고를 수 있어요'), findsNothing);
+    expect(find.textContaining('원본 캡처와 OCR 근거'), findsNothing);
 
-    expect(find.byType(Checkbox), findsNWidgets(8));
-    final list = find.byType(ListView);
-    await tester.drag(list, const Offset(0, -900));
+    final scrollView = find.byType(SingleChildScrollView);
+    await tester.drag(scrollView, const Offset(0, -900));
     await tester.pumpAndSettle();
+    expect(find.byType(Checkbox), findsNWidgets(8));
     for (final label in ['대기', '추천']) {
       final choice = find.text(label);
       await tester.tap(choice);
       await tester.pumpAndSettle();
     }
 
-    await tester.fling(list, const Offset(0, 2000), 3000);
+    await tester.fling(scrollView, const Offset(0, -2000), 3000);
+    await tester.pumpAndSettle();
+    final preview = find.byKey(const Key('share-card-preview'));
+    expect(preview, findsOneWidget);
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find
+          .descendant(of: preview, matching: find.byType(RepaintBoundary))
+          .first,
+    );
+    final image = await boundary.toImage(pixelRatio: 3);
+    expect(image.width, 1080);
+    expect(image.height, 1350);
+    image.dispose();
+    await tester.fling(scrollView, const Offset(0, 2000), 3000);
     await tester.pumpAndSettle();
     expect(find.text('친구에게 건넬 카드'), findsOneWidget);
     expect(tester.takeException(), isNull);
