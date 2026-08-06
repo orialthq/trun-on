@@ -224,6 +224,15 @@ void main() {
   testWidgets('long press offers contextual organize and delete actions', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(bottom: 48);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 48);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+
     final service = InMemoryIncomingShareService();
     final controller = AppController(service);
     addTearDown(controller.dispose);
@@ -247,7 +256,59 @@ void main() {
     await tester.longPress(organizedItem);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('capture-action-organize')), findsNothing);
-    expect(find.byKey(const Key('capture-action-delete')), findsOneWidget);
+    final deleteAction = find.byKey(const Key('capture-action-delete'));
+    expect(deleteAction, findsOneWidget);
+    final logicalScreenHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    expect(
+      logicalScreenHeight - tester.getBottomRight(deleteAction).dy,
+      greaterThanOrEqualTo(48),
+    );
+  });
+
+  testWidgets('manual input stays above Galaxy navigation and keyboard', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(bottom: 48);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 48);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+    addTearDown(tester.view.resetViewInsets);
+
+    final service = InMemoryIncomingShareService();
+    final controller = AppController(service);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(OriBeautyApp(controller: controller));
+    await controller.initialize();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('콘텐츠 추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('manual-input-safe-area')), findsOneWidget);
+    expect(find.byKey(const Key('manual-input-scroll')), findsOneWidget);
+    final input = tester.widget<TextField>(find.byType(TextField).last);
+    expect(input.autofocus, isFalse);
+
+    final submit = find.widgetWithText(FilledButton, '내용 분석하기');
+    expect(915 - tester.getBottomRight(submit).dy, greaterThanOrEqualTo(48));
+
+    await tester.tap(find.byType(TextField).last);
+    tester.view.padding = FakeViewPadding.zero;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 340);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    await tester.drag(
+      find.byKey(const Key('manual-input-scroll')),
+      const Offset(0, -500),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getBottomRight(submit).dy, lessThanOrEqualTo(915 - 340));
   });
 
   testWidgets('incomplete content can be deleted from its detail screen', (
@@ -443,6 +504,15 @@ void main() {
   testWidgets('gallery source choice clears the Android system inset', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(bottom: 48);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 48);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+
     final service = InMemoryIncomingShareService()
       ..add(
         IncomingShare(
@@ -473,6 +543,10 @@ void main() {
         matching: find.byType(SingleChildScrollView),
       ),
       findsOneWidget,
+    );
+    expect(
+      915 - tester.getBottomRight(deleteAction).dy,
+      greaterThanOrEqualTo(48),
     );
 
     await tester.tap(find.widgetWithText(FilledButton, '갤러리에 두기'));

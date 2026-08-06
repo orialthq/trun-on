@@ -212,7 +212,8 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
       ),
       bottomNavigationBar: SafeArea(
         top: false,
-        minimum: const EdgeInsets.only(bottom: 12),
+        maintainBottomViewPadding: true,
+        minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
         child: Container(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           decoration: BoxDecoration(

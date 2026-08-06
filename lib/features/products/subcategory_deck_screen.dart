@@ -130,7 +130,7 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
                     20,
                     12,
                     20,
-                    36 + MediaQuery.paddingOf(context).bottom,
+                    36 + MediaQuery.viewPaddingOf(context).bottom,
                   ),
                   children: [
                     Align(
@@ -530,7 +530,7 @@ final class SubcategoryContentsScreen extends StatelessWidget {
               20,
               12,
               20,
-              36 + MediaQuery.paddingOf(context).bottom,
+              36 + MediaQuery.viewPaddingOf(context).bottom,
             ),
             itemCount: items.length,
             separatorBuilder: (_, _) => const SizedBox(height: 10),

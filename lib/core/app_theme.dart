@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 /// and acid-lime action color, while raising secondary-text contrast enough for
 /// small Android devices and larger accessibility text sizes.
 abstract final class AppTheme {
+  /// Keeps bottom-sheet actions above Android gesture/three-button navigation.
+  /// `showModalBottomSheet(useSafeArea: true)` does not protect the bottom edge.
+  static const bottomSheetSafeInset = 28.0;
+
   static const primary = Color(0xFFC6FF3E);
   static const primarySoft = Color(0xFF293514);
   static const accent = Color(0xFFFF5B2E);

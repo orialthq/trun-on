@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import 'place_map_links.dart';
+
 enum PlaceReminderEnableStatus {
   enabled,
   needsForegroundPermission,
@@ -107,63 +109,6 @@ final class PlaceReminderService {
     MapProvider.kakao,
     MapProvider.google,
   ];
-  static const _koreanRegionTokens = <String>{
-    '서울',
-    '서울시',
-    '서울특별시',
-    '부산',
-    '부산시',
-    '부산광역시',
-    '대구',
-    '대구시',
-    '대구광역시',
-    '인천',
-    '인천시',
-    '인천광역시',
-    '광주',
-    '광주시',
-    '광주광역시',
-    '대전',
-    '대전시',
-    '대전광역시',
-    '울산',
-    '울산시',
-    '울산광역시',
-    '세종',
-    '세종시',
-    '세종특별자치시',
-    '경기',
-    '경기도',
-    '강원',
-    '강원도',
-    '강원특별자치도',
-    '충북',
-    '충청북도',
-    '충남',
-    '충청남도',
-    '전북',
-    '전라북도',
-    '전북특별자치도',
-    '전남',
-    '전라남도',
-    '경북',
-    '경상북도',
-    '경남',
-    '경상남도',
-    '제주',
-    '제주도',
-    '제주특별자치도',
-  };
-  static final _administrativeToken = RegExp(r'^[가-힣0-9·-]{1,12}(?:시|군|구)$');
-  static final _neighborhoodToken = RegExp(r'^[가-힣0-9·-]{1,16}(?:읍|면|동|가|리)$');
-  static final _roadToken = RegExp(r'^[가-힣0-9·-]{1,20}(?:대로|로|길|번길)$');
-  static final _buildingNumberToken = RegExp(r'^\d+(?:-\d+)?(?:번지|번)?$');
-  static final _terminalFloorOrRoom = RegExp(
-    r'(?:^|[\s,]+)(?:(?:지하\s*)?\d+\s*층|B\d+F?|\d+F)(?:[\s,]+\d+\s*호)?\s*$',
-    caseSensitive: false,
-  );
-  static final _terminalRoom = RegExp(r'(?:^|[\s,]+)\d+\s*호\s*$');
-
   Future<PlaceReminderState> getState(String id) async {
     if (!Platform.isAndroid) {
       return const PlaceReminderState.unavailable();
@@ -282,27 +227,20 @@ final class PlaceReminderService {
     String? name,
     required String address,
   }) async {
-    final normalizedName = _normalizeMapText(name);
-    final normalizedAddress = _normalizeMapText(address);
-    final query = switch (provider) {
-      MapProvider.naver => _buildNaverQuery(
-        name: normalizedName,
-        address: normalizedAddress,
-      ),
-      MapProvider.kakao || MapProvider.google => [
-        normalizedName,
-        normalizedAddress,
-      ].where((value) => value.isNotEmpty).join(' '),
-    };
-    if (query.isEmpty) {
-      throw ArgumentError.value(query, 'address', 'A map query is required.');
+    final links = PlaceMapLinks.fromPlace(name: name, address: address);
+    if (links == null) {
+      throw ArgumentError.value(address, 'address', 'A map query is required.');
     }
+    final query = switch (provider) {
+      MapProvider.naver => links.naverQuery,
+      MapProvider.kakao || MapProvider.google => links.combinedQuery,
+    };
     final raw = await _channel
         .invokeMapMethod<Object?, Object?>('openMapProvider', {
           'provider': provider.id,
           'query': query,
-          'name': normalizedName,
-          'address': normalizedAddress,
+          'name': links.name,
+          'address': links.address,
         });
     return MapOpenResult(
       provider: MapProvider.fromId(raw?['provider']) ?? provider,
@@ -316,100 +254,5 @@ final class PlaceReminderService {
       name: name,
       address: address,
     );
-  }
-
-  static String _normalizeMapText(String? value) =>
-      (value ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
-
-  static String _buildNaverQuery({
-    required String name,
-    required String address,
-  }) {
-    if (address.isEmpty) {
-      return name;
-    }
-
-    final addressOnly = _stripTrailingUnit(_stripNonAddressPrefix(address));
-    return addressOnly.isEmpty ? address : addressOnly;
-  }
-
-  static String _stripNonAddressPrefix(String value) {
-    final normalized = value
-        .replaceAll(RegExp(r'[,|\u2022]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    final tokens = normalized.split(' ');
-    final comparableTokens = tokens.map(_comparableAddressToken).toList();
-
-    int? anchorIndex;
-    for (var index = 0; index < comparableTokens.length; index++) {
-      if (_koreanRegionTokens.contains(comparableTokens[index]) &&
-          _hasAddressEvidence(comparableTokens, index + 1)) {
-        anchorIndex = index;
-        break;
-      }
-    }
-    if (anchorIndex == null) {
-      for (var index = 0; index < comparableTokens.length; index++) {
-        if (_administrativeToken.hasMatch(comparableTokens[index]) &&
-            _hasAddressEvidence(comparableTokens, index + 1)) {
-          anchorIndex = index;
-          break;
-        }
-      }
-    }
-    if (anchorIndex == null) {
-      for (var index = 0; index < comparableTokens.length - 1; index++) {
-        final token = comparableTokens[index];
-        if ((_neighborhoodToken.hasMatch(token) ||
-                _roadToken.hasMatch(token)) &&
-            _hasBuildingNumber(comparableTokens, index + 1)) {
-          anchorIndex = index;
-          break;
-        }
-      }
-    }
-
-    if (anchorIndex == null || anchorIndex == 0) {
-      return normalized;
-    }
-    return tokens
-        .sublist(anchorIndex)
-        .join(' ')
-        .replaceFirst(RegExp(r'^[^0-9A-Za-z가-힣]+'), '')
-        .trim();
-  }
-
-  static bool _hasAddressEvidence(List<String> tokens, int startIndex) {
-    final end = (startIndex + 5).clamp(0, tokens.length);
-    for (var index = startIndex; index < end; index++) {
-      final token = tokens[index];
-      if (_administrativeToken.hasMatch(token) ||
-          _neighborhoodToken.hasMatch(token) ||
-          _roadToken.hasMatch(token) ||
-          _buildingNumberToken.hasMatch(token)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  static bool _hasBuildingNumber(List<String> tokens, int startIndex) {
-    final end = (startIndex + 4).clamp(0, tokens.length);
-    for (var index = startIndex; index < end; index++) {
-      if (_buildingNumberToken.hasMatch(tokens[index])) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  static String _comparableAddressToken(String value) =>
-      value.replaceAll(RegExp(r'^[^0-9A-Za-z가-힣]+|[^0-9A-Za-z가-힣]+$'), '');
-
-  static String _stripTrailingUnit(String value) {
-    final withoutFloor = value.replaceFirst(_terminalFloorOrRoom, '').trim();
-    final withoutRoom = withoutFloor.replaceFirst(_terminalRoom, '').trim();
-    return withoutRoom;
   }
 }

@@ -570,7 +570,7 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
     return SafeArea(
       top: false,
       maintainBottomViewPadding: true,
-      minimum: const EdgeInsets.only(bottom: 12),
+      minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
         child: Column(

@@ -13,29 +13,38 @@ Future<CaptureListAction?> showCaptureActionSheet(
     context: context,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (context) => Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (canOrganize)
+    builder: (context) => SafeArea(
+      key: const Key('capture-action-safe-area'),
+      top: false,
+      maintainBottomViewPadding: true,
+      minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (canOrganize)
+              ListTile(
+                key: const Key('capture-action-organize'),
+                leading: const Icon(Icons.bookmark_add_outlined),
+                title: const Text('정리함에 저장'),
+                onTap: () =>
+                    Navigator.of(context).pop(CaptureListAction.organize),
+              ),
             ListTile(
-              key: const Key('capture-action-organize'),
-              leading: const Icon(Icons.bookmark_add_outlined),
-              title: const Text('정리함에 저장'),
-              onTap: () =>
-                  Navigator.of(context).pop(CaptureListAction.organize),
+              key: const Key('capture-action-delete'),
+              leading: const Icon(
+                Icons.delete_outline_rounded,
+                color: AppTheme.negative,
+              ),
+              title: const Text(
+                '삭제',
+                style: TextStyle(color: AppTheme.negative),
+              ),
+              onTap: () => Navigator.of(context).pop(CaptureListAction.delete),
             ),
-          ListTile(
-            key: const Key('capture-action-delete'),
-            leading: const Icon(
-              Icons.delete_outline_rounded,
-              color: AppTheme.negative,
-            ),
-            title: const Text('삭제', style: TextStyle(color: AppTheme.negative)),
-            onTap: () => Navigator.of(context).pop(CaptureListAction.delete),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );

@@ -42,7 +42,7 @@ final class ProductDetailScreen extends StatelessWidget {
               20,
               4,
               20,
-              44 + MediaQuery.paddingOf(context).bottom,
+              44 + MediaQuery.viewPaddingOf(context).bottom,
             ),
             children: [
               _ProductHeader(group: group),

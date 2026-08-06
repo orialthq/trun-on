@@ -54,7 +54,7 @@ final class _ProductsScreenState extends State<ProductsScreen> {
             20,
             22,
             20,
-            40 + MediaQuery.paddingOf(context).bottom,
+            40 + MediaQuery.viewPaddingOf(context).bottom,
           ),
           children: [
             _ArchiveHeader(total: items.length),

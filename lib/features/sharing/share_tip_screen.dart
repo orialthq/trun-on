@@ -30,6 +30,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
   late final List<_SelectableTipDetail> _details;
   final Set<String> _selectedIds = {};
   var _sharingCard = false;
+  var _sharingLinks = false;
   var _sharingPackage = false;
 
   StructuredContentAnalysis get _analysis =>
@@ -61,6 +62,10 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
     final selectedDetails = _details
         .where((detail) => _selectedIds.contains(detail.id))
         .toList(growable: false);
+    final place = _analysis.place;
+    final sendsMapLinks =
+        place?.name?.trim().isNotEmpty == true ||
+        place?.address?.trim().isNotEmpty == true;
 
     return Scaffold(
       appBar: AppBar(title: const Text('정보 보내기')),
@@ -70,7 +75,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
           20,
           8,
           20,
-          36 + MediaQuery.paddingOf(context).bottom,
+          36 + MediaQuery.viewPaddingOf(context).bottom,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -86,18 +91,23 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
               child: FittedBox(
                 fit: BoxFit.contain,
                 alignment: Alignment.topCenter,
-                child: RepaintBoundary(
-                  key: _cardKey,
-                  child: SizedBox(
-                    width: 360,
-                    height: 450,
-                    child: _GiftTipCard(
-                      title: title,
-                      summary: _analysis.summary,
-                      folder: widget.capture.contentFolder,
-                      subcategory: widget.capture.contentSubcategory,
-                      message: _messageController.text,
-                      details: selectedDetails,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(
+                    _GiftTipCard.cornerRadius,
+                  ),
+                  child: RepaintBoundary(
+                    key: _cardKey,
+                    child: SizedBox(
+                      width: 360,
+                      height: 450,
+                      child: _GiftTipCard(
+                        title: title,
+                        summary: _analysis.summary,
+                        folder: widget.capture.contentFolder,
+                        subcategory: widget.capture.contentSubcategory,
+                        message: _messageController.text,
+                        details: selectedDetails,
+                      ),
                     ),
                   ),
                 ),
@@ -158,7 +168,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
               builder: (buttonContext) => SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _sharingCard || _sharingPackage
+                  onPressed: _sharingCard || _sharingLinks || _sharingPackage
                       ? null
                       : () => _shareCard(buttonContext, title),
                   icon: _sharingCard
@@ -167,16 +177,44 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.ios_share_rounded),
-                  label: Text(_sharingCard ? '카드를 만들고 있어요…' : 'SNS에 카드 보내기'),
+                  label: Text(
+                    _sharingCard
+                        ? '카드를 만들고 있어요…'
+                        : sendsMapLinks
+                        ? '카드 보내고 지도 링크 이어 보내기'
+                        : 'SNS에 이미지 카드 보내기',
+                  ),
                 ),
               ),
             ),
+            if (sendsMapLinks) ...[
+              const SizedBox(height: 10),
+              Builder(
+                builder: (buttonContext) => SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _sharingCard || _sharingLinks || _sharingPackage
+                        ? null
+                        : () => _shareMapLinksOnly(buttonContext),
+                    icon: _sharingLinks
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_location_alt_outlined),
+                    label: Text(
+                      _sharingLinks ? '지도 링크를 준비하고 있어요…' : '지도 링크만 보내기',
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             Builder(
               builder: (buttonContext) => SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: _sharingCard || _sharingPackage
+                  onPressed: _sharingCard || _sharingLinks || _sharingPackage
                       ? null
                       : () => _sharePackage(buttonContext),
                   icon: _sharingPackage
@@ -192,10 +230,14 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
               ),
             ),
             const SizedBox(height: 9),
-            const Text(
-              '첫 번째는 앱 없이 읽는 이미지 카드,\n두 번째는 Trun On에서 다시 저장하고 활용하는 팁 파일이에요.',
+            Text(
+              sendsMapLinks
+                  ? '이미지 카드와 지도 링크는 따로도 보낼 수 있어요.\n'
+                        'Trun On용 팁 파일은 앱에서 다시 저장하고 활용할 수 있어요.'
+                  : '첫 번째는 앱 없이 읽는 이미지 카드,\n'
+                        '두 번째는 Trun On에서 다시 저장하고 활용하는 팁 파일이에요.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppTheme.subtle,
                 fontSize: 12,
                 height: 1.45,
@@ -235,9 +277,31 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
   Future<void> _shareCard(BuildContext buttonContext, String title) async {
     setState(() => _sharingCard = true);
     try {
-      await _shareService.shareCard(
+      final placeName = _analysis.place?.name;
+      final placeAddress = _analysis.place?.address;
+      final result = await _shareService.shareCard(
         previewKey: _cardKey,
         title: title,
+        placeName: placeName,
+        placeAddress: placeAddress,
+        sharePositionOrigin: _shareOrigin(buttonContext),
+      );
+      final mapShareText = buildCardShareText(
+        placeName: placeName,
+        placeAddress: placeAddress,
+      );
+      if (!mounted ||
+          !shouldOfferMapLinkFollowUp(
+            result: result,
+            mapShareText: mapShareText,
+          )) {
+        return;
+      }
+      final shouldContinue = await _confirmKakaoMapLinkFollowUp();
+      if (!mounted || !buttonContext.mounted || !shouldContinue) return;
+      await _shareService.shareMapLinks(
+        placeName: placeName,
+        placeAddress: placeAddress,
         sharePositionOrigin: _shareOrigin(buttonContext),
       );
     } on Object catch (error, stackTrace) {
@@ -245,6 +309,44 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
       if (mounted) _showMessage('카드를 공유하지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
       if (mounted) setState(() => _sharingCard = false);
+    }
+  }
+
+  Future<bool> _confirmKakaoMapLinkFollowUp() async {
+    final answer = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.map_outlined, color: AppTheme.primary),
+        title: const Text('지도 링크도 이어서 보낼까요?'),
+        content: const Text('사진은 먼저 보냈어요. 같은 채팅방에 지도 링크도 이어서 보낼게요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('괜찮아요'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('지도 링크 보내기'),
+          ),
+        ],
+      ),
+    );
+    return answer ?? false;
+  }
+
+  Future<void> _shareMapLinksOnly(BuildContext buttonContext) async {
+    setState(() => _sharingLinks = true);
+    try {
+      await _shareService.shareMapLinks(
+        placeName: _analysis.place?.name,
+        placeAddress: _analysis.place?.address,
+        sharePositionOrigin: _shareOrigin(buttonContext),
+      );
+    } on Object catch (error, stackTrace) {
+      debugPrint('Share map links failed: $error\n$stackTrace');
+      if (mounted) _showMessage('지도 링크를 공유하지 못했어요.');
+    } finally {
+      if (mounted) setState(() => _sharingLinks = false);
     }
   }
 
@@ -497,6 +599,8 @@ final class _GiftTipCard extends StatelessWidget {
   final String message;
   final List<_SelectableTipDetail> details;
 
+  static const cornerRadius = 34.0;
+
   @override
   Widget build(BuildContext context) {
     const dark = Color(0xFF17130F);
@@ -506,19 +610,34 @@ final class _GiftTipCard extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: folder.color,
-          borderRadius: BorderRadius.circular(34),
+          borderRadius: BorderRadius.circular(cornerRadius),
         ),
         child: Stack(
           children: [
-            Positioned(
-              right: -34,
-              top: -36,
-              child: Container(
-                width: 132,
-                height: 132,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.18),
+            Positioned.fill(
+              child: ColoredBox(
+                key: const Key('share-card-export-background'),
+                color: folder.color,
+              ),
+            ),
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(cornerRadius),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: -34,
+                      top: -36,
+                      child: Container(
+                        width: 132,
+                        height: 132,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -528,29 +647,75 @@ final class _GiftTipCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: const BoxDecoration(
-                          color: dark,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.redeem_rounded,
-                          color: Colors.white,
-                          size: 20,
+                      Transform.rotate(
+                        angle: -0.08,
+                        child: Container(
+                          key: const Key('share-card-mascot-badge'),
+                          width: 58,
+                          height: 58,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE7D8),
+                            shape: BoxShape.circle,
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x33000000),
+                                blurRadius: 0,
+                                offset: Offset(4, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Transform.scale(
+                              key: const Key('share-card-mascot-zoom'),
+                              scale: 1.14,
+                              child: Image.asset(
+                                'assets/branding/trun-on-duck-app-icon.png',
+                                key: const Key('share-card-mascot'),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 11),
                       const Expanded(
-                        child: Text(
-                          'Trun On에서 보냈어요',
-                          style: TextStyle(
-                            color: dark,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '툭.',
+                              style: TextStyle(
+                                color: dark,
+                                fontSize: 10,
+                                height: 1,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.4,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              '흥, 이거나 봐.',
+                              style: TextStyle(
+                                color: dark,
+                                fontSize: 14,
+                                height: 1.1,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'Trun On 오리가 던졌어요',
+                              style: TextStyle(
+                                color: Color(0xB317130F),
+                                fontSize: 9,
+                                height: 1.1,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       Container(
@@ -573,7 +738,7 @@ final class _GiftTipCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
                   if (cleanMessage.isNotEmpty) ...[
                     Container(
                       width: double.infinity,

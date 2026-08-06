@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'place_map_links.dart';
 import '../domain/portable_tip_package.dart';
 
 final class ContentShareService {
@@ -13,6 +14,8 @@ final class ContentShareService {
   Future<ShareResult> shareCard({
     required GlobalKey previewKey,
     required String title,
+    String? placeName,
+    String? placeAddress,
     Rect? sharePositionOrigin,
   }) async {
     await WidgetsBinding.instance.endOfFrame;
@@ -34,6 +37,11 @@ final class ContentShareService {
       return SharePlus.instance.share(
         ShareParams(
           title: 'Trun On 정보 카드',
+          subject: title,
+          text: buildCardShareText(
+            placeName: placeName,
+            placeAddress: placeAddress,
+          ),
           files: [
             XFile.fromData(Uint8List.fromList(bytes), mimeType: 'image/png'),
           ],
@@ -65,6 +73,56 @@ final class ContentShareService {
       ),
     );
   }
+
+  /// Shares only the clickable map URLs.
+  ///
+  /// Some chat clients (notably KakaoTalk) intentionally keep only the image
+  /// when an Android `ACTION_SEND` contains both `EXTRA_STREAM` and
+  /// `EXTRA_TEXT`. Sending the URLs as a text-only follow-up makes them usable
+  /// without requiring a Kakao SDK key or a hosted landing page.
+  Future<ShareResult> shareMapLinks({
+    String? placeName,
+    String? placeAddress,
+    Rect? sharePositionOrigin,
+  }) {
+    final text = buildCardShareText(
+      placeName: placeName,
+      placeAddress: placeAddress,
+    );
+    if (text == null) {
+      throw StateError('A place is required to share map links.');
+    }
+    return SharePlus.instance.share(
+      ShareParams(
+        title: 'Trun On 지도 링크',
+        text: text,
+        sharePositionOrigin: sharePositionOrigin,
+      ),
+    );
+  }
+}
+
+/// Extra text sent alongside the social image card.
+///
+/// Share targets detect the three HTTPS URLs as tappable links. A place-free
+/// card stays image-only instead of adding irrelevant copy.
+String? buildCardShareText({String? placeName, String? placeAddress}) {
+  final links = PlaceMapLinks.fromPlace(name: placeName, address: placeAddress);
+  if (links == null) return null;
+  return links.shareText;
+}
+
+/// Whether to offer the map URLs as a second, text-only message.
+///
+/// Some share targets omit text attached to an image, and Android direct-share
+/// shortcuts do not always report which app was selected. Offer the follow-up
+/// after every successful place-card share so the links are never silently
+/// lost.
+bool shouldOfferMapLinkFollowUp({
+  required ShareResult result,
+  required String? mapShareText,
+}) {
+  return mapShareText != null && result.status == ShareResultStatus.success;
 }
 
 String _safeFileName(String value) {

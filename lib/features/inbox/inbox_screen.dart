@@ -647,109 +647,116 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
   Widget build(BuildContext context) {
     final canSubmit = _textController.text.trim().isNotEmpty;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        10,
-        20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Align(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.border,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text('콘텐츠 추가', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 7),
-          const Text(
-            'SNS에서 공유한 본문이나 링크를 붙여넣어 주세요.\n'
-            '링크만 입력하면 원본 링크만 저장돼요.',
-            style: TextStyle(color: AppTheme.muted, height: 1.5),
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _importingTip ? null : _importTipFile,
-              icon: _importingTip
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.redeem_rounded, size: 20),
-              label: Text(_importingTip ? '팁을 확인하고 있어요…' : '받은 팁 파일 가져오기'),
-            ),
-          ),
-          const SizedBox(height: 18),
-          const Row(
-            children: [
-              Expanded(child: Divider()),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  '또는 직접 입력',
-                  style: TextStyle(color: AppTheme.subtle, fontSize: 12),
+    return SafeArea(
+      key: const Key('manual-input-safe-area'),
+      top: false,
+      maintainBottomViewPadding: true,
+      minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
+      child: SingleChildScrollView(
+        key: const Key('manual-input-scroll'),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(
+          20,
+          10,
+          20,
+          20 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.border,
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              Expanded(child: Divider()),
-            ],
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _textController,
-            autofocus: true,
-            minLines: 5,
-            maxLines: 8,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: '본문 텍스트 또는 URL을 입력해 주세요',
-              hintStyle: const TextStyle(color: AppTheme.subtle),
-              filled: true,
-              fillColor: AppTheme.background,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+            ),
+            const SizedBox(height: 24),
+            Text('콘텐츠 추가', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 7),
+            const Text(
+              'SNS에서 공유한 본문이나 링크를 붙여넣어 주세요.\n'
+              '링크만 입력하면 원본 링크만 저장돼요.',
+              style: TextStyle(color: AppTheme.muted, height: 1.5),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _importingTip ? null : _importTipFile,
+                icon: _importingTip
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.redeem_rounded, size: 20),
+                label: Text(_importingTip ? '팁을 확인하고 있어요…' : '받은 팁 파일 가져오기'),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: AppTheme.primary.withValues(alpha: 0.5),
-                  width: 1.5,
+            ),
+            const SizedBox(height: 18),
+            const Row(
+              children: [
+                Expanded(child: Divider()),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    '또는 직접 입력',
+                    style: TextStyle(color: AppTheme.subtle, fontSize: 12),
+                  ),
                 ),
+                Expanded(child: Divider()),
+              ],
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _textController,
+              minLines: 5,
+              maxLines: 8,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: '본문 텍스트 또는 URL을 입력해 주세요',
+                hintStyle: const TextStyle(color: AppTheme.subtle),
+                filled: true,
+                fillColor: AppTheme.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: AppTheme.primary.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.all(16),
               ),
-              contentPadding: const EdgeInsets.all(16),
             ),
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: canSubmit
-                  ? () {
-                      final captureId = widget.controller.addManualInput(
-                        _textController.text,
-                      );
-                      Navigator.of(context).pop(captureId);
-                    }
-                  : null,
-              child: const Text('내용 분석하기'),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: canSubmit
+                    ? () {
+                        final captureId = widget.controller.addManualInput(
+                          _textController.text,
+                        );
+                        Navigator.of(context).pop(captureId);
+                      }
+                    : null,
+                child: const Text('내용 분석하기'),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

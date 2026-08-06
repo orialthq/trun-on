@@ -36,6 +36,7 @@ final class _ReceivedTipSheet extends StatelessWidget {
     return SafeArea(
       top: false,
       maintainBottomViewPadding: true,
+      minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           20,

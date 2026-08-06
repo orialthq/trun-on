@@ -156,10 +156,7 @@ void main() {
       );
     }
 
-    expect(queries, <String>[
-      '화석 화석 서울 서초구 강남대로 123 1층',
-      '화석 화석 서울 서초구 강남대로 123 1층',
-    ]);
+    expect(queries, <String>['화석 서울 서초구 강남대로 123 1층', '화석 서울 서초구 강남대로 123 1층']);
   });
 
   test('rejects a blank map query before calling the platform', () async {

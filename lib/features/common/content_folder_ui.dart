@@ -311,7 +311,10 @@ final class _ContentSubcategorySheetState
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Padding(
+      maintainBottomViewPadding: true,
+      minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
           20,
           4,
@@ -391,6 +394,8 @@ Future<ContentFolder?> showContentFolderSheet(
     showDragHandle: true,
     builder: (context) => SafeArea(
       top: false,
+      maintainBottomViewPadding: true,
+      minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
         child: Column(

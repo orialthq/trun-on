@@ -226,7 +226,10 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
           ? null
           : SafeArea(
               top: false,
-              minimum: const EdgeInsets.only(bottom: 12),
+              maintainBottomViewPadding: true,
+              minimum: const EdgeInsets.only(
+                bottom: AppTheme.bottomSheetSafeInset,
+              ),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 decoration: BoxDecoration(
@@ -1417,8 +1420,11 @@ final class _MapProviderSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Padding(
+      maintainBottomViewPadding: true,
+      minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

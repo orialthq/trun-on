@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ori_beauty/core/app_theme.dart';
 import 'package:ori_beauty/domain/models.dart';
+import 'package:ori_beauty/features/common/content_folder_ui.dart';
 import 'package:ori_beauty/features/sharing/share_tip_screen.dart';
 
 void main() {
@@ -25,6 +26,23 @@ void main() {
       '이번 주말에 다 같이 가보고 각자 먹고 싶은 메뉴도 하나씩 골라보자!',
     );
     expect(find.byKey(const Key('share-letter-field')), findsOneWidget);
+    expect(find.byKey(const Key('share-card-mascot')), findsOneWidget);
+    final mascotBadge = tester.widget<Container>(
+      find.byKey(const Key('share-card-mascot-badge')),
+    );
+    final mascotDecoration = mascotBadge.decoration! as BoxDecoration;
+    expect(mascotDecoration.shape, BoxShape.circle);
+    expect(mascotDecoration.border, isNull);
+    final mascotZoom = tester.widget<Transform>(
+      find.byKey(const Key('share-card-mascot-zoom')),
+    );
+    expect(mascotZoom.transform.getMaxScaleOnAxis(), greaterThan(1));
+    expect(find.text('툭.'), findsOneWidget);
+    expect(find.text('흥, 이거나 봐.'), findsOneWidget);
+    expect(find.text('Trun On 오리가 던졌어요'), findsOneWidget);
+    expect(find.text('카드 보내고 지도 링크 이어 보내기'), findsOneWidget);
+    expect(find.text('지도 링크만 보내기'), findsOneWidget);
+    expect(find.textContaining('이미지 카드와 지도 링크는 따로도'), findsOneWidget);
     expect(find.textContaining('제목과 요약은 기본으로'), findsNothing);
     expect(find.textContaining('핵심 정보 6개까지 고를 수 있어요'), findsNothing);
     expect(find.textContaining('원본 캡처와 OCR 근거'), findsNothing);
@@ -56,6 +74,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('친구에게 건넬 카드'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('gift card export fills its frame with opaque folder color', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final capture = _denseCapture();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: ShareTipScreen(capture: capture),
+      ),
+    );
+    await tester.pump();
+
+    final backgroundFinder = find.byKey(
+      const Key('share-card-export-background'),
+    );
+    expect(backgroundFinder, findsOneWidget);
+    expect(tester.getSize(backgroundFinder), const Size(360, 450));
+    final background = tester.widget<ColoredBox>(backgroundFinder);
+    expect(
+      background.color,
+      capture.contentFolder.color,
+      reason: 'The exported PNG frame must not leave transparent corners.',
+    );
   });
 }
 
