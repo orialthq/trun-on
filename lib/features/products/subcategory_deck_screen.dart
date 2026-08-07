@@ -22,8 +22,13 @@ final class SubcategoryDeckScreen extends StatefulWidget {
   State<SubcategoryDeckScreen> createState() => _SubcategoryDeckScreenState();
 }
 
+/// Shown for items an axis says nothing about, so nothing disappears when the
+/// reader switches axes.
+const _unlabelledDeckCard = '분류 필요';
+
 final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
   var _selectedIndex = 0;
+  var _axis = ContentAxis.kind;
 
   @override
   void initState() {
@@ -37,16 +42,40 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
     }
   }
 
+  void _selectAxis(ContentAxis axis) {
+    if (axis == _axis) return;
+    setState(() {
+      _axis = axis;
+      // Card positions mean nothing across axes, so start from the largest.
+      _selectedIndex = 0;
+    });
+  }
+
+  /// Groups the folder's items by the selected axis.
+  ///
+  /// An item carrying two labels on this axis is filed under both, which is the
+  /// point: a pasta place that also pours wine should be reachable from either
+  /// card rather than forced into one.
   List<MapEntry<String, List<SavedLibraryItem>>> _groupedItems() {
     final grouped = <String, List<SavedLibraryItem>>{};
     for (final item in savedLibraryItems(widget.controller)) {
       if (item.folder != widget.folder) {
         continue;
       }
-      grouped.putIfAbsent(item.subcategory, () => []).add(item);
+      final labels = item.labelsOn(_axis);
+      if (labels.isEmpty) {
+        grouped.putIfAbsent(_unlabelledDeckCard, () => []).add(item);
+        continue;
+      }
+      for (final label in labels) {
+        grouped.putIfAbsent(label, () => []).add(item);
+      }
     }
     final entries = grouped.entries.toList()
       ..sort((left, right) {
+        // Items nobody classified stay last whatever their count.
+        if (left.key == _unlabelledDeckCard) return 1;
+        if (right.key == _unlabelledDeckCard) return -1;
         final countOrder = right.value.length.compareTo(left.value.length);
         return countOrder != 0 ? countOrder : left.key.compareTo(right.key);
       });
@@ -122,104 +151,161 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
                 ),
             ],
           ),
-          body: groupedItems.isEmpty
-              ? _EmptyDeck(folder: widget.folder)
-              : ListView(
-                  key: PageStorageKey('subcategory-deck-${widget.folder.name}'),
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    12,
-                    20,
-                    36 + MediaQuery.viewPaddingOf(context).bottom,
-                  ),
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        constraints: const BoxConstraints(minHeight: 44),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 17,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: widget.folder.color,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '세부 분류',
-                              style: TextStyle(
-                                color: Color(0xFF16120F),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onVerticalDragEnd: (details) {
-                        final velocity = details.primaryVelocity ?? 0;
-                        if (velocity.abs() < 180) {
-                          return;
-                        }
-                        _moveBy(velocity < 0 ? 1 : -1, groupedItems.length);
-                      },
-                      child: _SubcategoryDeck(
-                        controller: widget.controller,
-                        folder: widget.folder,
-                        entries: groupedItems,
-                        selectedIndex: selectedIndex,
-                        onSelected: (index) {
-                          setState(() => _selectedIndex = index);
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _DeckControl(
-                          tooltip: '이전 하위 분류',
-                          icon: Icons.arrow_upward_rounded,
-                          onPressed: groupedItems.length > 1
-                              ? () => _moveBy(-1, groupedItems.length)
-                              : null,
-                        ),
-                        Flexible(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              groupedItems.length > 1
-                                  ? '카드를 밀거나 버튼으로 넘겨요'
-                                  : '하위 분류가 1개예요',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppTheme.subtle,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        _DeckControl(
-                          tooltip: '다음 하위 분류',
-                          icon: Icons.arrow_downward_rounded,
-                          onPressed: groupedItems.length > 1
-                              ? () => _moveBy(1, groupedItems.length)
-                              : null,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Kept outside the empty branch so an axis with nothing on it can
+              // still be swapped back out.
+              _AxisFilterRow(
+                selected: _axis,
+                folder: widget.folder,
+                onSelected: _selectAxis,
+              ),
+              Expanded(
+                child: groupedItems.isEmpty
+                    ? _EmptyDeck(folder: widget.folder)
+                    : _deckList(context, groupedItems, selectedIndex),
+              ),
+            ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _deckList(
+    BuildContext context,
+    List<MapEntry<String, List<SavedLibraryItem>>> groupedItems,
+    int selectedIndex,
+  ) {
+    return ListView(
+      key: PageStorageKey('subcategory-deck-${widget.folder.name}'),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12,
+        20,
+        36 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onVerticalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            if (velocity.abs() < 180) {
+              return;
+            }
+            _moveBy(velocity < 0 ? 1 : -1, groupedItems.length);
+          },
+          child: _SubcategoryDeck(
+            controller: widget.controller,
+            folder: widget.folder,
+            entries: groupedItems,
+            selectedIndex: selectedIndex,
+            onSelected: (index) {
+              setState(() => _selectedIndex = index);
+            },
+          ),
+        ),
+        const SizedBox(height: 28),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _DeckControl(
+              tooltip: '이전 하위 분류',
+              icon: Icons.arrow_upward_rounded,
+              onPressed: groupedItems.length > 1
+                  ? () => _moveBy(-1, groupedItems.length)
+                  : null,
+            ),
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  groupedItems.length > 1 ? '카드를 밀거나 버튼으로 넘겨요' : '하위 분류가 1개예요',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppTheme.subtle,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            _DeckControl(
+              tooltip: '다음 하위 분류',
+              icon: Icons.arrow_downward_rounded,
+              onPressed: groupedItems.length > 1
+                  ? () => _moveBy(1, groupedItems.length)
+                  : null,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The fixed five axes as a scrolling chip row.
+///
+/// Fixed order and fixed membership: an axis is a product decision, so this row
+/// never grows from analysis output.
+final class _AxisFilterRow extends StatelessWidget {
+  const _AxisFilterRow({
+    required this.selected,
+    required this.folder,
+    required this.onSelected,
+  });
+
+  final ContentAxis selected;
+  final ContentFolder folder;
+  final ValueChanged<ContentAxis> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 68,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        itemCount: ContentAxis.values.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final axis = ContentAxis.values[index];
+          final isSelected = axis == selected;
+          return Semantics(
+            selected: isSelected,
+            button: true,
+            child: InkWell(
+              key: Key('axis-chip-${axis.name}'),
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => onSelected(axis),
+              child: Container(
+                alignment: Alignment.center,
+                constraints: const BoxConstraints(minHeight: 44, minWidth: 64),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                decoration: BoxDecoration(
+                  color: isSelected ? folder.color : Colors.transparent,
+                  border: Border.all(
+                    color: isSelected ? folder.color : AppTheme.border,
+                    width: 1.4,
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  axis.label,
+                  style: TextStyle(
+                    color: isSelected
+                        ? const Color(0xFF16120F)
+                        : AppTheme.muted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

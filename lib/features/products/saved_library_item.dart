@@ -19,10 +19,32 @@ final class SavedLibraryItem {
     required this.searchableText,
     required this.folder,
     required this.subcategory,
+    required this.axisLabels,
     required this.updatedAt,
     this.captureId,
     this.groupId,
   });
+
+  /// The kind axis a user override belongs on, kept ahead of what the analysis
+  /// proposed so a correction leads the deck.
+  static Map<ContentAxis, List<String>> _axisLabelsFor(
+    ContentAxes axes,
+    String subcategory,
+  ) {
+    final kind = <String>[
+      if (subcategory.trim().isNotEmpty) subcategory,
+      for (final label in axes[ContentAxis.kind])
+        if (label.value != subcategory) label.value,
+    ];
+    return {
+      ContentAxis.kind: List.unmodifiable(kind),
+      for (final axis in ContentAxis.values)
+        if (axis != ContentAxis.kind)
+          axis: List.unmodifiable(
+            axes[axis].map((label) => label.value).toList(),
+          ),
+    };
+  }
 
   factory SavedLibraryItem.forCapture(CaptureRecord capture) {
     final structured = capture.analysis!.structuredContent!;
@@ -45,6 +67,7 @@ final class SavedLibraryItem {
       ].join(' ').toLowerCase(),
       folder: capture.contentFolder,
       subcategory: capture.contentSubcategory,
+      axisLabels: _axisLabelsFor(structured.axes, capture.contentSubcategory),
       updatedAt: capture.raw.receivedAt,
       captureId: capture.raw.id,
     );
@@ -80,6 +103,8 @@ final class SavedLibraryItem {
       ].join(' ').toLowerCase(),
       folder: folder,
       subcategory: subcategory,
+      // Legacy product groups predate axes and carry only a subcategory.
+      axisLabels: _axisLabelsFor(const ContentAxes.empty(), subcategory),
       updatedAt: group.updatedAt,
       groupId: group.id,
     );
@@ -91,9 +116,16 @@ final class SavedLibraryItem {
   final String searchableText;
   final ContentFolder folder;
   final String subcategory;
+
+  /// Labels per axis. A capture may appear on several cards of one axis, which
+  /// is what lets the deck overlap.
+  final Map<ContentAxis, List<String>> axisLabels;
+
   final DateTime updatedAt;
   final String? captureId;
   final String? groupId;
+
+  List<String> labelsOn(ContentAxis axis) => axisLabels[axis] ?? const [];
 
   bool matches(String query) => searchableText.contains(query.toLowerCase());
 }

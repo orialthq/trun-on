@@ -170,7 +170,10 @@ void main() {
     expect(find.byKey(Key('subcategory-$beautySubcategory')), findsOneWidget);
     await tester.tap(find.byKey(Key('subcategory-$beautySubcategory')));
     await tester.pumpAndSettle();
-    expect(find.text('세부 분류'), findsOneWidget);
+    // The deck is grouped by whichever axis is selected, starting on 종류.
+    for (final axis in ContentAxis.values) {
+      expect(find.byKey(Key('axis-chip-${axis.name}')), findsOneWidget);
+    }
     expect(find.text('하위 분류'), findsOneWidget);
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
   });
