@@ -37,8 +37,8 @@ test("every Structured Outputs object is strict and requires every field", () =>
   visit(ANALYSIS_SCHEMA, "root");
 });
 
-test("subcategory contract is bounded and required in schema 1.2", () => {
-  assert.deepEqual(ANALYSIS_SCHEMA.properties.schemaVersion.enum, ["1.2"]);
+test("subcategory contract is bounded and required in schema 1.3", () => {
+  assert.deepEqual(ANALYSIS_SCHEMA.properties.schemaVersion.enum, ["1.3"]);
   assert.equal(ANALYSIS_SCHEMA.properties.subcategory.minLength, 2);
   assert.equal(ANALYSIS_SCHEMA.properties.subcategory.maxLength, 20);
   assert.equal(

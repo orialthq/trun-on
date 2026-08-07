@@ -199,6 +199,13 @@ test("routes a semantically mismatched place category to user review", async () 
     categoryConfidence: 0.96,
     subcategory: "클라이밍",
     subcategoryConfidence: 0.93,
+    axes: {
+      kind: [],
+      location: [],
+      occasion: [],
+      priceRange: [],
+      savedReason: [],
+    },
     completeness: "complete",
     place: {
       name: "테스트 식당",

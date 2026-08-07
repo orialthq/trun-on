@@ -413,6 +413,7 @@ CaptureRecord _structuredCapture() {
     categoryConfidence: 0.95,
     subcategory: '한식',
     subcategoryConfidence: 0.9,
+    axes: ContentAxes.empty(),
     completeness: StructuredCompleteness.complete,
     title: StructuredTitle(
       value: '동묘집',

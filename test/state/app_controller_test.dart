@@ -723,6 +723,7 @@ final class _StructuredAnalysisService implements ContentAnalysisService {
     categoryConfidence: 0.96,
     subcategory: '밑반찬',
     subcategoryConfidence: 0.93,
+    axes: ContentAxes.empty(),
     completeness: StructuredCompleteness.complete,
     title: StructuredTitle(
       value: '두부조림',

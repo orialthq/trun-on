@@ -814,6 +814,141 @@ final class StructuredPlace {
   };
 }
 
+/// The five fixed axes a saved capture is filed under.
+///
+/// Fixed because the library's filter row is fixed; a new axis is a product
+/// decision, not something an analysis may invent.
+enum ContentAxis {
+  kind('종류'),
+  location('위치'),
+  occasion('상황'),
+  priceRange('가격대'),
+  savedReason('저장이유');
+
+  const ContentAxis(this.label);
+
+  final String label;
+
+  static ContentAxis? fromKey(Object? key) {
+    for (final axis in values) {
+      if (axis.name == key) return axis;
+    }
+    return null;
+  }
+}
+
+/// Where a label came from, so a suggestion is never mistaken for a decision,
+/// and a web finding is never mistaken for something the screenshot showed.
+enum AxisLabelSource { screen, user, web }
+
+final class AxisLabel {
+  const AxisLabel({
+    required this.value,
+    required this.confidence,
+    required this.evidenceIds,
+    this.source = AxisLabelSource.screen,
+    this.citation,
+  });
+
+  factory AxisLabel.fromJson(Map<String, Object?> json, String field) {
+    _requireExactKeys(
+      json,
+      const {'value', 'confidence', 'evidenceIds'},
+      field,
+      optional: const {'source', 'citation'},
+    );
+    final value = _requiredString(json['value'], '$field.value');
+    if (!isValidContentSubcategory(value)) {
+      throw FormatException('Structured $field.value is not a reusable label.');
+    }
+    return AxisLabel(
+      value: value,
+      confidence: _confidence(json['confidence'], '$field.confidence'),
+      evidenceIds: _strictStringList(json['evidenceIds'], '$field.evidenceIds'),
+      source: switch (json['source']) {
+        'user' => AxisLabelSource.user,
+        'web' => AxisLabelSource.web,
+        _ => AxisLabelSource.screen,
+      },
+      citation: _nullableString(json['citation'], '$field.citation'),
+    );
+  }
+
+  final String value;
+  final double confidence;
+  final List<String> evidenceIds;
+  final AxisLabelSource source;
+
+  /// The page a web label came from. Required for [AxisLabelSource.web] and
+  /// null otherwise, because a screen label is backed by [evidenceIds] instead.
+  final String? citation;
+
+  Map<String, Object?> toJson() => {
+    'value': value,
+    'confidence': confidence,
+    'evidenceIds': evidenceIds,
+    'source': source.name,
+    'citation': citation,
+  };
+}
+
+final class ContentAxes {
+  const ContentAxes({required this.labels});
+
+  const ContentAxes.empty() : labels = const {};
+
+  factory ContentAxes.fromJson(Map<String, Object?> json) {
+    _requireExactKeys(
+      json,
+      const {'kind', 'location', 'occasion', 'priceRange', 'savedReason'},
+      'axes',
+    );
+    final labels = <ContentAxis, List<AxisLabel>>{};
+    for (final axis in ContentAxis.values) {
+      final raw = _strictMapList(json[axis.name], 'axes.${axis.name}');
+      final seen = <String>{};
+      final parsed = <AxisLabel>[];
+      for (var index = 0; index < raw.length; index++) {
+        final label = AxisLabel.fromJson(raw[index], 'axes.${axis.name}[$index]');
+        // A repeated label would show the same capture twice on one card.
+        if (!seen.add(label.value)) continue;
+        parsed.add(label);
+      }
+      labels[axis] = List.unmodifiable(parsed);
+    }
+    return ContentAxes(labels: Map.unmodifiable(labels));
+  }
+
+  final Map<ContentAxis, List<AxisLabel>> labels;
+
+  List<AxisLabel> operator [](ContentAxis axis) => labels[axis] ?? const [];
+
+  bool get isEmpty => ContentAxis.values.every((axis) => this[axis].isEmpty);
+
+  /// Adds labels found elsewhere without displacing what the screenshot showed.
+  ///
+  /// Screen labels keep their position at the front of each axis, and an
+  /// incoming label whose value is already present is dropped: the same shop
+  /// must never appear twice on one card just because two sources agreed.
+  ContentAxes mergedWith(ContentAxes other) {
+    return ContentAxes(
+      labels: Map.unmodifiable({
+        for (final axis in ContentAxis.values)
+          axis: List<AxisLabel>.unmodifiable([
+            ...this[axis],
+            for (final label in other[axis])
+              if (!this[axis].any((kept) => kept.value == label.value)) label,
+          ]),
+      }),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    for (final axis in ContentAxis.values)
+      axis.name: this[axis].map((label) => label.toJson()).toList(),
+  };
+}
+
 final class StructuredContentAnalysis {
   const StructuredContentAnalysis({
     required this.schemaVersion,
@@ -824,6 +959,7 @@ final class StructuredContentAnalysis {
     required this.categoryConfidence,
     required this.subcategory,
     required this.subcategoryConfidence,
+    required this.axes,
     required this.completeness,
     required this.title,
     required this.place,
@@ -860,6 +996,11 @@ final class StructuredContentAnalysis {
         () => _legacySubcategoryConfidence(normalizedJson),
       );
     }
+    if (declaredVersion == '1.0' ||
+        declaredVersion == '1.1' ||
+        declaredVersion == '1.2') {
+      normalizedJson.putIfAbsent('axes', () => _legacyAxes(normalizedJson));
+    }
     _requireExactKeys(normalizedJson, const {
       'schemaVersion',
       'model',
@@ -869,6 +1010,7 @@ final class StructuredContentAnalysis {
       'categoryConfidence',
       'subcategory',
       'subcategoryConfidence',
+      'axes',
       'completeness',
       'title',
       'place',
@@ -885,7 +1027,7 @@ final class StructuredContentAnalysis {
       'analysis.schemaVersion',
     );
     final model = _requiredString(normalizedJson['model'], 'analysis.model');
-    if (!const {'1.0', '1.1', '1.2'}.contains(schemaVersion) ||
+    if (!const {'1.0', '1.1', '1.2', '1.3'}.contains(schemaVersion) ||
         !const {'gpt-5.6-luna', 'portable-tip-v1'}.contains(model)) {
       throw const FormatException(
         'Structured analysis version or model is unsupported.',
@@ -909,6 +1051,7 @@ final class StructuredContentAnalysis {
         normalizedJson['subcategoryConfidence'],
         'analysis.subcategoryConfidence',
       ),
+      axes: ContentAxes.fromJson(_requiredMap(normalizedJson['axes'], 'axes')),
       completeness: _structuredCompleteness(normalizedJson['completeness']),
       title: StructuredTitle.fromJson(
         _requiredMap(normalizedJson['title'], 'title'),
@@ -948,6 +1091,31 @@ final class StructuredContentAnalysis {
     return result;
   }
 
+  /// A copy carrying merged axes, used when a later pass finds labels the
+  /// screenshot could not support.
+  StructuredContentAnalysis withAxes(ContentAxes value) =>
+      StructuredContentAnalysis(
+        schemaVersion: schemaVersion,
+        model: model,
+        domain: domain,
+        contentKind: contentKind,
+        primaryCategory: primaryCategory,
+        categoryConfidence: categoryConfidence,
+        subcategory: subcategory,
+        subcategoryConfidence: subcategoryConfidence,
+        axes: value,
+        completeness: completeness,
+        title: title,
+        place: place,
+        summary: summary,
+        evidence: evidence,
+        ingredientGroups: ingredientGroups,
+        steps: steps,
+        facts: facts,
+        conflicts: conflicts,
+        warnings: warnings,
+      );
+
   final String schemaVersion;
   final String model;
   final ContentDomain domain;
@@ -956,6 +1124,10 @@ final class StructuredContentAnalysis {
   final double categoryConfidence;
   final String subcategory;
   final double subcategoryConfidence;
+
+  /// The five saved-library axes. A capture may sit on several labels of the
+  /// same axis, so the cards it appears under deliberately overlap.
+  final ContentAxes axes;
   final StructuredCompleteness completeness;
   final StructuredTitle title;
   final StructuredPlace? place;
@@ -1014,6 +1186,7 @@ final class StructuredContentAnalysis {
     'categoryConfidence': categoryConfidence,
     'subcategory': subcategory,
     'subcategoryConfidence': subcategoryConfidence,
+    'axes': axes.toJson(),
     'completeness': switch (completeness) {
       StructuredCompleteness.needsReview => 'needs_review',
       _ => completeness.name,
@@ -1204,6 +1377,41 @@ String _legacyPrimaryCategory(Map<String, Object?> json) {
 
 double _legacyCategoryConfidence(Map<String, Object?> json) {
   return _legacyPrimaryCategory(json) == 'other' ? 0 : 1;
+}
+
+/// Rebuilds axes for a capture stored before they existed.
+///
+/// Only what the older record actually held is carried over: the single
+/// subcategory becomes the one kind label, and a place area becomes the one
+/// location label. The remaining axes stay empty rather than being guessed from
+/// content nobody classified that way.
+Map<String, Object?> _legacyAxes(Map<String, Object?> json) {
+  Map<String, Object?> label(String value, Object? confidence) => {
+    'value': value,
+    'confidence': confidence is num ? confidence.toDouble() : 0.0,
+    'evidenceIds': const <String>[],
+  };
+
+  final kind = <Map<String, Object?>>[];
+  final subcategory = json['subcategory'];
+  if (subcategory is String && isValidContentSubcategory(subcategory)) {
+    kind.add(label(subcategory, json['subcategoryConfidence']));
+  }
+
+  final location = <Map<String, Object?>>[];
+  final place = json['place'];
+  final area = place is Map<String, Object?> ? place['searchArea'] : null;
+  if (area is String && isValidContentSubcategory(area)) {
+    location.add(label(area, place is Map<String, Object?> ? place['confidence'] : 0));
+  }
+
+  return {
+    'kind': kind,
+    'location': location,
+    'occasion': const <Map<String, Object?>>[],
+    'priceRange': const <Map<String, Object?>>[],
+    'savedReason': const <Map<String, Object?>>[],
+  };
 }
 
 String _legacySubcategory(Map<String, Object?> json) {

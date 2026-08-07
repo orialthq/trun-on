@@ -79,6 +79,19 @@ CaptureRecord captureFromImportedPortableTip(ImportedPortableTip imported) {
     categoryConfidence: 1,
     subcategory: tip.subcategory,
     subcategoryConfidence: 1,
+    // A received tip carries one subcategory and no axis breakdown, so it lands
+    // on the kind axis alone.
+    axes: ContentAxes(
+      labels: {
+        ContentAxis.kind: [
+          AxisLabel(
+            value: tip.subcategory,
+            confidence: 1,
+            evidenceIds: const [],
+          ),
+        ],
+      },
+    ),
     completeness: StructuredCompleteness.complete,
     title: StructuredTitle(
       value: tip.title,

@@ -26,6 +26,27 @@ const strictObject = (properties) => ({
   additionalProperties: false,
 });
 
+const LABEL_PATTERN =
+  "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$";
+
+/// One axis of the saved library. A capture may carry several labels on the same
+/// axis, so a pasta place that also pours wine reaches the reader from either
+/// card. maxItems is a guard against runaway output, not a product limit.
+const axisLabels = {
+  type: "array",
+  maxItems: 8,
+  items: strictObject({
+    value: {
+      type: "string",
+      minLength: 2,
+      maxLength: 20,
+      pattern: LABEL_PATTERN,
+    },
+    confidence,
+    evidenceIds,
+  }),
+};
+
 export const ANALYSIS_SCHEMA = {
   type: "object",
   properties: {
@@ -76,6 +97,13 @@ export const ANALYSIS_SCHEMA = {
         "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$",
     },
     subcategoryConfidence: confidence,
+    axes: strictObject({
+      kind: axisLabels,
+      location: axisLabels,
+      occasion: axisLabels,
+      priceRange: axisLabels,
+      savedReason: axisLabels,
+    }),
     completeness: {
       type: "string",
       enum: [
@@ -203,6 +231,7 @@ export const ANALYSIS_SCHEMA = {
     "categoryConfidence",
     "subcategory",
     "subcategoryConfidence",
+    "axes",
     "completeness",
     "title",
     "place",

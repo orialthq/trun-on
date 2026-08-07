@@ -53,6 +53,7 @@ const ROOT_KEYS = new Set([
   "categoryConfidence",
   "subcategory",
   "subcategoryConfidence",
+  "axes",
   "completeness",
   "title",
   "place",
@@ -121,6 +122,53 @@ function sanitizeSubcategory(value) {
   return sanitized;
 }
 
+const AXIS_NAMES = Object.freeze([
+  "kind",
+  "location",
+  "occasion",
+  "priceRange",
+  "savedReason",
+]);
+const AXIS_MAX_LABELS = 8;
+
+/// Axes may overlap and may be empty; what they may not do is carry a label that
+/// would tag only this one capture, or repeat itself.
+function sanitizeAxes(value) {
+  assertExactKeys(value, new Set(AXIS_NAMES), "axes");
+  const sanitized = {};
+  for (const axis of AXIS_NAMES) {
+    const labels = value[axis];
+    if (!Array.isArray(labels)) {
+      throw invalid(`axes.${axis} is not an array`);
+    }
+    if (labels.length > AXIS_MAX_LABELS) {
+      throw invalid(`axes.${axis} has too many labels`);
+    }
+    const seen = new Set();
+    sanitized[axis] = labels.map((label, index) => {
+      const path = `axes.${axis}[${index}]`;
+      assertExactKeys(
+        label,
+        new Set(["value", "confidence", "evidenceIds"]),
+        path,
+      );
+      const cleaned = sanitizeSubcategory(label.value);
+      if (seen.has(cleaned)) {
+        throw invalid(`${path} repeats a label`);
+      }
+      seen.add(cleaned);
+      assertConfidence(label.confidence, `${path}.confidence`);
+      assertStringArray(label.evidenceIds, `${path}.evidenceIds`);
+      return {
+        value: cleaned,
+        confidence: label.confidence,
+        evidenceIds: label.evidenceIds,
+      };
+    });
+  }
+  return sanitized;
+}
+
 function assertStringArray(value, path, { nonEmptyItems = true } = {}) {
   if (!Array.isArray(value)) {
     throw invalid(`${path} is not an array`);
@@ -148,6 +196,7 @@ export function validateAnalysisResult(result) {
   assertConfidence(result.categoryConfidence, "categoryConfidence");
   result.subcategory = sanitizeSubcategory(result.subcategory);
   assertConfidence(result.subcategoryConfidence, "subcategoryConfidence");
+  result.axes = sanitizeAxes(result.axes);
   if (!COMPLETENESS.has(result.completeness)) {
     throw invalid("invalid completeness");
   }

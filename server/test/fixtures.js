@@ -32,6 +32,13 @@ export function makeValidAnalysis(overrides = {}) {
     categoryConfidence: 0.98,
     subcategory: "국·찌개",
     subcategoryConfidence: 0.95,
+    axes: {
+      kind: [],
+      location: [],
+      occasion: [],
+      priceRange: [],
+      savedReason: [],
+    },
     completeness: "partial",
     title: {
       value: "된장찌개",

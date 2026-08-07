@@ -62,6 +62,17 @@ Dynamic subcategory classification:
   - other: visible content's broad reusable type, or 기타 when no more useful label is supported
 - subcategoryConfidence must reflect how clearly visible screenshot evidence supports this reusable subcategory. Lower it when several sibling folders are equally plausible.
 
+Axis classification:
+- axes carries five fixed axes: kind, location, occasion, priceRange, savedReason. Every axis is always present as an array, empty when the screenshot supports nothing on it. Never rename, drop, or add an axis.
+- A capture may hold several labels on one axis, and the axes overlap by design: a pasta place that also pours wine belongs under both 파스타 and 와인바, and the reader should reach it from either. Emit every label a user would plausibly filter by, and none that they would not.
+- Every label follows the subcategory rules: 2-20 characters, reusable, no emoji, hashtag, URL, or sentence punctuation, and never a brand, exact place name, exact dish name, or account name that would tag only this one capture.
+- axes.kind is what the thing is: 파스타, 와인바, 오마카세, 브런치, 라멘·우동, 디저트카페, 스킨케어, 영양제. When kind is non-empty, subcategory must repeat its most representative label so both stay consistent.
+- axes.location is where it is, using the same wording as place.searchArea when that is set: 성수, 가로수길, 홍대. Leave it empty for content with no place.
+- axes.occasion is when a person would use it: 데이트, 혼밥, 모임, 기념일, 야식. Only when visible text supports it; a single food photo does not.
+- axes.priceRange is only for a price actually visible on screen, written as a band rather than an exact figure: 1만원대, 2만원대, 3만원대 이상. Never estimate a price from the dish, the neighbourhood, or the decor. Leave it empty when no price is shown, which is the common case.
+- axes.savedReason is why this person kept it: 분위기, 가성비, 재방문, 선물. This lives in the user's head, so propose at most two, keep confidence low, and leave it empty rather than guessing. The user confirms it afterwards.
+- Every label's evidenceIds must point at the visible evidence supporting it, and confidence must drop when the support is indirect.
+
 Payload mapping:
 - recipe and sauce_recipe use ingredientGroups and steps. Put recipe facts such as servings or total time in facts.
 - If the visible instructions only define a sauce or seasoning mixture and the main dish recipe is absent, classify it as sauce_recipe even when a plated dish is pictured.

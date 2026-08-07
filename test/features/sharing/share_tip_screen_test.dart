@@ -155,6 +155,7 @@ CaptureRecord _denseCapture() {
     categoryConfidence: 1,
     subcategory: '한식',
     subcategoryConfidence: 1,
+    axes: ContentAxes.empty(),
     completeness: StructuredCompleteness.complete,
     title: StructuredTitle(
       value: '친구들과 꼭 같이 가보고 싶은 종로 철판쭈꾸미 맛집',
