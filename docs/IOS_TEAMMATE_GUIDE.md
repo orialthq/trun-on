@@ -1,11 +1,11 @@
 # Trun On iOS 팀원 실행 가이드
 
-저장소: <https://github.com/orialthq/chaengim-app>
+저장소: <https://github.com/orialthq/trun-on>
 
-Trun On은 Flutter로 화면과 도메인 로직을 공유하지만, 현재 입력 파이프라인은
-Android 우선으로 구현되어 있습니다. iOS 팀원은 지금 바로 화면과 정리 흐름을
-실행하고 Flutter 코드를 함께 개발할 수 있습니다. 다만 iPhone의 스크린샷 공유
-메뉴에서 Trun On으로 보내는 기능은 아직 사용할 수 없습니다.
+Trun On은 Flutter로 화면과 도메인 로직을 공유합니다. iOS에서도 스크린샷을
+앱 안에서 가져와 분석·정리까지 확인할 수 있습니다. 다만 iPhone 공유 시트에서
+Trun On으로 보내는 경로는 아직 없어서, 앱을 열고 `콘텐츠 추가` 시트의
+`스크린샷 가져오기`를 써야 합니다.
 
 ## 현재 iOS 지원 범위
 
@@ -13,11 +13,18 @@ Android 우선으로 구현되어 있습니다. iOS 팀원은 지금 바로 화�
 | --- | --- | --- | --- |
 | 앱 빌드와 실행 | 가능 | 서명 설정 후 가능 | Flutter UI 실행 가능 |
 | 샘플 콘텐츠 탐색 | 가능 | 가능 | 목록·상세·정리함 UI 확인 가능 |
-| 텍스트 직접 추가 | 가능 | 가능 | 현재 실행 중에는 보이지만 재시작 후 보존되지 않음 |
+| 텍스트 직접 추가 | 가능 | 가능 | `AppSnapshotFileStore`로 재시작 후에도 보존됨 |
+| 정리함·분석 결과 영구 저장 | 가능 | 가능 | `Storage/AppSnapshotFileStore.swift` |
+| `.trunon` 팁 파일 수신 | 가능 | 가능 | `Storage/PortableTipInbox.swift` |
+| 지도 앱 연동 | 제한적 | 가능 | 네이버·카카오·구글, 미설치 시 웹 폴백 |
 | Flutter 테스트 | 가능 | 해당 없음 | Dart·widget 범위이며 iOS 네이티브 연동은 별도 검증 필요 |
-| 스크린샷을 Trun On으로 공유 | 불가 | 불가 | iOS Share Extension 미구현 |
-| 공유 입력 영구 저장 | 불가 | 불가 | iOS 네이티브 저장 채널 미구현 |
-| 스크린샷 Luna 분석 | 불가 | 불가 | iOS 이미지 입력과 서버 연결 작업 필요 |
+| 앱 안에서 스크린샷 가져오기 | 가능 | 가능 | `콘텐츠 추가` 시트의 `스크린샷 가져오기` |
+| 스크린샷 Luna 분석 | 서버 필요 | 서버 필요 | 아래 `분석 서버 연결` 참고 |
+| 공유 시트에서 Trun On으로 보내기 | 불가 | 불가 | iOS Share Extension 미구현 — App Group에 유료 계정 필요 |
+
+배포 타겟은 iOS 14.0입니다. `PHPickerViewController`가 14.0부터라 13.0에서
+올렸습니다. iOS 13을 구동하는 기기는 모두 14 이상으로 올릴 수 있어 실제로
+제외되는 기기는 없습니다.
 
 2026년 8월 1일 기준으로 `flutter build ios --simulator --debug
 --no-codesign` 빌드와 iPhone 17 Pro 시뮬레이터 실행을 확인했습니다.
@@ -42,8 +49,8 @@ xcodebuild -version
 ## 가장 빠른 실행 방법
 
 ```bash
-git clone https://github.com/orialthq/chaengim-app.git
-cd chaengim-app
+git clone https://github.com/orialthq/trun-on.git
+cd trun-on
 git checkout main
 flutter pub get
 flutter analyze --fatal-infos
@@ -86,24 +93,51 @@ npm test
 OpenAI API 키나 로컬 분석 서버는 샘플 UI를 실행하는 데 필요하지 않습니다.
 실제 캡처 이미지는 저장소나 공개 Issue에 올리지 마세요.
 
+## 분석 서버 연결
+
+Luna 분석은 Mac에서 도는 중계 서버를 거칩니다. OpenAI 키가 앱에 들어가지
+않도록 하기 위해서이고, 그래서 실기기에서 분석을 쓰려면 폰과 Mac이 같은
+Wi-Fi에 있어야 합니다.
+
+서버는 모든 인터페이스에 바인딩해야 폰에서 닿습니다.
+
+```bash
+cd server
+HOST=0.0.0.0 npm run dev
+```
+
+앱에는 서버 주소를 빌드 시점에 심습니다. IP 대신 Mac의 `.local` 이름을 쓰면
+공유기가 IP를 바꿔도 다시 빌드할 필요가 없습니다.
+
+```bash
+flutter run -d "<기기 ID>" \
+  --dart-define=ORI_ANALYSIS_BASE_URL=http://$(scutil --get LocalHostName).local:8787
+```
+
+`Info.plist`의 `NSAllowsLocalNetworking`이 `.local`과 링크로컬 주소에 한해
+평문 HTTP를 허용합니다. 외부 평문 통신은 그대로 차단됩니다. 첫 요청 때
+로컬 네트워크 접근 권한을 묻는 팝업이 뜨며, 거부하면 분석만 실패하고 나머지
+화면은 정상 동작합니다.
+
+`HOST=0.0.0.0`으로 열면 같은 네트워크의 누구나 이 서버를 호출할 수 있고
+서버에는 아직 인증 계층이 없습니다. 신뢰할 수 없는 Wi-Fi에서는 띄우지 마세요.
+
 ## 아직 iOS에서 확인할 수 없는 것
 
-Android에 구현된 다음 경로는 iOS에서 아직 동작하지 않습니다.
+공유 시트 경로는 iOS에서 아직 동작하지 않습니다.
 
 ```text
 스크린샷 촬영
-→ 공유 시트 또는 캡처 미리보기에서 Trun On 선택
+→ 공유 시트에서 Trun On 선택
 → 원본을 앱 내부로 복사
-→ Luna 분석
-→ 결과와 원본을 재실행 후에도 복원
 ```
 
-현재 iOS 프로젝트에는 Share Extension과 App Group이 없고, Android가 제공하는
-`com.orialthq.ori_beauty/incoming_share/v1` 메서드 채널의 Swift 구현도 없습니다.
-이 내부 채널 이름은 기존 설치와 저장 데이터 호환을 위해 유지합니다.
-따라서 앱 화면이 실행된다는 것과 스크린샷 입력이 지원된다는 것은 구분해야
-합니다. 텍스트 직접 추가도 화면에서는 동작하지만, iOS에서는 현재 네이티브
-snapshot 저장 구현이 없어 앱 재시작 후에는 사라집니다.
+Share Extension과 App Group이 없기 때문입니다. 대신 앱을 열고 `콘텐츠 추가`
+시트의 `스크린샷 가져오기`로 같은 파이프라인에 넣을 수 있습니다. 수집 이후
+경로(검증·복사·분석·복원)는 두 플랫폼이 공유합니다.
+
+App Groups는 무료 Apple ID(Personal Team)에서 지원되지 않으므로, Share
+Extension을 붙이려면 유료 Apple Developer Program이 필요합니다.
 
 ## 실제 iPhone에서 UI 실행하기
 
@@ -121,17 +155,22 @@ Luna 분석까지 검증하는 절차는 아닙니다.
 
 ## iOS 입력 파이프라인을 완성하려면
 
-1. iOS Share Extension target을 추가합니다.
-2. Runner와 Extension이 공유할 App Group 컨테이너를 구성합니다.
-3. 이미지 MIME·크기·해상도를 검증하고 공유 컨테이너에 안전하게 복사합니다.
-4. pending queue, acknowledge, snapshot 저장을 Swift로 구현해 Flutter 메서드
-   채널과 연결합니다.
-5. 실제 iPhone에서 접근 가능한 HTTPS 분석 서버를 사용하거나, Mac의 로컬 서버를
-   쓸 경우 iOS 로컬 네트워크 권한과 주소 설정을 추가합니다.
-6. 실제 기기에서 백그라운드·중복 입력·앱 재시작·실패 복구를 검증합니다.
+검증·복사·pending queue·acknowledge·snapshot 저장과 로컬 네트워크 설정은
+`ios/Runner/Share/`와 `ios/Runner/Storage/`에 구현돼 있습니다. 남은 것은 공유
+시트 진입점뿐입니다.
 
-Android 동작을 그대로 Dart 코드만으로 옮길 수 있는 부분은 이미 공유됩니다.
-새로 필요한 작업은 주로 iOS의 공유 진입점, 파일 보존, 네트워크와 서명 설정입니다.
+1. 유료 Apple Developer Program에 가입합니다. App Groups는 개인 팀에서 쓸 수
+   없습니다.
+2. iOS Share Extension target을 추가합니다.
+3. Runner와 Extension이 공유할 App Group 컨테이너를 구성합니다.
+4. Extension이 받은 이미지를 App Group 컨테이너에 두고, Runner가 기존
+   `IncomingShareIngestor`로 넘기도록 연결합니다.
+5. 실제 기기에서 백그라운드·중복 입력·앱 재시작·실패 복구를 검증합니다.
+
+`IncomingShareIngestor`와 `IncomingShareStore`는 `android/.../share/`를 1:1로
+옮긴 것입니다. 한쪽 검증 규칙만 바꾸면 같은 캡처가 플랫폼마다 다르게 거부되므로
+반드시 양쪽을 함께 수정하고, `RunnerTests`와 `IncomingImageSignatureTest.kt`에
+같은 케이스를 추가하세요.
 
 ## 브랜치와 PR
 

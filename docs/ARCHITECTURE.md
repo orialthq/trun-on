@@ -43,26 +43,45 @@ transport event의 중복 판정에는 아직 사용하지 않습니다. 사용�
 
 ## 2. 현재 플랫폼 입력 기반
 
-Android 공유 계약 채널:
+공유 계약 채널:
 
 ```text
 com.orialthq.ori_beauty/incoming_share/v1
 ```
 
-Dart → Android:
+Dart → 네이티브:
 
 - `drainPendingShares`
+- `presentCapturePicker` — iOS 전용, Android는 미구현
 - `loadAppSnapshot`
 - `saveAppSnapshot(snapshot)`
 - `acknowledgeShares({ ids })`
 
-Android → Dart:
+네이티브 → Dart:
 
 - `pendingSharesChanged`
 
 `pendingSharesChanged`는 데이터를 직접 싣지 않고 다시 drain하라는
 신호입니다. cold start에서 Dart handler가 준비되기 전에 공유 이벤트가
-사라지지 않도록 Android가 먼저 로컬 pending queue에 저장합니다.
+사라지지 않도록 네이티브가 먼저 로컬 pending queue에 저장합니다.
+
+`presentCapturePicker`도 선택한 이미지를 직접 돌려주지 않습니다. 검증과
+복사를 마친 뒤 같은 pending queue에 기록하고 `pendingSharesChanged`를
+보내므로, snapshot commit이 성공해야 입력이 acknowledge되는 순서가
+공유 시트 경로와 동일하게 유지됩니다. 반환값은 수락 여부뿐입니다.
+
+입력 진입점은 플랫폼마다 다르지만 그 뒤 경로는 같습니다.
+
+| 진입점 | Android | iOS |
+| --- | --- | --- |
+| 공유 시트 (`SEND`/`SEND_MULTIPLE`) | 구현됨 | 미구현 — Share Extension 필요 |
+| 캡처 미리보기 `열기` (`VIEW`) | 구현됨 | 해당 없음 |
+| 사진 선택기 | 빠른 설정 타일 | 앱 내 `콘텐츠 추가` 시트 |
+
+iOS 선택기는 `PHPickerViewController`를 쓰므로 사진 라이브러리 권한이나
+`NSPhotoLibraryUsageDescription`이 필요 없습니다. 검증 규칙과 상한값은
+`ios/Runner/Share/`가 `android/.../share/`를 1:1로 옮긴 것이며, 한쪽만
+바꾸면 같은 캡처가 플랫폼마다 다르게 거부됩니다.
 
 현재는 `text/plain`, `image/jpeg`, `image/png`, `image/webp`를
 노출합니다. 이미지 공유는 임시 URI 권한이 사라지기 전에 MIME signature,
