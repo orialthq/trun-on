@@ -794,6 +794,15 @@ final class _RecordingIncomingShareService implements IncomingShareService {
   @override
   Future<List<IncomingShare>> drainPending() async => List.of(_shares);
 
+  var presentCapturePickerCount = 0;
+  var capturePickerAccepts = false;
+
+  @override
+  Future<bool> presentCapturePicker() async {
+    presentCapturePickerCount += 1;
+    return capturePickerAccepts;
+  }
+
   @override
   Future<void> acknowledge(Iterable<String> ids) async {
     final acknowledged = ids.toSet();

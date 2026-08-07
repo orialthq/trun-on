@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
@@ -636,6 +637,12 @@ final class _ManualInputSheet extends StatefulWidget {
 final class _ManualInputSheetState extends State<_ManualInputSheet> {
   final _textController = TextEditingController();
   var _importingTip = false;
+  var _pickingCapture = false;
+
+  /// Android reaches the same picker through its quick settings tile, so the
+  /// in-app entry point only appears where that tile does not exist.
+  bool get _showsCapturePicker =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   void dispose() {
@@ -684,6 +691,24 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
               style: TextStyle(color: AppTheme.muted, height: 1.5),
             ),
             const SizedBox(height: 18),
+            if (_showsCapturePicker) ...[
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _pickingCapture ? null : _pickCapture,
+                  icon: _pickingCapture
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.image_rounded, size: 20),
+                  label: Text(
+                    _pickingCapture ? '스크린샷을 읽고 있어요…' : '스크린샷 가져오기',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -759,6 +784,34 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
         ),
       ),
     );
+  }
+
+  Future<void> _pickCapture() async {
+    setState(() => _pickingCapture = true);
+    try {
+      final accepted = await widget.controller.presentCapturePicker();
+      if (!mounted) return;
+      if (!accepted) {
+        // Cancelling the picker is the common case and needs no message; a
+        // rejected image does, and the two are indistinguishable here.
+        return;
+      }
+      // The image is already in the pending queue. Closing the sheet lets the
+      // controller surface the analysis state card the same way a share does.
+      Navigator.of(context).pop();
+    } on Object catch (error, stackTrace) {
+      debugPrint('Capture picker failed: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('스크린샷을 가져오지 못했어요.')),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _pickingCapture = false);
+      }
+    }
   }
 
   Future<void> _importTipFile() async {

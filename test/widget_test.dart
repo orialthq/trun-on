@@ -311,6 +311,87 @@ void main() {
     expect(tester.getBottomRight(submit).dy, lessThanOrEqualTo(915 - 340));
   });
 
+  testWidgets(
+    'iOS offers an in-app screenshot picker above the tip import',
+    (tester) async {
+      final service = InMemoryIncomingShareService()
+        ..capturePickerAccepts = true;
+      final controller = AppController(service);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(OriBeautyApp(controller: controller));
+      await controller.initialize();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('콘텐츠 추가'));
+      await tester.pumpAndSettle();
+
+      final picker = find.widgetWithText(OutlinedButton, '스크린샷 가져오기');
+      final tipImport = find.widgetWithText(OutlinedButton, '받은 팁 파일 가져오기');
+      expect(picker, findsOneWidget);
+      expect(tipImport, findsOneWidget);
+      expect(
+        tester.getTopLeft(picker).dy,
+        lessThan(tester.getTopLeft(tipImport).dy),
+      );
+
+      await tester.tap(picker);
+      await tester.pumpAndSettle();
+
+      expect(service.presentCapturePickerCount, 1);
+      // An accepted image is already queued, so the sheet closes and the
+      // pending drain surfaces it the same way a share does.
+      expect(find.byKey(const Key('manual-input-safe-area')), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'a cancelled iOS picker keeps the add sheet open',
+    (tester) async {
+      final service = InMemoryIncomingShareService()
+        ..capturePickerAccepts = false;
+      final controller = AppController(service);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(OriBeautyApp(controller: controller));
+      await controller.initialize();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('콘텐츠 추가'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '스크린샷 가져오기'));
+      await tester.pumpAndSettle();
+
+      expect(service.presentCapturePickerCount, 1);
+      expect(find.byKey(const Key('manual-input-safe-area')), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'Android keeps the add sheet without an in-app picker',
+    (tester) async {
+      final service = InMemoryIncomingShareService();
+      final controller = AppController(service);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(OriBeautyApp(controller: controller));
+      await controller.initialize();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('콘텐츠 추가'));
+      await tester.pumpAndSettle();
+
+      // Android reaches the same picker through its quick settings tile.
+      expect(find.widgetWithText(OutlinedButton, '스크린샷 가져오기'), findsNothing);
+      expect(
+        find.widgetWithText(OutlinedButton, '받은 팁 파일 가져오기'),
+        findsOneWidget,
+      );
+      expect(service.presentCapturePickerCount, 0);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
   testWidgets('incomplete content can be deleted from its detail screen', (
     tester,
   ) async {

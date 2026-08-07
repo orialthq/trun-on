@@ -9,6 +9,15 @@ abstract interface class IncomingShareService {
 
   Future<List<IncomingShare>> drainPending();
 
+  /// Opens the platform picture picker so a screenshot can be imported from
+  /// inside the app. Accepted images are staged into the same pending queue a
+  /// share intent uses, so the caller waits for [pendingChanged] rather than a
+  /// returned image. Resolves to true when at least one image was accepted.
+  ///
+  /// Only iOS implements this today; Android reaches the same picker through its
+  /// quick settings tile.
+  Future<bool> presentCapturePicker();
+
   Future<void> acknowledge(Iterable<String> ids);
 
   Future<SharedSourceDeletionResult> deleteSharedSource(String transportId);
@@ -51,6 +60,12 @@ final class MethodChannelIncomingShareService implements IncomingShareService {
         .whereType<Map<Object?, Object?>>()
         .map(IncomingShare.fromPlatformMap)
         .toList(growable: false);
+  }
+
+  @override
+  Future<bool> presentCapturePicker() async {
+    final accepted = await _channel.invokeMethod<bool>('presentCapturePicker');
+    return accepted ?? false;
   }
 
   @override
@@ -101,6 +116,18 @@ final class InMemoryIncomingShareService implements IncomingShareService {
   @override
   Future<List<IncomingShare>> drainPending() async =>
       List.unmodifiable(_shares);
+
+  /// Number of times [presentCapturePicker] was called, for widget tests.
+  int presentCapturePickerCount = 0;
+
+  /// Value [presentCapturePicker] resolves to, for widget tests.
+  bool capturePickerAccepts = false;
+
+  @override
+  Future<bool> presentCapturePicker() async {
+    presentCapturePickerCount += 1;
+    return capturePickerAccepts;
+  }
 
   @override
   Future<void> acknowledge(Iterable<String> ids) async {

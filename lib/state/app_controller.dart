@@ -1094,6 +1094,13 @@ final class AppController extends ChangeNotifier {
     await _persistState();
   }
 
+  /// Opens the platform picture picker. Accepted images arrive through the same
+  /// pending queue a share intent uses, so nothing is returned here beyond
+  /// whether the picker accepted anything.
+  Future<bool> presentCapturePicker() {
+    return _incomingShareService.presentCapturePicker();
+  }
+
   void retryAnalysis(String captureId) {
     final index = _captures.indexWhere(
       (capture) => capture.raw.id == captureId,
