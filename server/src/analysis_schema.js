@@ -98,6 +98,11 @@ export const ANALYSIS_SCHEMA = {
     place: strictObject({
       name: nullableString,
       address: nullableString,
+      searchArea: {
+        type: ["string", "null"],
+        description:
+          "The short location words a person would type next to the shop name in a map search, taken only from visible text: 성수, 가로수길, 홍대, 연남동. Keep the wording that appears on screen instead of converting it to an administrative district. Never a full address, building number, floor, or unit. Null when the screenshot shows no location.",
+      },
       category: {
         type: ["string", "null"],
         enum: [

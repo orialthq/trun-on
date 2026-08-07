@@ -171,6 +171,7 @@ test("accepts an observed place with address evidence", async () => {
     place: {
       name: "챙김 식당",
       address: "서울특별시 중구 세종대로 110",
+      searchArea: null,
       category: "restaurant",
       confidence: 0.94,
       evidenceIds: ["e1"],
@@ -202,6 +203,7 @@ test("routes a semantically mismatched place category to user review", async () 
     place: {
       name: "테스트 식당",
       address: "서울특별시 중구 세종대로 110",
+      searchArea: null,
       category: "restaurant",
       confidence: 0.94,
       evidenceIds: ["e1"],

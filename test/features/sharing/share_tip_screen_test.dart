@@ -165,6 +165,7 @@ CaptureRecord _denseCapture() {
     place: StructuredPlace(
       name: '동묘집',
       address: '서울 종로구 종로52길 43-9',
+      searchArea: null,
       category: PlaceCategory.restaurant,
       confidence: 1,
       evidenceIds: [],

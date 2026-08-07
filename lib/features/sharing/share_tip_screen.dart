@@ -279,16 +279,19 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
     try {
       final placeName = _analysis.place?.name;
       final placeAddress = _analysis.place?.address;
+      final placeSearchArea = _analysis.place?.searchArea;
       final result = await _shareService.shareCard(
         previewKey: _cardKey,
         title: title,
         placeName: placeName,
         placeAddress: placeAddress,
+        placeSearchArea: placeSearchArea,
         sharePositionOrigin: _shareOrigin(buttonContext),
       );
       final mapShareText = buildCardShareText(
         placeName: placeName,
         placeAddress: placeAddress,
+        placeSearchArea: placeSearchArea,
       );
       if (!mounted ||
           !shouldOfferMapLinkFollowUp(
@@ -302,6 +305,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
       await _shareService.shareMapLinks(
         placeName: placeName,
         placeAddress: placeAddress,
+        placeSearchArea: placeSearchArea,
         sharePositionOrigin: _shareOrigin(buttonContext),
       );
     } on Object catch (error, stackTrace) {
@@ -340,6 +344,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
       await _shareService.shareMapLinks(
         placeName: _analysis.place?.name,
         placeAddress: _analysis.place?.address,
+        placeSearchArea: _analysis.place?.searchArea,
         sharePositionOrigin: _shareOrigin(buttonContext),
       );
     } on Object catch (error, stackTrace) {

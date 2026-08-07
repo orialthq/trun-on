@@ -226,14 +226,20 @@ final class PlaceReminderService {
     required MapProvider provider,
     String? name,
     required String address,
+    String? searchArea,
+    MapQueryMode mode = MapQueryMode.place,
   }) async {
-    final links = PlaceMapLinks.fromPlace(name: name, address: address);
+    final links = PlaceMapLinks.fromPlace(
+      name: name,
+      address: address,
+      searchArea: searchArea,
+    );
     if (links == null) {
       throw ArgumentError.value(address, 'address', 'A map query is required.');
     }
-    final query = switch (provider) {
-      MapProvider.naver => links.naverQuery,
-      MapProvider.kakao || MapProvider.google => links.combinedQuery,
+    final query = switch (mode) {
+      MapQueryMode.address => links.addressQuery,
+      MapQueryMode.place => links.searchQuery,
     };
     final raw = await _channel
         .invokeMapMethod<Object?, Object?>('openMapProvider', {
@@ -248,11 +254,27 @@ final class PlaceReminderService {
     );
   }
 
-  Future<void> openMap({String? name, required String address}) async {
+  Future<void> openMap({
+    String? name,
+    required String address,
+    String? searchArea,
+  }) async {
     await openMapWithProvider(
       provider: MapProvider.naver,
       name: name,
       address: address,
+      searchArea: searchArea,
     );
   }
+}
+
+/// Which captured fields a map search should use.
+enum MapQueryMode {
+  /// Place name plus the captured address. Best when the address is really an
+  /// area tag, because the name is what identifies the shop.
+  place,
+
+  /// The address alone, for when the captured name is wrong or the user wants
+  /// the building rather than the business.
+  address,
 }

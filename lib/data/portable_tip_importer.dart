@@ -91,6 +91,9 @@ CaptureRecord captureFromImportedPortableTip(ImportedPortableTip imported) {
         : StructuredPlace(
             name: place.name,
             address: place.address,
+            // The portable tip format carries no area; the address still
+            // yields one on the receiving side.
+            searchArea: null,
             category: _placeCategoryFor(tip.category),
             confidence: 1,
             evidenceIds: const [],

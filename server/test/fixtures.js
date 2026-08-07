@@ -42,6 +42,7 @@ export function makeValidAnalysis(overrides = {}) {
     place: {
       name: null,
       address: null,
+      searchArea: null,
       category: null,
       confidence: 0,
       evidenceIds: [],

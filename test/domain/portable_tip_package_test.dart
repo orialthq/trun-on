@@ -423,6 +423,7 @@ CaptureRecord _structuredCapture() {
     place: StructuredPlace(
       name: '동묘집',
       address: '서울 종로구',
+      searchArea: null,
       category: PlaceCategory.restaurant,
       confidence: 0.9,
       evidenceIds: [],

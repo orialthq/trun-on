@@ -1133,7 +1133,7 @@ final class _PlaceCardState extends State<_PlaceCard>
     await _enable();
   }
 
-  Future<void> _openMap() async {
+  Future<void> _openMap({MapQueryMode mode = MapQueryMode.place}) async {
     try {
       final options = await _service.getMapProviderOptions();
       if (!mounted) return;
@@ -1147,6 +1147,8 @@ final class _PlaceCardState extends State<_PlaceCard>
         provider: provider,
         name: widget.place.name,
         address: _address,
+        searchArea: widget.place.searchArea,
+        mode: mode,
       );
     } on Object {
       if (mounted) _showMessage('지도를 열지 못했어요.');
@@ -1230,6 +1232,23 @@ final class _PlaceCardState extends State<_PlaceCard>
                     label: const Text('지도에서 보기'),
                   ),
                 ),
+                if (widget.place.name != null) ...[
+                  const SizedBox(height: 6),
+                  // The captured address is often an SNS location tag rather
+                  // than the shop's own address, so the default search leads
+                  // with the name. This is the way back to the address when the
+                  // name was read wrong.
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => _openMap(mode: MapQueryMode.address),
+                      child: const Text(
+                        '주소로만 찾기',
+                        style: TextStyle(color: AppTheme.muted, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ],
                 const Divider(height: 34),
                 Row(
                   children: [

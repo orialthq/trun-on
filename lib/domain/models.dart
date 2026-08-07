@@ -765,22 +765,25 @@ final class StructuredPlace {
   const StructuredPlace({
     required this.name,
     required this.address,
+    required this.searchArea,
     required this.category,
     required this.confidence,
     required this.evidenceIds,
   });
 
   factory StructuredPlace.fromJson(Map<String, Object?> json) {
-    _requireExactKeys(json, const {
-      'name',
-      'address',
-      'category',
-      'confidence',
-      'evidenceIds',
-    }, 'place');
+    _requireExactKeys(
+      json,
+      const {'name', 'address', 'category', 'confidence', 'evidenceIds'},
+      'place',
+      // Added after the first captures were stored; those snapshots fall back to
+      // deriving an area from the address.
+      optional: const {'searchArea'},
+    );
     return StructuredPlace(
       name: _nullableString(json['name'], 'place.name'),
       address: _nullableString(json['address'], 'place.address'),
+      searchArea: _nullableString(json['searchArea'], 'place.searchArea'),
       category: _placeCategory(json['category']),
       confidence: _confidence(json['confidence'], 'place.confidence'),
       evidenceIds: _strictStringList(json['evidenceIds'], 'place.evidenceIds'),
@@ -789,6 +792,12 @@ final class StructuredPlace {
 
   final String? name;
   final String? address;
+
+  /// The words to search alongside the shop name, exactly as a person would type
+  /// them: `성수`, `가로수길`, `홍대`. Read from the capture rather than derived,
+  /// so a colloquial area beats the administrative district it sits in.
+  final String? searchArea;
+
   final PlaceCategory? category;
   final double confidence;
   final List<String> evidenceIds;
@@ -798,6 +807,7 @@ final class StructuredPlace {
   Map<String, Object?> toJson() => {
     'name': name,
     'address': address,
+    'searchArea': searchArea,
     'category': category?.name,
     'confidence': confidence,
     'evidenceIds': evidenceIds,
@@ -1089,13 +1099,20 @@ String? _nullableString(Object? value, String field) {
   return _requiredString(value, field);
 }
 
+/// Rejects unknown fields and missing required ones.
+///
+/// [optional] exists so a field added after a release can be read back from
+/// snapshots written before it existed. Unknown keys are still refused, so the
+/// contract stays closed.
 void _requireExactKeys(
   Map<String, Object?> json,
   Set<String> expected,
-  String field,
-) {
-  if (json.length != expected.length ||
-      json.keys.any((key) => !expected.contains(key))) {
+  String field, {
+  Set<String> optional = const {},
+}) {
+  final allowed = {...expected, ...optional};
+  if (json.keys.any((key) => !allowed.contains(key)) ||
+      expected.any((key) => !json.containsKey(key))) {
     throw FormatException('Structured $field has unexpected fields.');
   }
 }

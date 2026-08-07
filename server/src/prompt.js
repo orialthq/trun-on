@@ -72,6 +72,9 @@ Payload mapping:
 - Health, exercise, travel, shopping, and life-tip content that does not fit a more specific contentKind may use unknown. Unknown does not mean unsupported when visible facts can still be saved.
 - Always return place. When no visitable place is visible, set its name, address, and category to null, confidence to 0, and evidenceIds to an empty array.
 - For a visible visitable place, copy only the displayed place name and address. Category must be restaurant, cafe, beauty, shopping, lodging, activity, or other. Do not geocode or invent coordinates.
+- place.searchArea is the location wording that will be typed next to the place name in a map search. Take it from visible text only; never supply an area from general knowledge about the place, and set it to null when the screenshot shows no location at all.
+- Prefer the area name as shown, including a colloquial one, because that is what map search matches: 가로수길 rather than 신사동, 홍대 rather than 서교동, 성수 rather than 성수동2가. Do not translate a shown area into the administrative district containing it.
+- searchArea must be 2-12 characters, must exclude the place name itself, and must never contain a full address, road name with a building number, floor, or unit. When only a full street address is visible, use the district or neighbourhood part of it.
 - For menu comparisons, prefix fact labels with the menu item name when useful.
 - Leave fields that do not apply as empty arrays.
 - completeness is complete only when the visible source contains enough information for its content kind; otherwise use partial, conflicted, needs_review, or unsupported.

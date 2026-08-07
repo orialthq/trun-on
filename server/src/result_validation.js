@@ -173,11 +173,21 @@ export function validateAnalysisResult(result) {
 
   assertExactKeys(
     result.place,
-    new Set(["name", "address", "category", "confidence", "evidenceIds"]),
+    new Set([
+      "name",
+      "address",
+      "searchArea",
+      "category",
+      "confidence",
+      "evidenceIds",
+    ]),
     "place",
   );
   assertString(result.place.name, "place.name", { nullable: true });
   assertString(result.place.address, "place.address", { nullable: true });
+  assertString(result.place.searchArea, "place.searchArea", {
+    nullable: true,
+  });
   const placeCategories = new Set([
     "restaurant",
     "cafe",

@@ -16,6 +16,7 @@ final class ContentShareService {
     required String title,
     String? placeName,
     String? placeAddress,
+    String? placeSearchArea,
     Rect? sharePositionOrigin,
   }) async {
     await WidgetsBinding.instance.endOfFrame;
@@ -41,6 +42,7 @@ final class ContentShareService {
           text: buildCardShareText(
             placeName: placeName,
             placeAddress: placeAddress,
+            placeSearchArea: placeSearchArea,
           ),
           files: [
             XFile.fromData(Uint8List.fromList(bytes), mimeType: 'image/png'),
@@ -83,11 +85,13 @@ final class ContentShareService {
   Future<ShareResult> shareMapLinks({
     String? placeName,
     String? placeAddress,
+    String? placeSearchArea,
     Rect? sharePositionOrigin,
   }) {
     final text = buildCardShareText(
       placeName: placeName,
       placeAddress: placeAddress,
+      placeSearchArea: placeSearchArea,
     );
     if (text == null) {
       throw StateError('A place is required to share map links.');
@@ -106,8 +110,16 @@ final class ContentShareService {
 ///
 /// Share targets detect the three HTTPS URLs as tappable links. A place-free
 /// card stays image-only instead of adding irrelevant copy.
-String? buildCardShareText({String? placeName, String? placeAddress}) {
-  final links = PlaceMapLinks.fromPlace(name: placeName, address: placeAddress);
+String? buildCardShareText({
+  String? placeName,
+  String? placeAddress,
+  String? placeSearchArea,
+}) {
+  final links = PlaceMapLinks.fromPlace(
+    name: placeName,
+    address: placeAddress,
+    searchArea: placeSearchArea,
+  );
   if (links == null) return null;
   return links.shareText;
 }
