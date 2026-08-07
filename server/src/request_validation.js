@@ -75,6 +75,27 @@ function hasExpectedMagicBytes(buffer, mimeType) {
   return false;
 }
 
+export function validateEnrichPlaceRequest(body) {
+  if (!isPlainObject(body)) {
+    throw new AppError("INVALID_REQUEST", "요청 형식이 올바르지 않아요.", {
+      httpStatus: 400,
+    });
+  }
+  assertKeys(body, new Set(["name", "searchArea"]), "요청");
+  validateOptionalString(body.name, "name", 120);
+  validateOptionalString(body.searchArea, "searchArea", 40);
+
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (name === "") {
+    throw new AppError("INVALID_REQUEST", "장소 이름이 필요해요.", {
+      httpStatus: 400,
+    });
+  }
+  const searchArea =
+    typeof body.searchArea === "string" ? body.searchArea.trim() : "";
+  return { name, searchArea: searchArea === "" ? null : searchArea };
+}
+
 export function validateResolvePlaceRequest(body) {
   if (!isPlainObject(body)) {
     throw new AppError("INVALID_REQUEST", "요청 형식이 올바르지 않아요.", {

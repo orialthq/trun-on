@@ -1,4 +1,5 @@
 import { createAnalysisService } from "./analysis_service.js";
+import { createEnrichmentService } from "./enrichment_service.js";
 import { createHttpServer } from "./http_app.js";
 import { createKakaoTransport } from "./kakao_transport.js";
 import { createOpenAITransport } from "./openai_transport.js";
@@ -13,6 +14,7 @@ if (!apiKey) {
 } else {
   const transport = createOpenAITransport({ apiKey });
   const analysisService = createAnalysisService({ transport });
+  const enrichmentService = createEnrichmentService({ transport });
 
   // Place resolution is optional: without a key the app still analyses captures
   // and opens maps by text search.
@@ -28,7 +30,11 @@ if (!apiKey) {
     );
   }
 
-  const server = createHttpServer({ analysisService, placeResolutionService });
+  const server = createHttpServer({
+    analysisService,
+    enrichmentService,
+    placeResolutionService,
+  });
 
   const host = process.env.HOST || "127.0.0.1";
   const port = parsePort(process.env.PORT);

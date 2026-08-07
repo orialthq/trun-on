@@ -10,11 +10,13 @@ import {
 import { AppError, normalizeError } from "./errors.js";
 import {
   validateAnalyzeRequest,
+  validateEnrichPlaceRequest,
   validateResolvePlaceRequest,
 } from "./request_validation.js";
 
 export function createHttpServer({
   analysisService,
+  enrichmentService = null,
   placeResolutionService = null,
   maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
   maxImageBytes = DEFAULT_MAX_IMAGE_BYTES,
@@ -28,6 +30,9 @@ export function createHttpServer({
     typeof placeResolutionService.resolve !== "function"
   ) {
     throw new Error("A placeResolutionService must expose resolve()");
+  }
+  if (enrichmentService && typeof enrichmentService.enrich !== "function") {
+    throw new Error("An enrichmentService must expose enrich()");
   }
 
   return createServer(async (request, response) => {
@@ -61,6 +66,28 @@ export function createHttpServer({
         const input = validateAnalyzeRequest(body, { maxImageBytes });
         const result = await analysisService.analyze(input);
         return sendJson(response, 200, result);
+      }
+
+      if (url.pathname === "/v1/enrich-place") {
+        if (request.method !== "POST") {
+          throw methodNotAllowed("POST");
+        }
+        if (!enrichmentService) {
+          throw new AppError(
+            "ENRICHMENT_NOT_CONFIGURED",
+            "장소 보강을 사용할 수 없어요.",
+            { httpStatus: 503 },
+          );
+        }
+        assertJsonContentType(request.headers["content-type"]);
+        const body = await readJsonBody(request, {
+          maxBodyBytes: Math.min(maxBodyBytes, 8 * 1024),
+          timeoutMs: bodyTimeoutMs,
+        });
+        const input = validateEnrichPlaceRequest(body);
+        // Empty axes are a normal answer, so this is always a 200 when the
+        // lookup ran at all.
+        return sendJson(response, 200, await enrichmentService.enrich(input));
       }
 
       if (url.pathname === "/v1/resolve-place") {

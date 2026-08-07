@@ -9,6 +9,7 @@ import '../data/demo_catalog.dart';
 import '../data/incoming_share_service.dart';
 import '../data/portable_tip_importer.dart';
 import '../data/portable_tip_service.dart';
+import '../data/place_enrichment_service.dart';
 import '../data/remote_content_analysis_service.dart';
 import '../domain/models.dart';
 import '../domain/portable_tip_package.dart';
@@ -19,6 +20,7 @@ final class AppController extends ChangeNotifier {
     this._contentAnalysisService = const BaselineContentAnalysisService(),
     AppSnapshotStore? snapshotStore,
     this._portableTipInbox,
+    this._placeEnrichmentService = const NoPlaceEnrichmentService(),
   ]) : _captures = [...DemoCatalog.captures],
        _groups = [...DemoCatalog.groups],
        _snapshotStore = snapshotStore ?? InMemoryAppSnapshotStore();
@@ -27,9 +29,14 @@ final class AppController extends ChangeNotifier {
   final ContentAnalysisService _contentAnalysisService;
   final AppSnapshotStore _snapshotStore;
   final PortableTipInbox? _portableTipInbox;
+  final PlaceEnrichmentService _placeEnrichmentService;
   final List<CaptureRecord> _captures;
   final List<ProductGroup> _groups;
   final Set<String> _durablySavedTransportIds = {};
+
+  /// Captures this session already looked up on the web, so a place that
+  /// returned nothing is not searched again on every rebuild.
+  final Set<String> _attemptedPlaceEnrichment = {};
   final Set<String> _sourceDeletionAvailableCaptureIds = {};
   final Map<String, _PendingPortableTip> _pendingPortableTips = {};
   final StreamController<String> _incomingCaptureController =
@@ -553,6 +560,67 @@ final class AppController extends ChangeNotifier {
       );
       debugPrint('Content analysis failed with code: $code');
     }
+    await _persistState();
+    notifyListeners();
+    unawaited(_enrichPlace(captureId));
+  }
+
+  /// Fills the axes a screenshot cannot support, once the capture is already
+  /// saved and visible.
+  ///
+  /// Deliberately not awaited by the analysis: the reader sees the screenshot's
+  /// own findings immediately, and web labels arrive on top a few seconds later.
+  /// A capture with no place, or one already looked up, costs nothing.
+  Future<void> _enrichPlace(String captureId) async {
+    if (!_attemptedPlaceEnrichment.add(captureId)) {
+      return;
+    }
+    final capture = captureById(captureId);
+    final structured = capture?.analysis?.structuredContent;
+    final placeName = structured?.place?.name?.trim();
+    if (structured == null || placeName == null || placeName.isEmpty) {
+      return;
+    }
+
+    final found = await _placeEnrichmentService.enrich(
+      name: placeName,
+      searchArea: structured.place?.searchArea,
+    );
+    if (found.isEmpty) {
+      return;
+    }
+
+    final index = _captures.indexWhere((item) => item.raw.id == captureId);
+    if (index == -1) {
+      return;
+    }
+    final current = _captures[index];
+    final currentStructured = current.analysis?.structuredContent;
+    if (currentStructured == null) {
+      return;
+    }
+    final run = current.analysis!;
+    _captures[index] = current.copyWith(
+      analysis: AnalysisRun(
+        id: run.id,
+        inputId: run.inputId,
+        normalizerVersion: run.normalizerVersion,
+        analyzerVersion: run.analyzerVersion,
+        status: run.status,
+        completedAt: run.completedAt,
+        evidence: run.evidence,
+        productMentions: run.productMentions,
+        statements: run.statements,
+        disclosure: run.disclosure,
+        failureCode: run.failureCode,
+        model: run.model,
+        startedAt: run.startedAt,
+        attempt: run.attempt,
+        structuredContent: currentStructured.withAxes(
+          currentStructured.axes.mergedWith(found),
+        ),
+      ),
+    );
     await _persistState();
     notifyListeners();
   }
