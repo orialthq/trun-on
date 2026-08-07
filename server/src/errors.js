@@ -18,6 +18,16 @@ export class OpenAITransportError extends Error {
   }
 }
 
+export class PlaceSearchTransportError extends Error {
+  constructor(kind, options = {}) {
+    super(kind, { cause: options.cause });
+    this.name = "PlaceSearchTransportError";
+    this.kind = kind;
+    this.upstreamStatus = options.upstreamStatus ?? null;
+    this.retryable = options.retryable ?? false;
+  }
+}
+
 export function normalizeError(error) {
   if (error instanceof AppError) {
     return error;
@@ -64,6 +74,37 @@ export function normalizeError(error) {
             retryable: error.retryable,
             cause: error,
           },
+        );
+    }
+  }
+
+  if (error instanceof PlaceSearchTransportError) {
+    // A place lookup that fails is not a failed capture: the caller falls back to
+    // a text map search, so these stay distinct from the analysis error codes.
+    switch (error.kind) {
+      case "timeout":
+        return new AppError(
+          "PLACE_SEARCH_TIMEOUT",
+          "장소를 찾는 데 시간이 오래 걸려요. 잠시 후 다시 시도해 주세요.",
+          { httpStatus: 504, retryable: true, cause: error },
+        );
+      case "rate_limited":
+        return new AppError(
+          "PLACE_SEARCH_RATE_LIMITED",
+          "장소 검색 요청이 많아요. 잠시 후 다시 시도해 주세요.",
+          { httpStatus: 429, retryable: true, cause: error },
+        );
+      case "authentication":
+        return new AppError(
+          "PLACE_SEARCH_NOT_CONFIGURED",
+          "장소 검색을 사용할 수 없어요.",
+          { httpStatus: 503, retryable: false, cause: error },
+        );
+      default:
+        return new AppError(
+          "PLACE_SEARCH_UNAVAILABLE",
+          "장소 검색에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.",
+          { httpStatus: 502, retryable: error.retryable, cause: error },
         );
     }
   }

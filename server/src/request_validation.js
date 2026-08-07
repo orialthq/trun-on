@@ -75,6 +75,34 @@ function hasExpectedMagicBytes(buffer, mimeType) {
   return false;
 }
 
+export function validateResolvePlaceRequest(body) {
+  if (!isPlainObject(body)) {
+    throw new AppError("INVALID_REQUEST", "요청 형식이 올바르지 않아요.", {
+      httpStatus: 400,
+    });
+  }
+  assertKeys(body, new Set(["name", "address"]), "요청");
+
+  const { name, address } = body;
+  validateOptionalString(name, "name", 120);
+  validateOptionalString(address, "address", 200);
+
+  const trimmedName = typeof name === "string" ? name.trim() : "";
+  const trimmedAddress = typeof address === "string" ? address.trim() : "";
+  if (trimmedName === "" && trimmedAddress === "") {
+    throw new AppError(
+      "INVALID_REQUEST",
+      "장소 이름이나 주소 중 하나는 필요해요.",
+      { httpStatus: 400 },
+    );
+  }
+
+  return {
+    name: trimmedName === "" ? null : trimmedName,
+    address: trimmedAddress === "" ? null : trimmedAddress,
+  };
+}
+
 export function validateAnalyzeRequest(
   body,
   { maxImageBytes = DEFAULT_MAX_IMAGE_BYTES } = {},

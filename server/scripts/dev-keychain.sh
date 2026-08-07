@@ -35,5 +35,19 @@ if [ -z "$OPENAI_API_KEY" ]; then
 fi
 
 export OPENAI_API_KEY
+
+# Optional. Without it the server still analyses captures; only the precise
+# place lookup behind /v1/resolve-place is disabled.
+if KAKAO_REST_API_KEY=$(
+  security find-generic-password \
+    -a "ori-beauty" \
+    -s "ori-beauty-kakao" \
+    -w 2>/dev/null
+) && [ -n "$KAKAO_REST_API_KEY" ]; then
+  export KAKAO_REST_API_KEY
+else
+  unset KAKAO_REST_API_KEY
+fi
+
 cd "$SERVER_DIR"
 exec node src/index.js

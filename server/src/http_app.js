@@ -8,16 +8,26 @@ import {
   SCHEMA_VERSION,
 } from "./constants.js";
 import { AppError, normalizeError } from "./errors.js";
-import { validateAnalyzeRequest } from "./request_validation.js";
+import {
+  validateAnalyzeRequest,
+  validateResolvePlaceRequest,
+} from "./request_validation.js";
 
 export function createHttpServer({
   analysisService,
+  placeResolutionService = null,
   maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
   maxImageBytes = DEFAULT_MAX_IMAGE_BYTES,
   bodyTimeoutMs = DEFAULT_BODY_TIMEOUT_MS,
 } = {}) {
   if (!analysisService || typeof analysisService.analyze !== "function") {
     throw new Error("An analysisService is required");
+  }
+  if (
+    placeResolutionService &&
+    typeof placeResolutionService.resolve !== "function"
+  ) {
+    throw new Error("A placeResolutionService must expose resolve()");
   }
 
   return createServer(async (request, response) => {
@@ -51,6 +61,32 @@ export function createHttpServer({
         const input = validateAnalyzeRequest(body, { maxImageBytes });
         const result = await analysisService.analyze(input);
         return sendJson(response, 200, result);
+      }
+
+      if (url.pathname === "/v1/resolve-place") {
+        if (request.method !== "POST") {
+          throw methodNotAllowed("POST");
+        }
+        if (!placeResolutionService) {
+          throw new AppError(
+            "PLACE_SEARCH_NOT_CONFIGURED",
+            "장소 검색을 사용할 수 없어요.",
+            { httpStatus: 503 },
+          );
+        }
+        assertJsonContentType(request.headers["content-type"]);
+        const body = await readJsonBody(request, {
+          maxBodyBytes: Math.min(maxBodyBytes, 8 * 1024),
+          timeoutMs: bodyTimeoutMs,
+        });
+        const input = validateResolvePlaceRequest(body);
+        const resolution = await placeResolutionService.resolve(input);
+        // A miss is a 200 with a null place. The client keeps its text search
+        // instead of pinning a coordinate nobody verified.
+        return sendJson(response, 200, {
+          place: resolution.place,
+          candidateCount: resolution.candidateCount,
+        });
       }
 
       throw new AppError("NOT_FOUND", "요청한 경로를 찾을 수 없어요.", {

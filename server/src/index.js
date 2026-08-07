@@ -1,6 +1,8 @@
 import { createAnalysisService } from "./analysis_service.js";
 import { createHttpServer } from "./http_app.js";
+import { createKakaoTransport } from "./kakao_transport.js";
 import { createOpenAITransport } from "./openai_transport.js";
+import { createPlaceResolutionService } from "./place_resolution_service.js";
 
 const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) {
@@ -11,7 +13,22 @@ if (!apiKey) {
 } else {
   const transport = createOpenAITransport({ apiKey });
   const analysisService = createAnalysisService({ transport });
-  const server = createHttpServer({ analysisService });
+
+  // Place resolution is optional: without a key the app still analyses captures
+  // and opens maps by text search.
+  const kakaoKey = process.env.KAKAO_REST_API_KEY;
+  const placeResolutionService = kakaoKey
+    ? createPlaceResolutionService({
+        transport: createKakaoTransport({ apiKey: kakaoKey }),
+      })
+    : null;
+  if (!placeResolutionService) {
+    console.warn(
+      "KAKAO_REST_API_KEY가 없어 장소 정밀 검색은 비활성화됩니다.",
+    );
+  }
+
+  const server = createHttpServer({ analysisService, placeResolutionService });
 
   const host = process.env.HOST || "127.0.0.1";
   const port = parsePort(process.env.PORT);
