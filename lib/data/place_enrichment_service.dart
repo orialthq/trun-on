@@ -30,8 +30,7 @@ final class RemotePlaceEnrichmentService implements PlaceEnrichmentService {
 
   static const _axisByField = {
     'kind': ContentAxis.kind,
-    'occasion': ContentAxis.occasion,
-    'priceRange': ContentAxis.priceRange,
+    'access': ContentAxis.access,
   };
 
   @override
@@ -86,14 +85,22 @@ final class RemotePlaceEnrichmentService implements PlaceEnrichmentService {
       for (final item in raw) {
         if (item is! Map<String, Object?>) continue;
         final value = item['value'];
-        final citation = item['citation'];
-        // A web label without a source is indistinguishable from a guess.
+        final quote = item['quote'];
+        final citations = item['citations'];
+        // A web label without a quoted sentence and a page to check it against
+        // is indistinguishable from a guess.
         if (value is! String ||
             !isValidContentSubcategory(value) ||
-            citation is! String ||
-            !citation.startsWith('https://')) {
+            quote is! String ||
+            quote.trim().isEmpty ||
+            citations is! List) {
           continue;
         }
+        final sources = citations
+            .whereType<String>()
+            .where((url) => url.startsWith('https://'))
+            .toList(growable: false);
+        if (sources.isEmpty) continue;
         final confidence = item['confidence'];
         parsed.add(
           AxisLabel(
@@ -103,7 +110,8 @@ final class RemotePlaceEnrichmentService implements PlaceEnrichmentService {
                 : 0.0,
             evidenceIds: const [],
             source: AxisLabelSource.web,
-            citation: citation,
+            quotes: [quote.trim()],
+            citations: sources,
           ),
         );
       }

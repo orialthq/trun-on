@@ -37,15 +37,16 @@ enum ContentFolder {
   needsClassification,
 }
 
+// `~` is allowed so a price band reads as 2~5만원 rather than 25만원.
 final _contentSubcategoryPattern = RegExp(
-  r'^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+\-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$',
+  r'^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+~\-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$',
 );
 
 /// Keeps AI and user-created subcategory names concise and safe to display.
 String normalizeContentSubcategory(String value) {
   final collapsed = value.trim().replaceAll(RegExp(r'\s+'), ' ');
   final sanitized = collapsed
-      .replaceAll(RegExp(r'[^0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ·ㆍ&/+\- ]'), '')
+      .replaceAll(RegExp(r'[^0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ·ㆍ&/+~\- ]'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
   if (sanitized.isEmpty) {
@@ -821,8 +822,7 @@ final class StructuredPlace {
 enum ContentAxis {
   kind('종류'),
   location('위치'),
-  occasion('상황'),
-  priceRange('가격대'),
+  access('예약·대기'),
   savedReason('저장이유');
 
   const ContentAxis(this.label);
@@ -847,7 +847,8 @@ final class AxisLabel {
     required this.confidence,
     required this.evidenceIds,
     this.source = AxisLabelSource.screen,
-    this.citation,
+    this.quotes = const [],
+    this.citations = const [],
   });
 
   factory AxisLabel.fromJson(Map<String, Object?> json, String field) {
@@ -855,7 +856,7 @@ final class AxisLabel {
       json,
       const {'value', 'confidence', 'evidenceIds'},
       field,
-      optional: const {'source', 'citation'},
+      optional: const {'source', 'quotes', 'citations'},
     );
     final value = _requiredString(json['value'], '$field.value');
     if (!isValidContentSubcategory(value)) {
@@ -870,7 +871,8 @@ final class AxisLabel {
         'web' => AxisLabelSource.web,
         _ => AxisLabelSource.screen,
       },
-      citation: _nullableString(json['citation'], '$field.citation'),
+      quotes: _optionalStringList(json['quotes'], '$field.quotes'),
+      citations: _optionalStringList(json['citations'], '$field.citations'),
     );
   }
 
@@ -879,16 +881,22 @@ final class AxisLabel {
   final List<String> evidenceIds;
   final AxisLabelSource source;
 
-  /// The page a web label came from. Required for [AxisLabelSource.web] and
-  /// null otherwise, because a screen label is backed by [evidenceIds] instead.
-  final String? citation;
+  /// The text this label was read from — menu lines on the screenshot, or the
+  /// sentence a web page stated. A label with nothing to quote is a guess, so
+  /// the server drops those before they arrive.
+  final List<String> quotes;
+
+  /// Pages a web label came from. Empty for a screen label, which is backed by
+  /// [evidenceIds] instead.
+  final List<String> citations;
 
   Map<String, Object?> toJson() => {
     'value': value,
     'confidence': confidence,
     'evidenceIds': evidenceIds,
     'source': source.name,
-    'citation': citation,
+    'quotes': quotes,
+    'citations': citations,
   };
 }
 
@@ -900,7 +908,7 @@ final class ContentAxes {
   factory ContentAxes.fromJson(Map<String, Object?> json) {
     _requireExactKeys(
       json,
-      const {'kind', 'location', 'occasion', 'priceRange', 'savedReason'},
+      const {'kind', 'location', 'access', 'savedReason'},
       'axes',
     );
     final labels = <ContentAxis, List<AxisLabel>>{};
@@ -1001,6 +1009,9 @@ final class StructuredContentAnalysis {
         declaredVersion == '1.2') {
       normalizedJson.putIfAbsent('axes', () => _legacyAxes(normalizedJson));
     }
+    if (declaredVersion != '1.5') {
+      normalizedJson['axes'] = _migratedAxes(normalizedJson['axes']);
+    }
     _requireExactKeys(normalizedJson, const {
       'schemaVersion',
       'model',
@@ -1027,7 +1038,7 @@ final class StructuredContentAnalysis {
       'analysis.schemaVersion',
     );
     final model = _requiredString(normalizedJson['model'], 'analysis.model');
-    if (!const {'1.0', '1.1', '1.2', '1.3'}.contains(schemaVersion) ||
+    if (!const {'1.0', '1.1', '1.2', '1.3', '1.4', '1.5'}.contains(schemaVersion) ||
         !const {'gpt-5.6-luna', 'portable-tip-v1'}.contains(model)) {
       throw const FormatException(
         'Structured analysis version or model is unsupported.',
@@ -1265,6 +1276,21 @@ String _stringAllowEmpty(Object? value, String field) {
   return value;
 }
 
+List<String> _optionalStringList(Object? value, String field) {
+  if (value == null) return const [];
+  if (value is! List) {
+    throw FormatException('Structured $field is invalid.');
+  }
+  return List.unmodifiable(
+    value.map((item) {
+      if (item is! String) {
+        throw FormatException('Structured $field is invalid.');
+      }
+      return item;
+    }),
+  );
+}
+
 String? _nullableString(Object? value, String field) {
   if (value == null) {
     return null;
@@ -1408,9 +1434,36 @@ Map<String, Object?> _legacyAxes(Map<String, Object?> json) {
   return {
     'kind': kind,
     'location': location,
-    'occasion': const <Map<String, Object?>>[],
-    'priceRange': const <Map<String, Object?>>[],
+    'access': const <Map<String, Object?>>[],
     'savedReason': const <Map<String, Object?>>[],
+  };
+}
+
+/// Carries a stored capture across every axis change so far.
+///
+/// 상황 and 가격대 went in 1.4, 인원 in 1.5. Each was dropped rather than
+/// remapped: nothing in a 데이트, a 2~5만원, or a 단체 가능 says whether the place
+/// takes bookings. Retired labels are discarded and any new axis starts empty,
+/// filling on the next web lookup.
+///
+/// 인원 in particular was not wrong, it was useless — 단체 가능 came back true for
+/// all ten shops it was measured on, and a label on every card cannot filter.
+///
+/// Dropping beats refusing to load. A capture the reader saved is theirs, and
+/// losing its title and photo to a schema change they never asked for would be
+/// the worse failure.
+Map<String, Object?> _migratedAxes(Object? stored) {
+  const empty = <Map<String, Object?>>[];
+  if (stored is! Map<String, Object?>) {
+    return {
+      'kind': empty,
+      'location': empty,
+      'access': empty,
+      'savedReason': empty,
+    };
+  }
+  return {
+    for (final axis in ContentAxis.values) axis.name: stored[axis.name] ?? empty,
   };
 }
 

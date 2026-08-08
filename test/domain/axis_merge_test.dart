@@ -9,7 +9,8 @@ AxisLabel _web(String value) => AxisLabel(
   confidence: 0.8,
   evidenceIds: const [],
   source: AxisLabelSource.web,
-  citation: 'https://example.com/$value',
+  quotes: ['$value 라고 적힌 문장'],
+  citations: ['https://example.com/$value'],
 );
 
 void main() {
@@ -21,17 +22,16 @@ void main() {
     );
     final web = ContentAxes(
       labels: {
-        ContentAxis.priceRange: [_web('2만원대')],
-        ContentAxis.occasion: [_web('데이트')],
-      },
+        ContentAxis.access: [_web('예약 필수')],
+              },
     );
 
     final merged = screen.mergedWith(web);
 
-    expect(merged[ContentAxis.priceRange].single.value, '2만원대');
-    expect(merged[ContentAxis.priceRange].single.source, AxisLabelSource.web);
-    expect(merged[ContentAxis.priceRange].single.citation, isNotNull);
-    expect(merged[ContentAxis.occasion].single.value, '데이트');
+    expect(merged[ContentAxis.access].single.value, '예약 필수');
+    expect(merged[ContentAxis.access].single.source, AxisLabelSource.web);
+    expect(merged[ContentAxis.access].single.citations, isNotEmpty);
+    expect(merged[ContentAxis.access].single.quotes, isNotEmpty);
   });
 
   test('a web label extends an axis the screenshot already used', () {
@@ -85,22 +85,23 @@ void main() {
     final merged = screen.mergedWith(const ContentAxes.empty());
 
     expect(merged[ContentAxis.kind].single.value, '파스타');
-    expect(merged[ContentAxis.priceRange], isEmpty);
+    expect(merged[ContentAxis.access], isEmpty);
   });
 
   test('a merged web label survives a snapshot round-trip', () {
     final merged = const ContentAxes.empty().mergedWith(
       ContentAxes(
         labels: {
-          ContentAxis.priceRange: [_web('2만원대')],
+          ContentAxis.access: [_web('예약 필수')],
         },
       ),
     );
 
     final restored = ContentAxes.fromJson(merged.toJson());
-    final label = restored[ContentAxis.priceRange].single;
+    final label = restored[ContentAxis.access].single;
 
     expect(label.source, AxisLabelSource.web);
-    expect(label.citation, 'https://example.com/2만원대');
+    expect(label.citations, ['https://example.com/예약 필수']);
+    expect(label.quotes, ['예약 필수 라고 적힌 문장']);
   });
 }

@@ -1,4 +1,10 @@
 import { createAnalysisService } from "./analysis_service.js";
+import {
+  DEEPSEEK_BASE_URL,
+  DEEPSEEK_MODEL,
+  DEEPSEEK_TIMEOUT_MS,
+  MODEL,
+} from "./constants.js";
 import { createEnrichmentService } from "./enrichment_service.js";
 import { createHttpServer } from "./http_app.js";
 import { createKakaoTransport } from "./kakao_transport.js";
@@ -14,7 +20,38 @@ if (!apiKey) {
 } else {
   const transport = createOpenAITransport({ apiKey });
   const analysisService = createAnalysisService({ transport });
-  const enrichmentService = createEnrichmentService({ transport });
+
+  // The place lookup runs in two halves. Retrieval has to stay on this model
+  // because it is the one whose search index reaches Korean listing sites — the
+  // cheaper alternative returns Chinese travel pages for a Seoul restaurant.
+  //
+  // Judgment stays here too, which is not what the cheaper model was wired in
+  // for. Measured on nine shops, three runs each, with identical excerpts:
+  // reproducibility tied at 7/9 and every quote was real on both, but this model
+  // answered in 2.6s against 19.4s and cost $0.0006 against $0.0009. The cheaper
+  // per-token rate loses because it spends 2,241 reasoning tokens where this one
+  // spends 113. Judgment is also only ~3% of the tokens a lookup uses; retrieval
+  // is the other 97%, so the model choice here could not move the bill much
+  // either way.
+  //
+  // The wiring stays because the comparison is worth repeating on other axes,
+  // where a long structured answer might change the arithmetic. One env var.
+  const judgeElsewhere =
+    process.env.TRUN_ON_JUDGE_DEEPSEEK === "1" && process.env.DEEPSEEK_API_KEY;
+  const enrichmentModel = judgeElsewhere ? DEEPSEEK_MODEL : MODEL;
+  const enrichmentService = createEnrichmentService({
+    retrievalTransport: transport,
+    retrievalModel: MODEL,
+    judgmentTransport: judgeElsewhere
+      ? createOpenAITransport({
+          apiKey: process.env.DEEPSEEK_API_KEY,
+          baseUrl: DEEPSEEK_BASE_URL,
+          timeoutMs: DEEPSEEK_TIMEOUT_MS,
+        })
+      : transport,
+    judgmentModel: enrichmentModel,
+  });
+  console.log(`장소 보강 — 수집 ${MODEL} / 판단 ${enrichmentModel}`);
 
   // Place resolution is optional: without a key the app still analyses captures
   // and opens maps by text search.
@@ -34,6 +71,7 @@ if (!apiKey) {
     analysisService,
     enrichmentService,
     placeResolutionService,
+    enrichmentModel,
   });
 
   const host = process.env.HOST || "127.0.0.1";

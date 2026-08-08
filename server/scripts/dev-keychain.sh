@@ -36,6 +36,20 @@ fi
 
 export OPENAI_API_KEY
 
+# Optional. With it the place lookup runs on DeepSeek instead of the analysis
+# model; without it both passes share one provider. The screenshot pass never
+# moves — DeepSeek drops image input silently rather than erroring.
+if DEEPSEEK_API_KEY=$(
+  security find-generic-password \
+    -a "ori-beauty" \
+    -s "ori-beauty-deepseek" \
+    -w 2>/dev/null
+) && [ -n "$DEEPSEEK_API_KEY" ]; then
+  export DEEPSEEK_API_KEY
+else
+  unset DEEPSEEK_API_KEY
+fi
+
 # Optional. Without it the server still analyses captures; only the precise
 # place lookup behind /v1/resolve-place is disabled.
 if KAKAO_REST_API_KEY=$(

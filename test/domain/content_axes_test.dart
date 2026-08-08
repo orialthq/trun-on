@@ -8,7 +8,7 @@ Map<String, Object?> _label(String value, {double confidence = 0.9}) => {
 };
 
 Map<String, Object?> _analysis({
-  String schemaVersion = '1.3',
+  String schemaVersion = '1.5',
   Map<String, Object?>? axes,
   Map<String, Object?>? place,
 }) => {
@@ -54,8 +54,7 @@ void main() {
         axes: {
           'kind': [_label('파스타'), _label('와인바', confidence: 0.6)],
           'location': [_label('성수')],
-          'occasion': [_label('데이트', confidence: 0.5)],
-          'priceRange': const <Map<String, Object?>>[],
+          'access': [_label('예약 필수', confidence: 0.5)],
           'savedReason': const <Map<String, Object?>>[],
         },
       ),
@@ -67,7 +66,7 @@ void main() {
       ['파스타', '와인바'],
     );
     expect(analysis.axes[ContentAxis.location].single.value, '성수');
-    expect(analysis.axes[ContentAxis.priceRange], isEmpty);
+    expect(analysis.axes[ContentAxis.access].single.value, '예약 필수');
     expect(analysis.axes.isEmpty, isFalse);
   });
 
@@ -77,8 +76,7 @@ void main() {
         axes: {
           'kind': [_label('파스타'), _label('파스타', confidence: 0.4)],
           'location': const <Map<String, Object?>>[],
-          'occasion': const <Map<String, Object?>>[],
-          'priceRange': const <Map<String, Object?>>[],
+          'access': const <Map<String, Object?>>[],
           'savedReason': const <Map<String, Object?>>[],
         },
       ),
@@ -94,9 +92,8 @@ void main() {
           axes: {
             'kind': [_label('파스타 #맛집 🍝')],
             'location': const <Map<String, Object?>>[],
-            'occasion': const <Map<String, Object?>>[],
-            'priceRange': const <Map<String, Object?>>[],
-            'savedReason': const <Map<String, Object?>>[],
+            'access': const <Map<String, Object?>>[],
+              'savedReason': const <Map<String, Object?>>[],
           },
         ),
       ),
@@ -111,9 +108,8 @@ void main() {
           axes: {
             'kind': [_label('파스타')],
             'location': const <Map<String, Object?>>[],
-            'occasion': const <Map<String, Object?>>[],
-            'priceRange': const <Map<String, Object?>>[],
-            'mood': const <Map<String, Object?>>[],
+            'access': const <Map<String, Object?>>[],
+              'mood': const <Map<String, Object?>>[],
           },
         ),
       ),
@@ -140,9 +136,31 @@ void main() {
     // becomes the one location label. Nothing else is invented.
     expect(analysis.axes[ContentAxis.kind].single.value, '파스타');
     expect(analysis.axes[ContentAxis.location].single.value, '성수');
-    expect(analysis.axes[ContentAxis.occasion], isEmpty);
-    expect(analysis.axes[ContentAxis.priceRange], isEmpty);
+    expect(analysis.axes[ContentAxis.access], isEmpty);
     expect(analysis.axes[ContentAxis.savedReason], isEmpty);
+  });
+
+  test('a capture stored under retired axes still opens', () {
+    // 상황 and 가격대 went in 1.4, 인원 in 1.5. A reader's saved capture must
+    // survive every one of those: retired labels are dropped, everything else is
+    // kept, and a new axis starts empty until the next web lookup fills it.
+    final analysis = StructuredContentAnalysis.fromJson(
+      _analysis(
+        schemaVersion: '1.3',
+        axes: {
+          'kind': [_label('파스타')],
+          'location': [_label('성수')],
+          'occasion': [_label('데이트')],
+          'priceRange': [_label('2~5만원')],
+          'seating': [_label('단체 가능')],
+          'savedReason': const <Map<String, Object?>>[],
+        },
+      ),
+    );
+
+    expect(analysis.axes[ContentAxis.kind].single.value, '파스타');
+    expect(analysis.axes[ContentAxis.location].single.value, '성수');
+    expect(analysis.axes[ContentAxis.access], isEmpty);
   });
 
   test('leaves location empty for a legacy capture with no place', () {
@@ -160,8 +178,7 @@ void main() {
         axes: {
           'kind': [_label('파스타'), _label('와인바')],
           'location': [_label('성수')],
-          'occasion': const <Map<String, Object?>>[],
-          'priceRange': const <Map<String, Object?>>[],
+          'access': const <Map<String, Object?>>[],
           'savedReason': const <Map<String, Object?>>[],
         },
       ),

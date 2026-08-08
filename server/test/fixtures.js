@@ -35,9 +35,6 @@ export function makeValidAnalysis(overrides = {}) {
     axes: {
       kind: [],
       location: [],
-      occasion: [],
-      priceRange: [],
-      savedReason: [],
     },
     completeness: "partial",
     title: {

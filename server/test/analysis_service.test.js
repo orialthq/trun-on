@@ -47,7 +47,7 @@ test("builds the stateless original-detail Luna request and parses output", asyn
   assert.equal(result.subcategoryConfidence, 0.95);
   assert.equal(capturedBody.model, MODEL);
   assert.equal(capturedBody.store, false);
-  assert.deepEqual(capturedBody.reasoning, { effort: "low" });
+  assert.deepEqual(capturedBody.reasoning, { effort: "medium" });
   assert.equal(capturedBody.input[0].content[1].detail, "original");
   assert.equal(
     capturedBody.input[0].content[1].image_url,
@@ -202,9 +202,6 @@ test("routes a semantically mismatched place category to user review", async () 
     axes: {
       kind: [],
       location: [],
-      occasion: [],
-      priceRange: [],
-      savedReason: [],
     },
     completeness: "complete",
     place: {

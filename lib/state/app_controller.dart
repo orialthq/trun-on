@@ -10,6 +10,7 @@ import '../data/incoming_share_service.dart';
 import '../data/portable_tip_importer.dart';
 import '../data/portable_tip_service.dart';
 import '../data/place_enrichment_service.dart';
+import '../data/place_map_links.dart';
 import '../data/remote_content_analysis_service.dart';
 import '../domain/models.dart';
 import '../domain/portable_tip_package.dart';
@@ -582,9 +583,17 @@ final class AppController extends ChangeNotifier {
       return;
     }
 
+    // The same 상호명 + 지역 the map opens with, so a capture is looked up under
+    // the words it would be searched with, including the area derived from an
+    // address when the screenshot named no area of its own.
+    final links = PlaceMapLinks.fromPlace(
+      name: placeName,
+      address: structured.place?.address,
+      searchArea: structured.place?.searchArea,
+    );
     final found = await _placeEnrichmentService.enrich(
       name: placeName,
-      searchArea: structured.place?.searchArea,
+      searchArea: links?.area,
     );
     if (found.isEmpty) {
       return;

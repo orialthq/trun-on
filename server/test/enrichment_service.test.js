@@ -2,175 +2,411 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createEnrichmentService } from "../src/enrichment_service.js";
 
-function transportReturning(payload) {
-  const requests = [];
+/// A retrieval reply carries a search tool; a judgment reply does not. The fakes
+/// below answer whichever half asked, and record both so a test can assert that
+/// judgment never ran.
+function transportFor({ retrieval = [], judgment = null } = {}) {
+  const retrievals = [];
+  const judgments = [];
+  let index = 0;
   return {
-    requests,
+    retrievals,
+    judgments,
     transport: {
       async createResponse(body) {
-        requests.push(body);
-        return { status: "completed", output_text: JSON.stringify(payload) };
+        const isRetrieval = Array.isArray(body.tools) && body.tools.length > 0;
+        if (isRetrieval) {
+          retrievals.push(body);
+          const reply = retrieval[Math.min(index++, retrieval.length - 1)] ?? {
+            listings: [],
+            excerpts: [],
+          };
+          return { status: "completed", output_text: JSON.stringify(reply) };
+        }
+        judgments.push(body);
+        if (judgment === null) {
+          return { status: "completed", output_text: "찾지 못했습니다." };
+        }
+        return {
+          status: "completed",
+          output_text:
+            typeof judgment === "string" ? judgment : JSON.stringify(judgment),
+        };
       },
     },
   };
 }
 
-const cited = (value, citation = "https://example.com/a") => ({
+const listing = (nameOnPage, url = "https://www.diningcode.com/profile.php?rid=A") => ({
+  url,
+  nameOnPage,
+  addressOnPage: null,
+});
+const excerpt = (text, url = "https://www.diningcode.com/profile.php?rid=A") => ({
+  url,
+  text,
+});
+const label = (value, quote, citations, confidence = 0.8) => ({
+  quote,
   value,
-  confidence: 0.8,
-  citation,
+  confidence,
+  citations,
 });
 
-test("searches the shop name with its area and enables web search", async () => {
-  const { requests, transport } = transportReturning({
-    matchedName: "페스카데리아",
-    kind: [cited("파스타")],
-    occasion: [],
-    priceRange: [cited("3만원대 이상")],
+const enrich = (setup, input = { name: "가게", searchArea: "성수" }) => {
+  const made = transportFor(setup);
+  return { made, result: createEnrichmentService({ transport: made.transport }).enrich(input) };
+};
+
+test("every probe runs, and each carries the shop name with its area", async () => {
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("예약 가능")] }],
   });
 
-  const result = await createEnrichmentService({ transport }).enrich({
-    name: "페스카데리아",
-    searchArea: "성수",
-  });
-
-  const request = requests[0];
-  assert.equal(request.tools[0].type, "web_search");
-  assert.equal(request.store, false);
-  assert.match(JSON.stringify(request.input), /페스카데리아 성수/);
-  assert.equal(result.priceRange[0].value, "3만원대 이상");
-  assert.equal(result.matchedName, "페스카데리아");
-});
-
-test("drops a label with no citation", async () => {
-  const { transport } = transportReturning({
-    matchedName: null,
-    kind: [{ value: "파스타", confidence: 0.9 }],
-    occasion: [],
-    priceRange: [],
-  });
-
-  const result = await createEnrichmentService({ transport }).enrich({
+  await createEnrichmentService({ transport: made.transport }).enrich({
     name: "가게",
     searchArea: "성수",
   });
 
-  // A label nobody can check is indistinguishable from a guess.
-  assert.deepEqual(result.kind, []);
+  // Three probes: the listing sites, the booking platforms, and the open web.
+  assert.equal(made.retrievals.length, 3);
+  for (const body of made.retrievals) {
+    assert.match(JSON.stringify(body.input), /가게 성수/);
+    assert.equal(body.tools[0].type, "web_search");
+  }
+  const restricted = made.retrievals.filter((b) => b.tools[0].filters);
+  assert.equal(restricted.length, 2);
 });
 
-test("drops a citation that is not https", async () => {
-  const { transport } = transportReturning({
-    matchedName: null,
-    kind: [cited("파스타", "http://example.com/a")],
-    occasion: [],
-    priceRange: [],
+test("retrieval asks for sentences and never for a label", async () => {
+  const made = transportFor({ retrieval: [{ listings: [], excerpts: [] }] });
+
+  await createEnrichmentService({ transport: made.transport }).enrich({ name: "가게" });
+
+  const instructions = made.retrievals[0].instructions;
+  assert.match(instructions, /You retrieve\. You do not interpret\./);
+  // The axis vocabulary must not leak into the retrieval half, or it starts
+  // deciding and the split stops meaning anything.
+  assert.doesNotMatch(instructions, /예약 필수|웨이팅 있음/);
+});
+
+test("an unresolvable shop is never judged", async () => {
+  // The listing is a different restaurant. Attaching its hours to this capture
+  // is the one failure worse than having no hours, so the lookup stops here.
+  const made = transportFor({
+    retrieval: [{ listings: [listing("샐몬 무쌉")], excerpts: [excerpt("예약 가능")] }],
+    judgment: { matchedName: "샐몬 무쌉", kind: [], access: [label("예약 가능", "예약 가능", ["https://www.diningcode.com/profile.php?rid=A"])] },
   });
 
-  const result = await createEnrichmentService({ transport }).enrich({
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
+    name: "방콕테이블",
+    searchArea: "용산구",
+  });
+
+  assert.equal(made.judgments.length, 0);
+  assert.equal(result.matchedName, null);
+  assert.deepEqual(result.access, []);
+});
+
+test("branch spellings of one shop resolve to that shop", async () => {
+  const made = transportFor({
+    retrieval: [
+      {
+        listings: [listing("하동관"), listing("하동관 본점"), listing("하동관 명동본점")],
+        excerpts: [excerpt("편의시설 Take out, 예약 가능, 주차장 있음")],
+      },
+    ],
+    judgment: {
+      matchedName: "하동관",
+      kind: [],
+      access: [
+        label("예약 가능", "편의시설 Take out, 예약 가능, 주차장 있음", [
+          "https://www.diningcode.com/profile.php?rid=A",
+        ]),
+      ],
+    },
+  });
+
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
+    name: "하동관",
+    searchArea: "명동",
+  });
+
+  // Three retrievals, one judgment: the probes fan out, the decision does not.
+  assert.equal(made.retrievals.length, 3);
+  assert.equal(made.judgments.length, 1);
+  assert.equal(result.access[0].value, "예약 가능");
+});
+
+test("the judging half is handed sentences and no search tool", async () => {
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("예약 가능")] }],
+    judgment: { matchedName: "가게", kind: [], access: [] },
+  });
+
+  await createEnrichmentService({ transport: made.transport }).enrich({ name: "가게" });
+
+  const body = made.judgments[0];
+  assert.equal(body.tools, undefined);
+  assert.match(JSON.stringify(body.input), /예약 가능/);
+  // Thinking stays on: with it off, three runs of one bundle agreed a quarter of
+  // the time and the forbidden 웨이팅 cases came back.
+  assert.equal(body.reasoning.effort, "low");
+});
+
+test("a quote that is not in the excerpts is dropped", async () => {
+  // The retrieval half is the record of what the pages said. A label quoting
+  // something that is not in it invented its evidence.
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("영업시간: 11:00 - 22:00")] }],
+    judgment: {
+      matchedName: "가게",
+      kind: [],
+      access: [label("예약 필수", "예약은 필수입니다", ["https://www.diningcode.com/profile.php?rid=A"])],
+    },
+  });
+
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
     name: "가게",
   });
 
-  assert.deepEqual(result.kind, []);
+  assert.deepEqual(result.access, []);
 });
 
-test("drops a label that is not a reusable phrase", async () => {
-  const { transport } = transportReturning({
-    matchedName: null,
-    kind: [cited("페스카데리아 #성수맛집 🍝")],
-    occasion: [cited("데이트")],
-    priceRange: [],
+test("a citation the retrieval half never returned is not a source", async () => {
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("예약 가능")] }],
+    judgment: {
+      matchedName: "가게",
+      kind: [],
+      access: [label("예약 가능", "예약 가능", ["https://invented.example.com/1"])],
+    },
   });
 
-  const result = await createEnrichmentService({ transport }).enrich({
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
     name: "가게",
   });
 
-  assert.deepEqual(result.kind, []);
-  assert.equal(result.occasion[0].value, "데이트");
+  assert.deepEqual(result.access, []);
 });
 
-test("keeps one of a repeated label and bounds the count", async () => {
-  const { transport } = transportReturning({
-    matchedName: null,
-    kind: [cited("파스타"), cited("파스타"), cited("와인바")],
-    occasion: Array.from({ length: 9 }, (_, index) => cited(`상황${index}`)),
-    priceRange: [],
+test("a value outside the closed vocabulary is dropped", async () => {
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("워크인 환영")] }],
+    judgment: {
+      matchedName: "가게",
+      kind: [],
+      access: [label("워크인 환영", "워크인 환영", ["https://www.diningcode.com/profile.php?rid=A"])],
+    },
   });
 
-  const result = await createEnrichmentService({ transport }).enrich({
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
+    name: "가게",
+  });
+
+  assert.deepEqual(result.access, []);
+});
+
+test("one place cannot both require and refuse a booking", async () => {
+  const url = "https://www.diningcode.com/profile.php?rid=A";
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("예약제"), excerpt("예약을 받지 않습니다")] }],
+    judgment: {
+      matchedName: "가게",
+      kind: [],
+      access: [label("예약 필수", "예약제", [url]), label("예약 없이", "예약을 받지 않습니다", [url])],
+    },
+  });
+
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
     name: "가게",
   });
 
   assert.deepEqual(
-    result.kind.map((label) => label.value),
-    ["파스타", "와인바"],
+    result.access.map((entry) => entry.value),
+    ["예약 필수"],
   );
-  assert.equal(result.occasion.length, 4);
 });
 
-test("an unidentified place is an empty answer, not an error", async () => {
-  const { transport } = transportReturning({
-    matchedName: null,
-    kind: [],
-    occasion: [],
-    priceRange: [],
+test("bookings and a queue can both be true of one place", async () => {
+  const url = "https://www.diningcode.com/profile.php?rid=A";
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("네이버 예약 가능"), excerpt("늘 줄이 길다")] }],
+    judgment: {
+      matchedName: "가게",
+      kind: [],
+      access: [label("예약 가능", "네이버 예약 가능", [url]), label("웨이팅 있음", "늘 줄이 길다", [url])],
+    },
   });
 
-  const result = await createEnrichmentService({ transport }).enrich({
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
+    name: "가게",
+  });
+
+  assert.deepEqual(
+    result.access.map((entry) => entry.value),
+    ["예약 가능", "웨이팅 있음"],
+  );
+});
+
+test("a page on a booking platform settles the booking question in code", async () => {
+  // Its existence is the evidence. Asking a model to read a sentence about it
+  // would only add a way to get it wrong.
+  const made = transportFor({
+    retrieval: [
+      {
+        listings: [listing("화육계", "https://www.tabling.co.kr/restaurant/4576")],
+        excerpts: [excerpt("단체석 구비", "https://www.siksinhot.com/P/1")],
+      },
+    ],
+    judgment: { matchedName: "화육계", kind: [], access: [] },
+  });
+
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
+    name: "화육계",
+    searchArea: "을지로",
+  });
+
+  assert.equal(result.access[0].value, "예약 가능");
+  assert.deepEqual(result.access[0].citations, ["https://www.tabling.co.kr/restaurant/4576"]);
+});
+
+test("a booking platform page never downgrades a stated 예약 필수", async () => {
+  const made = transportFor({
+    retrieval: [
+      {
+        listings: [listing("가게", "https://www.catchtable.co.kr/place/1")],
+        excerpts: [excerpt("예약제로 운영합니다", "https://www.diningcode.com/profile.php?rid=A")],
+      },
+    ],
+    judgment: {
+      matchedName: "가게",
+      kind: [],
+      access: [
+        label("예약 필수", "예약제로 운영합니다", ["https://www.diningcode.com/profile.php?rid=A"]),
+      ],
+    },
+  });
+
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
+    name: "가게",
+  });
+
+  assert.deepEqual(
+    result.access.map((entry) => entry.value),
+    ["예약 필수"],
+  );
+});
+
+test("an answer buried in narration and a fence is still read", async () => {
+  const url = "https://www.diningcode.com/profile.php?rid=A";
+  const answer = {
+    matchedName: "가게",
+    kind: [],
+    access: [label("예약 없이", "예약을 받지 않습니다", [url])],
+  };
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("예약을 받지 않습니다")] }],
+    judgment: `알겠습니다. 정리하겠습니다.\n\n\`\`\`json\n${JSON.stringify(answer)}\n\`\`\``,
+  });
+
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
+    name: "가게",
+  });
+
+  assert.equal(result.access[0].value, "예약 없이");
+});
+
+test("a judging reply with no object at all is retried once", async () => {
+  const url = "https://www.diningcode.com/profile.php?rid=A";
+  const answer = {
+    matchedName: "가게",
+    kind: [],
+    access: [label("예약 가능", "예약 가능", [url])],
+  };
+  let judgments = 0;
+  const transport = {
+    async createResponse(body) {
+      if (Array.isArray(body.tools) && body.tools.length > 0) {
+        return {
+          status: "completed",
+          output_text: JSON.stringify({
+            listings: [listing("가게")],
+            excerpts: [excerpt("예약 가능")],
+          }),
+        };
+      }
+      judgments++;
+      // Prose with no object the first time, the answer on the retry.
+      if (judgments === 1) {
+        return { status: "completed", output_text: "확인 중입니다." };
+      }
+      return { status: "completed", output_text: JSON.stringify(answer) };
+    },
+  };
+
+  const result = await createEnrichmentService({ transport }).enrich({ name: "가게" });
+
+  assert.ok(judgments >= 2, "재시도가 있어야 한다");
+  assert.equal(result.access[0].value, "예약 가능");
+});
+
+test("a shop with no excerpts is an empty answer, not an error", async () => {
+  const made = transportFor({ retrieval: [{ listings: [], excerpts: [] }] });
+
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
     name: "존재하지않는가게",
-    searchArea: "성수",
   });
 
-  assert.deepEqual(result, {
-    matchedName: null,
-    kind: [],
-    occasion: [],
-    priceRange: [],
-  });
+  assert.deepEqual(result, { matchedName: null, kind: [], access: [] });
+  assert.equal(made.judgments.length, 0);
 });
 
-test("skips the call entirely without a name", async () => {
-  const { requests, transport } = transportReturning({});
+test("skips every call without a name", async () => {
+  const made = transportFor({ retrieval: [{ listings: [], excerpts: [] }] });
 
-  const result = await createEnrichmentService({ transport }).enrich({
+  const result = await createEnrichmentService({ transport: made.transport }).enrich({
     name: "   ",
     searchArea: "성수",
   });
 
-  assert.equal(requests.length, 0);
+  assert.equal(made.retrievals.length, 0);
   assert.deepEqual(result.kind, []);
 });
 
-test("reads the message item when output_text is absent", async () => {
-  const transport = {
-    async createResponse() {
-      return {
-        status: "completed",
-        output: [
-          { type: "web_search_call", status: "completed" },
-          {
-            type: "message",
-            content: [
-              {
-                type: "output_text",
-                text: JSON.stringify({
-                  matchedName: "가게",
-                  kind: [cited("파스타")],
-                  occasion: [],
-                  priceRange: [],
-                }),
-              },
-            ],
-          },
-        ],
-      };
+test("the judging half can run on a different provider", async () => {
+  const retrieval = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("예약 가능")] }],
+  });
+  const judgments = [];
+  const judgment = {
+    async createResponse(body) {
+      judgments.push(body);
+      return { status: "completed", output_text: JSON.stringify({ matchedName: "가게", kind: [], access: [] }) };
     },
   };
 
-  const result = await createEnrichmentService({ transport }).enrich({
-    name: "가게",
+  await createEnrichmentService({
+    retrievalTransport: retrieval.transport,
+    retrievalModel: "gpt-5.6-luna",
+    judgmentTransport: judgment,
+    judgmentModel: "deepseek-v4-flash",
+  }).enrich({ name: "가게" });
+
+  assert.equal(retrieval.retrievals[0].model, "gpt-5.6-luna");
+  assert.equal(judgments[0].model, "deepseek-v4-flash");
+});
+
+test("the same sentence from two probes is stored once", async () => {
+  const made = transportFor({
+    retrieval: [
+      { listings: [listing("가게")], excerpts: [excerpt("예약 가능"), excerpt("예약 가능")] },
+    ],
+    judgment: { matchedName: "가게", kind: [], access: [] },
   });
 
-  assert.equal(result.kind[0].value, "파스타");
+  await createEnrichmentService({ transport: made.transport }).enrich({ name: "가게" });
+
+  const handed = JSON.stringify(made.judgments[0].input);
+  assert.equal(handed.split("예약 가능").length - 1, 1);
 });

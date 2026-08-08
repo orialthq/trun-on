@@ -170,11 +170,11 @@ void main() {
       ),
     );
 
-    final byPrice = Map.fromEntries(groupBy(ContentAxis.priceRange, [item]));
+    final byAccess = Map.fromEntries(groupBy(ContentAxis.access, [item]));
 
     // Nothing vanishes when an axis has nothing to say about it.
-    expect(byPrice.keys, ['분류 필요']);
-    expect(byPrice['분류 필요']!.single.title, '오스테리아 초이');
+    expect(byAccess.keys, ['분류 필요']);
+    expect(byAccess['분류 필요']!.single.title, '오스테리아 초이');
   });
 
   test('a user correction leads the kind axis', () {

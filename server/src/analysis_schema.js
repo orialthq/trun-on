@@ -27,7 +27,14 @@ const strictObject = (properties) => ({
 });
 
 const LABEL_PATTERN =
-  "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$";
+  "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋~-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$";
+
+const labelValue = {
+  type: "string",
+  minLength: 2,
+  maxLength: 20,
+  pattern: LABEL_PATTERN,
+};
 
 /// One axis of the saved library. A capture may carry several labels on the same
 /// axis, so a pasta place that also pours wine reaches the reader from either
@@ -35,13 +42,25 @@ const LABEL_PATTERN =
 const axisLabels = {
   type: "array",
   maxItems: 8,
+  items: strictObject({ value: labelValue, confidence, evidenceIds }),
+};
+
+/// The kind axis lists what it saw before naming what it is.
+///
+/// Structured output is generated in schema order, so putting the observations
+/// first makes the model read the menu and then decide, instead of choosing a
+/// label and justifying it afterwards. It also shows the reader the basis, which
+/// is the only way to tell a menu-grounded label from one guessed off a shop name.
+const kindLabels = {
+  type: "array",
+  maxItems: 8,
   items: strictObject({
-    value: {
-      type: "string",
-      minLength: 2,
-      maxLength: 20,
-      pattern: LABEL_PATTERN,
+    observations: {
+      type: "array",
+      maxItems: 12,
+      items: { type: "string", minLength: 1, maxLength: 80 },
     },
+    value: labelValue,
     confidence,
     evidenceIds,
   }),
@@ -94,15 +113,17 @@ export const ANALYSIS_SCHEMA = {
       minLength: 2,
       maxLength: 20,
       pattern:
-        "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$",
+        "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋~-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$",
     },
     subcategoryConfidence: confidence,
+    // savedReason is absent on purpose: why a person kept something lives in
+    // their head, so the model has nothing to read and the user fills it later.
+    // A screenshot shows what a place is and roughly where. Whether it takes
+    // bookings, or seats a group, is almost never on the picture — those axes
+    // are filled by the web pass instead of guessed from a caption.
     axes: strictObject({
-      kind: axisLabels,
+      kind: kindLabels,
       location: axisLabels,
-      occasion: axisLabels,
-      priceRange: axisLabels,
-      savedReason: axisLabels,
     }),
     completeness: {
       type: "string",

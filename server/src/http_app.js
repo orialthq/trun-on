@@ -18,6 +18,9 @@ export function createHttpServer({
   analysisService,
   enrichmentService = null,
   placeResolutionService = null,
+  // Reported by /health so a comparison run can confirm which provider answered
+  // rather than inferring it from the labels.
+  enrichmentModel = MODEL,
   maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
   maxImageBytes = DEFAULT_MAX_IMAGE_BYTES,
   bodyTimeoutMs = DEFAULT_BODY_TIMEOUT_MS,
@@ -51,6 +54,7 @@ export function createHttpServer({
           service: "ori-capture-analysis",
           schemaVersion: SCHEMA_VERSION,
           model: MODEL,
+          enrichmentModel,
         });
       }
 
@@ -65,6 +69,13 @@ export function createHttpServer({
         });
         const input = validateAnalyzeRequest(body, { maxImageBytes });
         const result = await analysisService.analyze(input);
+        if (process.env.TRUN_ON_DEBUG_LOG === "1") {
+          console.log(
+            `[analyze] place=${result.place.name ?? "-"} ` +
+              `area=${result.place.searchArea ?? "-"} ` +
+              `kind=${result.axes.kind.map((l) => l.value).join("|") || "-"}`,
+          );
+        }
         return sendJson(response, 200, result);
       }
 
@@ -87,7 +98,18 @@ export function createHttpServer({
         const input = validateEnrichPlaceRequest(body);
         // Empty axes are a normal answer, so this is always a 200 when the
         // lookup ran at all.
-        return sendJson(response, 200, await enrichmentService.enrich(input));
+        const enriched = await enrichmentService.enrich(input);
+        if (process.env.TRUN_ON_DEBUG_LOG === "1") {
+          // Opt-in and local only. Logs what was asked and how many labels came
+          // back, never the page contents.
+          console.log(
+            `[enrich] "${input.name} ${input.searchArea ?? ""}".trim() ` +
+              `matched=${enriched.matchedName ?? "-"} ` +
+              `kind=${enriched.kind.length} ` +
+              `access=${enriched.access.map((l) => l.value).join("|") || "-"}`,
+          );
+        }
+        return sendJson(response, 200, enriched);
       }
 
       if (url.pathname === "/v1/resolve-place") {

@@ -41,7 +41,7 @@ const REGIONS = new Set([
 const SUBCATEGORY_MIN_LENGTH = 2;
 const SUBCATEGORY_MAX_LENGTH = 20;
 const SUBCATEGORY_PATTERN =
-  /^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$/u;
+  /^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+(?:[ ·ㆍ&/+＋~-][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9]+)*$/u;
 const EVIDENCE_REPAIR_WARNING =
   "일부 정보는 확인이 필요해요.";
 const ROOT_KEYS = new Set([
@@ -122,51 +122,70 @@ function sanitizeSubcategory(value) {
   return sanitized;
 }
 
-const AXIS_NAMES = Object.freeze([
-  "kind",
-  "location",
-  "occasion",
-  "priceRange",
-  "savedReason",
-]);
+/// What the model is asked for. savedReason is not among them: it lives in the
+/// user's head, so nothing on screen can support it.
+const MODEL_AXES = Object.freeze(["kind", "location"]);
 const AXIS_MAX_LABELS = 8;
+const WEAK_KIND_CONFIDENCE = 0.4;
 
-/// Axes may overlap and may be empty; what they may not do is carry a label that
-/// would tag only this one capture, or repeat itself.
-function sanitizeAxes(value) {
-  assertExactKeys(value, new Set(AXIS_NAMES), "axes");
-  const sanitized = {};
-  for (const axis of AXIS_NAMES) {
-    const labels = value[axis];
-    if (!Array.isArray(labels)) {
-      throw invalid(`axes.${axis} is not an array`);
-    }
-    if (labels.length > AXIS_MAX_LABELS) {
-      throw invalid(`axes.${axis} has too many labels`);
-    }
-    const seen = new Set();
-    sanitized[axis] = labels.map((label, index) => {
-      const path = `axes.${axis}[${index}]`;
-      assertExactKeys(
-        label,
-        new Set(["value", "confidence", "evidenceIds"]),
-        path,
-      );
-      const cleaned = sanitizeSubcategory(label.value);
-      if (seen.has(cleaned)) {
-        throw invalid(`${path} repeats a label`);
-      }
-      seen.add(cleaned);
-      assertConfidence(label.confidence, `${path}.confidence`);
-      assertStringArray(label.evidenceIds, `${path}.evidenceIds`);
-      return {
-        value: cleaned,
-        confidence: label.confidence,
-        evidenceIds: label.evidenceIds,
-      };
-    });
+function sanitizeLabel(label, path, { extraKeys = [] } = {}) {
+  assertExactKeys(
+    label,
+    new Set(["value", "confidence", "evidenceIds", ...extraKeys]),
+    path,
+  );
+  const value = sanitizeSubcategory(label.value);
+  assertConfidence(label.confidence, `${path}.confidence`);
+  assertStringArray(label.evidenceIds, `${path}.evidenceIds`);
+  return { value, confidence: label.confidence, evidenceIds: label.evidenceIds };
+}
+
+function sanitizeLabelList(labels, path, options) {
+  if (!Array.isArray(labels)) {
+    throw invalid(`${path} is not an array`);
   }
-  return sanitized;
+  if (labels.length > AXIS_MAX_LABELS) {
+    throw invalid(`${path} has too many labels`);
+  }
+  const seen = new Set();
+  return labels.map((label, index) => {
+    const sanitized = sanitizeLabel(label, `${path}[${index}]`, options);
+    if (seen.has(sanitized.value)) {
+      throw invalid(`${path}[${index}] repeats a label`);
+    }
+    seen.add(sanitized.value);
+    return { sanitized, raw: label };
+  });
+}
+
+/// Rebuilds axes into the shape the client stores.
+///
+/// The model reports what it observed; the bands and the empty user axis are
+/// derived here. Keeping the derivation on this side means the same observations
+/// always produce the same labels, whatever the model felt like that run.
+function sanitizeAxes(value) {
+  assertExactKeys(value, new Set(MODEL_AXES), "axes");
+
+  const kind = sanitizeLabelList(value.kind, "axes.kind", {
+    extraKeys: ["observations"],
+  }).map(({ sanitized, raw }) => {
+    assertStringArray(raw.observations, "axes.kind.observations", {
+      nonEmptyItems: true,
+    });
+    const quotes = raw.observations.map((text) => text.trim()).filter(Boolean);
+    // A label the model could not observe anything for is a guess wearing a
+    // label's clothes, so it does not survive.
+    if (quotes.length === 0) return null;
+    return { ...sanitized, quotes };
+  }).filter(Boolean);
+
+  const location = sanitizeLabelList(value.location, "axes.location").map(
+    ({ sanitized }) => ({ ...sanitized, quotes: [] }),
+  );
+  // access is always empty here. The screenshot pass does not report it, and
+  // the client needs every axis present so the two passes produce the same
+  // shape.
+  return { kind, location, access: [], savedReason: [] };
 }
 
 function assertStringArray(value, path, { nonEmptyItems = true } = {}) {
