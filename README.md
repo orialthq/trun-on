@@ -148,7 +148,8 @@ pass/fail 집계만 남깁니다.
 [아키텍처](docs/ARCHITECTURE.md), 진행 계획은
 [베이스라인 로드맵](docs/ROADMAP.md)을 참고하세요. iOS 팀원은
 [iOS 실행 가이드](docs/IOS_TEAMMATE_GUIDE.md)에서 현재 지원 범위와 실행 방법을
-확인할 수 있습니다.
+확인할 수 있습니다. 맛집·카페 축을 어떻게 정했고 어떤 측정을 근거로 삼았는지는
+[장소 보강](docs/PLACE_ENRICHMENT.md)에 있습니다.
 
 ## 기여 및 라이선스
 
