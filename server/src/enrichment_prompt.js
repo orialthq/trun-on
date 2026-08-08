@@ -107,7 +107,14 @@ export const RETRIEVAL_PROBES = Object.freeze([
   }),
   // Deliberately unrestricted. The single most useful amenity list this pass has
   // found came from 당근, which no hand-written domain list had thought of.
-  Object.freeze({ key: "experience", suffix: "웨이팅 혼밥 단체석 후기", allowedDomains: null }),
+  //
+  // The query names only what is still judged. It used to carry 혼밥 and 단체석
+  // too, left over from a retired axis, and that cost real evidence: 방콕테이블
+  // returned eleven excerpts and not one mentioned a queue, while the same shop
+  // asked with a queue-only query surfaced "용산 해방촌에서 줄서는식당, 웨이팅이
+  // 있는 식당으로 이미 유명한". Words for things nobody decides on pull the search
+  // toward pages that answer a question nobody asked.
+  Object.freeze({ key: "experience", suffix: "웨이팅 대기 줄 오픈런 후기", allowedDomains: null }),
 ]);
 
 /// Hosts whose mere presence answers the booking question. A shop with a page on
