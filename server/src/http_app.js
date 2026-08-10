@@ -18,6 +18,7 @@ export function createHttpServer({
   analysisService,
   enrichmentService = null,
   placeResolutionService = null,
+  placeFactsService = null,
   // Reported by /health so a comparison run can confirm which provider answered
   // rather than inferring it from the labels.
   enrichmentModel = MODEL,
@@ -36,6 +37,9 @@ export function createHttpServer({
   }
   if (enrichmentService && typeof enrichmentService.enrich !== "function") {
     throw new Error("An enrichmentService must expose enrich()");
+  }
+  if (placeFactsService && typeof placeFactsService.lookup !== "function") {
+    throw new Error("A placeFactsService must expose lookup()");
   }
 
   return createServer(async (request, response) => {
@@ -110,6 +114,42 @@ export function createHttpServer({
           );
         }
         return sendJson(response, 200, enriched);
+      }
+
+      if (url.pathname === "/v1/place-facts") {
+        if (request.method !== "POST") {
+          throw methodNotAllowed("POST");
+        }
+        if (!placeFactsService) {
+          throw new AppError(
+            "PLACE_FACTS_NOT_CONFIGURED",
+            "장소 정보를 사용할 수 없어요.",
+            { httpStatus: 503 },
+          );
+        }
+        assertJsonContentType(request.headers["content-type"]);
+        const body = await readJsonBody(request, {
+          maxBodyBytes: Math.min(maxBodyBytes, 8 * 1024),
+          timeoutMs: bodyTimeoutMs,
+        });
+        // Same request shape as enrich-place: a captured name and area.
+        const input = validateEnrichPlaceRequest(body);
+        // A miss (unknown shop, name mismatch) is a normal answer, not an error.
+        const facts = await placeFactsService.lookup(input);
+        if (process.env.TRUN_ON_DEBUG_LOG === "1") {
+          const filters = facts.filters
+            ? Object.entries(facts.filters)
+                .filter(([, value]) => value)
+                .map(([key, value]) => `${key}=${value}`)
+                .join(" ")
+            : `miss:${facts.reason}`;
+          console.log(
+            `[facts] "${input.name} ${input.searchArea ?? ""}".trim() ` +
+              `matched=${facts.place?.name ?? "-"} ${filters || "-"} ` +
+              `tips=${facts.tips?.length ?? 0} store=${facts.fromStore ? "hit" : "miss"}`,
+          );
+        }
+        return sendJson(response, 200, facts);
       }
 
       if (url.pathname === "/v1/resolve-place") {

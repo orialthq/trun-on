@@ -167,6 +167,136 @@ export function addressMatches(capturedAddress, candidateAddresses) {
 }
 
 /**
+ * Picks one Google Maps candidate for a captured (name, area), or refuses.
+ *
+ * The name axis runs over every candidate, not just the ranked first — a wrong
+ * first hit must not hide a right second one. A lone name match is accepted as
+ * is. Several name matches mean a chain, and then the captured area must pick
+ * the branch: first against the candidate addresses when the area carries a
+ * recognisable locality (명동), then against the candidate titles, because
+ * colloquial areas (성수, 가로수길) name branches more often than they appear
+ * in official addresses. An area that cannot pick one branch refuses — the
+ * library's rule is that facts on the wrong shop are worse than no facts.
+ */
+export function selectMapsPlace({ name, area, candidates }) {
+  const rows = Array.isArray(candidates) ? candidates : [];
+  const areaText = typeof area === "string" ? area.trim() : "";
+  const areaNorm = normalizeName(areaText);
+  const named = rows.filter((candidate) => mapsTitleMatches(name, areaNorm, candidate?.title));
+
+  if (named.length === 1) return { place: named[0], reason: null };
+
+  if (named.length > 1) {
+    if (areaNorm.length === 0) return { place: null, reason: "ambiguous" };
+    // The area picks the branch. Addresses compare as substrings rather than
+    // through addressMatches, because a captured area is often a road name
+    // without a number (을지로) or a colloquial word — signals addressMatches
+    // deliberately treats as no constraint, which cannot discriminate.
+    const byAddress = named.filter((candidate) =>
+      normalizeName(candidate.address).includes(areaNorm),
+    );
+    if (byAddress.length === 1) return { place: byAddress[0], reason: null };
+    const byTitle = named.filter((candidate) => titleNamesArea(name, areaNorm, candidate.title));
+    if (byTitle.length === 1) return { place: byTitle[0], reason: null };
+    // Google keeps duplicate records — 남포면옥 twice, both on 을지로, one a
+    // stale pin. Rows with the *identical* title inside walking distance are
+    // one shop, not an ambiguity, and the record with the ratings is the
+    // canonical one. Distinct branch titles never collapse this way.
+    const tied = byAddress.length > 1 ? byAddress : named;
+    if (duplicateRecords(tied)) {
+      const canonical = [...tied].sort(
+        (a, b) => (b.ratingCount ?? 0) - (a.ratingCount ?? 0),
+      )[0];
+      return { place: canonical, reason: null };
+    }
+    // When the area picks nothing, the bare title picks the flagship: a
+    // capture that names just 광화문국밥 means the main shop, and branches
+    // carry designators. Only when that bare row is unique and also the most
+    // rated — a flagship that is neither is not one.
+    const bare = named.filter((candidate) => normalizeName(candidate.title) === normalizeName(name));
+    if (
+      bare.length === 1 &&
+      named.every((candidate) => (candidate.ratingCount ?? 0) <= (bare[0].ratingCount ?? 0))
+    ) {
+      return { place: bare[0], reason: null };
+    }
+    return { place: null, reason: "ambiguous" };
+  }
+
+  // Nothing matched on the strict name axis. Google titles sometimes wrap the
+  // name in area and descriptor words — 성수동 대림창고 갤러리 — so containment
+  // is allowed as a last tier, but only corroborated and alone: the captured
+  // area must appear in the title or address, and exactly one candidate may
+  // qualify. Corroboration is what keeps this from re-opening the wrong-shop
+  // door the strict axis exists to close.
+  if (normalizeName(name).length >= 3 && areaNorm.length > 0) {
+    const contained = rows.filter((candidate) => {
+      const title = normalizeName(candidate?.title);
+      if (!title.includes(normalizeName(name))) return false;
+      return title.includes(areaNorm) || normalizeName(candidate.address).includes(areaNorm);
+    });
+    if (contained.length === 1) return { place: contained[0], reason: null };
+  }
+
+  return { place: null, reason: "name_mismatch" };
+}
+
+/// nameMatches, plus the chain habit place_identity already knows: a branch
+/// named by its area instead of a 지점 suffix — 어니언 성수. The remainder may
+/// also be the area with its locality ending dropped, because Google titles
+/// write 프릳츠 도화 for a shop in 도화동.
+function mapsTitleMatches(capturedName, areaNorm, title) {
+  if (nameMatches(capturedName, title)) return true;
+  const captured = normalizeName(capturedName);
+  const candidate = normalizeName(title);
+  if (!captured || !candidate || !candidate.startsWith(captured)) return false;
+  return remainderNamesArea(candidate.slice(captured.length), areaNorm);
+}
+
+/// Judged on the remainder after the captured name, never the whole title —
+/// a shop *named* after its area (광화문국밥) would otherwise make every
+/// branch "match" the area and turn a resolvable chain into an ambiguity.
+function titleNamesArea(capturedName, areaNorm, title) {
+  const captured = normalizeName(capturedName);
+  const candidate = normalizeName(title);
+  if (!candidate.startsWith(captured)) return false;
+  const remainder = candidate.slice(captured.length);
+  return remainder.includes(areaNorm) || remainderNamesArea(remainder, areaNorm);
+}
+
+function remainderNamesArea(remainder, areaNorm) {
+  if (areaNorm.length === 0 || remainder.length < 2) return false;
+  return remainder === areaNorm || areaNorm.startsWith(remainder);
+}
+
+const DUPLICATE_RADIUS_M = 500;
+const DOMINANT_MIN_RATINGS = 100;
+const DOMINANT_FACTOR = 50;
+
+function duplicateRecords(rows) {
+  if (rows.length < 2) return false;
+  const titles = new Set(rows.map((row) => normalizeName(row.title)));
+  if (titles.size !== 1) return false;
+  if (rows.every((row) => metersApart(rows[0], row) <= DUPLICATE_RADIUS_M)) return true;
+  // Farther apart, the ratings decide: two real same-name shops both
+  // accumulate ratings, while a stale pin sits near zero — 남포면옥 exists
+  // twice on 을지로, 2,280 ratings against 2.
+  const counts = rows.map((row) => row.ratingCount ?? 0).sort((a, b) => b - a);
+  return counts[0] >= DOMINANT_MIN_RATINGS && counts[1] <= counts[0] / DOMINANT_FACTOR;
+}
+
+/// Equirectangular is plenty at duplicate-pin distances.
+function metersApart(a, b) {
+  if (![a.latitude, a.longitude, b.latitude, b.longitude].every(Number.isFinite)) {
+    return Infinity;
+  }
+  const rad = Math.PI / 180;
+  const x = (b.longitude - a.longitude) * rad * Math.cos(((a.latitude + b.latitude) / 2) * rad);
+  const y = (b.latitude - a.latitude) * rad;
+  return Math.sqrt(x * x + y * y) * 6_371_000;
+}
+
+/**
  * Picks the one candidate that matches every captured field, or null.
  *
  * Returning null is a normal outcome, not an error: it means the capture could

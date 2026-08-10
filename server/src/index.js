@@ -9,7 +9,10 @@ import { createEnrichmentService } from "./enrichment_service.js";
 import { createHttpServer } from "./http_app.js";
 import { createKakaoTransport } from "./kakao_transport.js";
 import { createOpenAITransport } from "./openai_transport.js";
+import { createPlaceFactsService } from "./place_facts_service.js";
 import { createPlaceResolutionService } from "./place_resolution_service.js";
+import { createPlaceStore } from "./place_store.js";
+import { createSerperTransport } from "./serper_transport.js";
 
 const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) {
@@ -50,6 +53,26 @@ if (!apiKey) {
         })
       : transport,
     judgmentModel: enrichmentModel,
+    // Opt-in and local only, like the request logs. Counts only: how many
+    // searches each probe needed, how many pages it opened, what it read. A
+    // probe that searches more than once did not find it the first time.
+    onSpend:
+      process.env.TRUN_ON_DEBUG_LOG === "1"
+        ? ({ query, probes }) => {
+            const line = probes
+              .map((p) =>
+                p.failed
+                  ? `${p.key}=실패`
+                  : `${p.key}=검색${p.search}/열기${p.open}/찾기${p.find} in${p.input}`,
+              )
+              .join(" ");
+            const searches = probes.reduce((sum, p) => sum + (p.search ?? 0), 0);
+            console.log(`[spend] "${query}" ${line} → 검색 ${searches}회`);
+            for (const p of probes) {
+              for (const q of p.queries ?? []) console.log(`  [q] ${p.key}: ${q}`);
+            }
+          }
+        : null,
   });
   console.log(`장소 보강 — 수집 ${MODEL} / 판단 ${enrichmentModel}`);
 
@@ -67,10 +90,34 @@ if (!apiKey) {
     );
   }
 
+  // The facts pipeline: Serper for the place record and its reviews, one
+  // extraction pass, a SQLite store of verbatim evidence, filters derived at
+  // read time. Optional the same way resolution is — no key, no endpoint.
+  const serperKey = process.env.SERPER_API_KEY;
+  const placeFactsService = serperKey
+    ? createPlaceFactsService({
+        serper: createSerperTransport({ apiKey: serperKey }),
+        transport,
+        model: MODEL,
+        // In memory for now, deliberately: at this stage a lookup re-buying its
+        // $0.005 is cheaper than owning a database file with backups. The whole
+        // store design (append-only evidence, derive-at-read) stays exercised,
+        // and TRUN_ON_DB_PATH turns persistence on the day accumulation across
+        // users starts to matter.
+        store: createPlaceStore(
+          process.env.TRUN_ON_DB_PATH ? { path: process.env.TRUN_ON_DB_PATH } : {},
+        ),
+      })
+    : null;
+  if (!placeFactsService) {
+    console.warn("SERPER_API_KEY가 없어 장소 사실 조회는 비활성화됩니다.");
+  }
+
   const server = createHttpServer({
     analysisService,
     enrichmentService,
     placeResolutionService,
+    placeFactsService,
     enrichmentModel,
   });
 

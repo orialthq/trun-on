@@ -50,6 +50,19 @@ else
   unset DEEPSEEK_API_KEY
 fi
 
+# Optional. Without it /v1/place-facts is disabled; analysis and the older
+# enrichment path still run.
+if SERPER_API_KEY=$(
+  security find-generic-password \
+    -a "ori-beauty" \
+    -s "ori-beauty-serper" \
+    -w 2>/dev/null
+) && [ -n "$SERPER_API_KEY" ]; then
+  export SERPER_API_KEY
+else
+  unset SERPER_API_KEY
+fi
+
 # Optional. Without it the server still analyses captures; only the precise
 # place lookup behind /v1/resolve-place is disabled.
 if KAKAO_REST_API_KEY=$(
