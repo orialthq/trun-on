@@ -410,3 +410,90 @@ test("the same sentence from two probes is stored once", async () => {
   const handed = JSON.stringify(made.judgments[0].input);
   assert.equal(handed.split("예약 가능").length - 1, 1);
 });
+
+test("each probe asks for what its own query names", async () => {
+  const made = transportFor({
+    retrieval: [{ listings: [listing("가게")], excerpts: [excerpt("웨이팅 있음")] }],
+    judgment: { matchedName: "가게", kind: [], access: [] },
+  });
+
+  await createEnrichmentService({
+    transport: made.transport,
+    probes: [
+      { key: "listing", suffix: "", allowedDomains: null },
+      { key: "experience", suffix: "웨이팅 대기 줄", allowedDomains: null },
+    ],
+  }).enrich({ name: "가게", searchArea: "성수" });
+
+  const asked = made.retrievals.map((body) => body.input[0].content[0].text);
+  assert.match(asked[0], /가게: 가게 성수/);
+  assert.doesNotMatch(asked[0], /찾을 것/);
+  assert.match(asked[1], /찾을 것: 웨이팅 대기 줄/);
+  // The suffix must not reach the name that identity resolution matches on.
+  assert.match(asked[1], /가게: 가게 성수\n/);
+});
+
+test("reports what each probe searched, even when it came back empty", async () => {
+  const spends = [];
+  const transport = {
+    async createResponse(body) {
+      if (!Array.isArray(body.tools) || body.tools.length === 0) {
+        return { status: "completed", output_text: "찾지 못했습니다." };
+      }
+      return {
+        status: "completed",
+        output: [
+          { type: "web_search_call", action: { type: "search", query: "가게 성수" } },
+          { type: "web_search_call", action: { type: "search", query: "가게 성수 웨이팅" } },
+          { type: "web_search_call", action: { type: "open_page" } },
+          { type: "web_search_call", action: { type: "find_in_page" } },
+          { type: "message", content: [{ text: JSON.stringify({ listings: [], excerpts: [] }) }] },
+        ],
+        usage: { input_tokens: 18_432, output_tokens: 612 },
+      };
+    },
+  };
+
+  await createEnrichmentService({
+    transport,
+    probes: [{ key: "listing", suffix: "", allowedDomains: null }],
+    onSpend: (spend) => spends.push(spend),
+  }).enrich({ name: "가게", searchArea: "성수" });
+
+  assert.equal(spends.length, 1);
+  assert.equal(spends[0].query, "가게 성수");
+  assert.deepEqual(spends[0].probes, [
+    {
+      key: "listing",
+      search: 2,
+      open: 1,
+      find: 1,
+      input: 18_432,
+      output: 612,
+      reasoning: 0,
+      // The query is the model's, not ours, so a probe that found nothing can be
+      // told apart from one that asked the wrong question.
+      queries: ["가게 성수", "가게 성수 웨이팅"],
+    },
+  ]);
+});
+
+test("a probe that failed outright is still reported", async () => {
+  const spends = [];
+  const transport = {
+    async createResponse(body) {
+      if (Array.isArray(body.tools) && body.tools.length > 0) {
+        throw new Error("upstream is down");
+      }
+      return { status: "completed", output_text: "찾지 못했습니다." };
+    },
+  };
+
+  await createEnrichmentService({
+    transport,
+    probes: [{ key: "booking", suffix: "예약", allowedDomains: null }],
+    onSpend: (spend) => spends.push(spend),
+  }).enrich({ name: "가게" });
+
+  assert.deepEqual(spends[0].probes, [{ key: "booking", failed: true }]);
+});

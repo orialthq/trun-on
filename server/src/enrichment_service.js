@@ -60,6 +60,9 @@ export function createEnrichmentService({
   judgmentMaxOutputTokens,
   probes = RETRIEVAL_PROBES,
   timeoutMs = DEFAULT_ANALYSIS_TIMEOUT_MS,
+  // Called with what retrieval spent, once per lookup. Off unless the caller
+  // wires it up, and it never carries page contents — only counts.
+  onSpend = null,
 } = {}) {
   if (!retrievalTransport || typeof retrievalTransport.createResponse !== "function") {
     throw new Error("A transport with createResponse is required");
@@ -86,6 +89,9 @@ export function createEnrichmentService({
         probes,
         timeoutMs,
       });
+      // Reported before the empty-handed exit below, because a lookup that
+      // found nothing still ran every search and is the one worth seeing.
+      onSpend?.({ query, probes: retrieved.spend });
       if (retrieved.excerpts.length === 0) {
         return emptyEnrichment();
       }
@@ -138,15 +144,26 @@ async function retrieve({ transport, model, query, probes, timeoutMs }) {
           }),
         timeoutMs,
       )
-        .then((response) => readJson(response))
-        .catch(() => null),
+        .then((response) => {
+          // A reply we cannot parse was still searched and still billed, so the
+          // spend survives even when the excerpts do not.
+          const spend = readSpend(response);
+          try {
+            return { key: probe.key, parsed: readJson(response), spend };
+          } catch {
+            return { key: probe.key, parsed: null, spend };
+          }
+        })
+        .catch(() => ({ key: probe.key, parsed: null, spend: null })),
     ),
   );
 
   const seen = new Set();
   const excerpts = [];
   const listings = [];
-  for (const parsed of settled) {
+  const spend = [];
+  for (const { key, parsed, spend: probeSpend } of settled) {
+    spend.push({ key, ...(probeSpend ?? { failed: true }) });
     if (!parsed) continue;
     for (const item of Array.isArray(parsed.listings) ? parsed.listings : []) {
       if (typeof item?.nameOnPage === "string" && typeof item?.url === "string") {
@@ -162,7 +179,7 @@ async function retrieve({ transport, model, query, probes, timeoutMs }) {
       excerpts.push({ url: item.url, text });
     }
   }
-  return { excerpts, listings };
+  return { excerpts, listings, spend };
 }
 
 // ── judge ───────────────────────────────────────────────────────────────────
@@ -312,6 +329,38 @@ async function withDeadline(run, timeoutMs) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/// What one reply cost, read straight off the reply.
+///
+/// Billing splits along a line the response already draws. A `search` action is
+/// charged per call at a flat rate; `open_page` and `find_in_page` arrive as
+/// input tokens instead. Measured over a fortnight the searches were 75% of the
+/// bill and the tokens 25%, which is the reverse of what the token counts alone
+/// suggested, so the two are counted apart.
+///
+/// It also shows which probe is flailing: a probe that searched three times
+/// found nothing the first two, and that is a query problem, not a web problem.
+function readSpend(response) {
+  const spend = { search: 0, open: 0, find: 0, input: 0, output: 0, reasoning: 0, queries: [] };
+  if (!response || typeof response !== "object") return spend;
+  for (const item of Array.isArray(response.output) ? response.output : []) {
+    if (item?.type !== "web_search_call") continue;
+    const action = item.action?.type;
+    if (action === "search") {
+      spend.search += 1;
+      // We hand over a shop and a topic; the model writes the query. Keeping it
+      // is the only way to tell a probe that asked the wrong thing from one
+      // that asked the right thing and found nothing.
+      if (typeof item.action?.query === "string") spend.queries.push(item.action.query);
+    } else if (action === "open_page") spend.open += 1;
+    else if (action === "find_in_page") spend.find += 1;
+  }
+  const usage = response.usage ?? {};
+  spend.input = usage.input_tokens ?? 0;
+  spend.output = usage.output_tokens ?? 0;
+  spend.reasoning = usage.output_tokens_details?.reasoning_tokens ?? 0;
+  return spend;
 }
 
 function readJson(response) {

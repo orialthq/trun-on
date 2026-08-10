@@ -150,7 +150,14 @@ export function buildRetrievalRequest({ query, model, probe }) {
         content: [
           {
             type: "input_text",
-            text: `가게: ${query}\n이 가게에 대해 위 규칙대로 원문만 수집해라.`,
+            // The suffix rides on its own line rather than inside 가게, because
+            // the shop name is also what identity resolution matches against and
+            // a shop called "금돼지식당 예약" would fail that match.
+            text: [
+              `가게: ${query}`,
+              ...(probe.suffix ? [`찾을 것: ${probe.suffix}`] : []),
+              "이 가게에 대해 위 규칙대로 원문만 수집해라.",
+            ].join("\n"),
           },
         ],
       },
