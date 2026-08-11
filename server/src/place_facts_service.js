@@ -42,7 +42,10 @@ export function createPlaceFactsService({
       const remembered = store.getResolution(nameNorm, areaNorm);
       if (remembered && now() - remembered.resolvedAt < RESOLUTION_FRESH_MS) {
         const stored = store.getPlace(remembered.fid);
-        if (stored && now() - stored.fetchedAt < FRESH_MS) {
+        const extractedSomething = ["review", "web", "video"].some(
+          (source) => store.processedIds(remembered.fid, source).size > 0,
+        );
+        if (stored && now() - stored.fetchedAt < FRESH_MS && extractedSomething) {
           const derived = deriveFacts({
             place: stored,
             evidence: store.evidenceFor(remembered.fid),
@@ -68,7 +71,13 @@ export function createPlaceFactsService({
       const fid = record.fid;
       store.saveResolution(nameNorm, areaNorm, fid, { now: now() });
       const stored = store.getPlace(fid);
-      const fresh = stored && now() - stored.fetchedAt < FRESH_MS;
+      // Fresh means fetched recently AND some document actually made it through
+      // extraction. A lookup whose extraction failed outright must not coast on
+      // its structured fields for a week — the retry is the point.
+      const processedAnything = ["review", "web", "video"].some(
+        (source) => store.processedIds(fid, source).size > 0,
+      );
+      const fresh = stored && now() - stored.fetchedAt < FRESH_MS && processedAnything;
       if (!fresh) {
         store.savePlace(
           {
@@ -98,9 +107,15 @@ export function createPlaceFactsService({
   /// operating rule (원격 줄서기 시간, 예약 오픈 일정) — different weight, same
   /// shape: a sentence with a source id, extracted once and stored.
   async function extractNewEvidence(fid, placeName) {
-    const [reviewsSettled, noticesSettled] = await Promise.allSettled([
+    const [reviewsSettled, noticesSettled, videosSettled] = await Promise.allSettled([
       serper.reviews(fid),
-      serper.search(`"${placeName}" (site:tabling.co.kr OR site:app.catchtable.co.kr)`),
+      // Diningcode rides the same query for free: OR terms share one credit,
+      // and its listing pages carry field-style facts (웨이팅 방법, 편의시설)
+      // that reviews rarely state outright.
+      serper.search(
+        `"${placeName}" (site:tabling.co.kr OR site:app.catchtable.co.kr OR site:diningcode.com)`,
+      ),
+      serper.videos(`"${placeName}"`),
     ]);
 
     const documents = [];
@@ -124,10 +139,19 @@ export function createPlaceFactsService({
         const link = typeof row.link === "string" ? row.link : "";
         // The site: filter should guarantee this, but a snippet from anywhere
         // else must not enter the store wearing a platform label.
-        if (!/tabling\.co\.kr|catchtable\.co\.kr/.test(link)) continue;
+        if (!/tabling\.co\.kr|catchtable\.co\.kr|diningcode\.com/.test(link)) continue;
         const text = [row.title, row.snippet].filter(Boolean).join(" — ").trim();
         if (seen.has(link) || text.length < MIN_REVIEW_LENGTH) continue;
         documents.push({ source: "web", sourceId: link, text, saidAt: null });
+      }
+    }
+    if (videosSettled.status === "fulfilled") {
+      const seen = store.processedIds(fid, "video");
+      for (const row of videosSettled.value.slice(0, 5)) {
+        const link = typeof row.link === "string" ? row.link : "";
+        const text = [row.title, row.snippet].filter(Boolean).join(" — ").trim();
+        if (!link || seen.has(link) || text.length < MIN_REVIEW_LENGTH) continue;
+        documents.push({ source: "video", sourceId: link, text, saidAt: null });
       }
     }
     if (documents.length === 0) return;
@@ -162,7 +186,7 @@ export function createPlaceFactsService({
     );
     // Marked only after a successful pass: extraction is once per document, and
     // "once" should mean once it actually happened.
-    for (const source of ["review", "web"]) {
+    for (const source of ["review", "web", "video"]) {
       const ids = documents.filter((doc) => doc.source === source).map((doc) => doc.sourceId);
       if (ids.length > 0) store.markProcessed(fid, source, ids);
     }

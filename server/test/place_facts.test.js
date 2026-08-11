@@ -144,7 +144,7 @@ test("processed reviews are remembered per place", () => {
 // ── service ─────────────────────────────────────────────────────────────────
 
 function fakeSerper({ places, reviews }) {
-  const calls = { maps: 0, reviews: 0, search: 0 };
+  const calls = { maps: 0, reviews: 0, search: 0, videos: 0 };
   return {
     calls,
     async maps() {
@@ -157,6 +157,10 @@ function fakeSerper({ places, reviews }) {
     },
     async search() {
       calls.search += 1;
+      return [];
+    },
+    async videos() {
+      calls.videos += 1;
       return [];
     },
   };
@@ -395,10 +399,11 @@ test("platform snippets are extracted alongside reviews and stored as web eviden
   const serper = {
     calls: { search: 0 },
     async maps() { return [PLACE]; },
+    async videos() { return []; },
     async reviews() { return { reviews: [...REVIEWS], nextPageToken: null }; },
     async search(query) {
       serper.calls.search += 1;
-      assert.match(query, /"금돼지식당" \(site:tabling\.co\.kr OR site:app\.catchtable\.co\.kr\)/);
+      assert.match(query, /"금돼지식당" \(site:tabling\.co\.kr OR site:app\.catchtable\.co\.kr OR site:diningcode\.com\)/);
       return [notice, { title: "무관한 블로그", link: "https://blog.example/1", snippet: "현장웨이팅만" }];
     },
   };
@@ -452,4 +457,101 @@ test("a tabling listing alone answers 웨이팅 있음, and sentences outrank it
     now: NOW,
   });
   assert.equal(catchtableOnly.filters.웨이팅, null);
+});
+
+// ── the full-evidence derivation ─────────────────────────────────────────────
+
+test("operating notices count toward the waiting band and its fallback", () => {
+  // Notices alone prove existence without intensity.
+  const noticeOnly = deriveFacts({
+    place: null,
+    evidence: [row("현장대기")],
+    now: NOW,
+  });
+  assert.equal(noticeOnly.filters.웨이팅, "웨이팅 있음");
+
+  // With experience reports they join the sample: two reports plus a notice
+  // reaches the band threshold the narrow read missed.
+  const banded = deriveFacts({
+    place: null,
+    evidence: [row("현장줄"), row("현장줄"), row("원격대기")],
+    now: NOW,
+  });
+  assert.equal(banded.filters.웨이팅, "상시 웨이팅");
+});
+
+test("quoted amounts band the price when the field is missing", () => {
+  const derived = deriveFacts({
+    place: { priceLevel: null },
+    evidence: [
+      row("메뉴가격", undefined, "런치 코스 280,000원 리뷰"),
+      row("가격대", undefined, "저녁 오마카세(285,000)에 ₩20,000 사케"),
+    ],
+    now: NOW,
+  });
+  // Amounts 280000, 20000 → median 280000 → top band.
+  assert.equal(derived.filters.가격대, "10만원 이상");
+
+  // A single amount proves nothing.
+  const single = deriveFacts({
+    place: { priceLevel: null },
+    evidence: [row("가격대", undefined, "만원의 행복 10,000원")],
+    now: NOW,
+  });
+  assert.equal(single.filters.가격대, null);
+
+  // The structured field still wins when present.
+  const fielded = deriveFacts({
+    place: { priceLevel: "₩10,000~20,000" },
+    evidence: [row("가격대", undefined, "300,000원 500,000원")],
+    now: NOW,
+  });
+  assert.equal(fielded.filters.가격대, "2만원 이하");
+});
+
+test("one paid-parking sentence outranks any number of parking mentions", () => {
+  const derived = deriveFacts({
+    place: null,
+    evidence: [row("주차가능"), row("주차가능"), row("주차가능"), row("발렛주차")],
+    now: NOW,
+  });
+  assert.equal(derived.filters.주차, "주차 유료·발렛");
+});
+
+test("video snippets are stored as their own source", async () => {
+  const serper = {
+    async maps() { return [PLACE]; },
+    async reviews() { return { reviews: [], nextPageToken: null }; },
+    async search() { return []; },
+    async videos() {
+      return [
+        {
+          title: "GD도 찾는 삼겹살집 #금돼지식당",
+          link: "https://youtube.com/watch?v=abc",
+          snippet: "오픈런은 기본, 항상 만석에 웨이팅이 있는 인생 삼겹살 맛집",
+        },
+      ];
+    },
+  };
+  const store = createPlaceStore();
+  const service = createPlaceFactsService({
+    serper,
+    transport: {
+      async createResponse(request) {
+        assert.match(request.input[0].content[0].text, /오픈런은 기본/);
+        return {
+          output_text: JSON.stringify({
+            items: [{ i: 0, t: "현장줄", q: "오픈런은 기본, 항상 만석에 웨이팅이 있는" }],
+          }),
+        };
+      },
+    },
+    model: "gpt-5.6-luna",
+    store,
+  });
+
+  await service.lookup({ name: "금돼지식당", searchArea: "신당" });
+  const videoRows = store.evidenceFor("0x123").filter((row) => row.source === "video");
+  assert.equal(videoRows.length, 1);
+  assert.equal(videoRows[0].topic, "현장줄");
 });

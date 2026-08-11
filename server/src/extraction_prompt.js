@@ -40,7 +40,9 @@ export function buildExtractionRequest({ texts, model }) {
   return {
     model,
     store: false,
-    max_output_tokens: 4_000,
+    // A ceiling, not a spend: fifty documents' worth of quoted items can pass
+    // 4k output tokens, and a truncated JSON extracts as nothing at all.
+    max_output_tokens: 12_000,
     instructions: EXTRACTION_INSTRUCTIONS,
     input: [
       {

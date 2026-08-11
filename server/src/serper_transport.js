@@ -72,6 +72,14 @@ export function createSerperTransport({
       return Array.isArray(result?.organic) ? result.organic : [];
     },
 
+    /// YouTube results. Video descriptions carry queue evidence in the promo
+    /// register — "오픈런은 기본, 항상 만석에" — dense on famous shops, absent
+    /// on quiet ones, which is the right shape for corroboration.
+    async videos(query, { signal } = {}) {
+      const result = await post("videos", { q: query, gl: "kr", hl: "ko" }, { signal });
+      return Array.isArray(result?.videos) ? result.videos : [];
+    },
+
     /// One page is twenty reviews, newest-biased by Google's own relevance.
     /// The caller decides whether a second page is worth another credit.
     async reviews(fid, { nextPageToken, signal } = {}) {

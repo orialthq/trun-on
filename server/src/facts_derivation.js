@@ -27,12 +27,21 @@ export function deriveFacts({ place, evidence, now = Date.now() }) {
   const rows = evidence.map((row) => ({ ...row, topic: canonicalTopic(row.topic) }));
   return {
     filters: {
-      가격대: priceBand(place?.priceLevel ?? null),
-      웨이팅: waitingBand(rows, now) ?? waitingFromListing(place),
+      가격대: priceBand(place?.priceLevel ?? null) ?? priceFromEvidence(rows),
+      웨이팅: waitingBand(rows, now) ?? waitingFromNotices(rows) ?? waitingFromListing(place),
       주차: parking(rows),
     },
     tips: tips(rows),
   };
+}
+
+/// Too few experience reports to band, but the shop's own operating notices
+/// prove a queue exists — nobody writes 원격줄서기 rules for a shop without
+/// queues. Existence only; intensity stays unknown.
+function waitingFromNotices(rows) {
+  return rows.some((row) => row.topic === "현장대기" || row.topic === "원격대기")
+    ? "웨이팅 있음"
+    : null;
 }
 
 /// A shop on tabling pays for queue management, which no queue-less shop does —
@@ -57,7 +66,13 @@ function waitingBand(rows, now) {
   const recent = rows.filter(
     (row) => !row.saidAt || Number.isNaN(Date.parse(row.saidAt)) || Date.parse(row.saidAt) > cutoff,
   );
-  const queued = recent.filter((row) => row.topic === "현장줄").length;
+  // Operating notices count toward queue existence alongside experience
+  // reports: a 원격줄서기 schedule is written because there is a queue to
+  // manage. Measured over nine shops this read of the full evidence fixed
+  // 오레노라멘 (상시 → 피크만) and filled 화육계 where the narrow read gave up.
+  const queued = recent.filter(
+    (row) => row.topic === "현장줄" || row.topic === "현장대기" || row.topic === "원격대기",
+  ).length;
   const walkedIn = recent.filter((row) => row.topic === "줄없음").length;
   const sample = queued + walkedIn;
   if (sample < 3) return null;
@@ -92,7 +107,29 @@ function parking(rows) {
   const none = rows.filter((row) => row.topic === "주차불가").length;
   if (paid + free + none === 0) return null;
   if (none > paid + free) return "주차 없음";
-  return paid >= free ? "주차 유료·발렛" : "주차 가능";
+  // One paid mention outranks any number of "주차 가능": the same lot is both,
+  // and the price is the fact a visitor plans around — 밍글스 is valet however
+  // many reviews merely note that parking exists.
+  return paid > 0 ? "주차 유료·발렛" : "주차 가능";
+}
+
+/// When the price field is missing, the sentences often carry it anyway —
+/// menu prices in platform snippets, spend reports in reviews. The median of
+/// quoted amounts places the band; fewer than two amounts proves nothing.
+const AMOUNT = /([\d,]{4,})\s*원|₩\s*([\d,]{4,})/g;
+
+function priceFromEvidence(rows) {
+  const amounts = rows
+    .flatMap((row) => [...row.quote.matchAll(AMOUNT)])
+    .map((match) => Number((match[1] ?? match[2]).replaceAll(",", "")))
+    .filter((amount) => amount >= 5_000 && amount <= 500_000)
+    .sort((a, b) => a - b);
+  if (amounts.length < 2) return null;
+  const mid = amounts[Math.floor(amounts.length / 2)];
+  if (mid < 20_000) return "2만원 이하";
+  if (mid < 50_000) return "2~5만원";
+  if (mid < 100_000) return "5~10만원";
+  return "10만원 이상";
 }
 
 /// The long tail is the point: topics that never became a filter — 재료소진,
