@@ -22,16 +22,16 @@ void main() {
     );
     final web = ContentAxes(
       labels: {
-        ContentAxis.access: [_web('예약 필수')],
+        ContentAxis.waiting: [_web('상시 웨이팅')],
               },
     );
 
     final merged = screen.mergedWith(web);
 
-    expect(merged[ContentAxis.access].single.value, '예약 필수');
-    expect(merged[ContentAxis.access].single.source, AxisLabelSource.web);
-    expect(merged[ContentAxis.access].single.citations, isNotEmpty);
-    expect(merged[ContentAxis.access].single.quotes, isNotEmpty);
+    expect(merged[ContentAxis.waiting].single.value, '상시 웨이팅');
+    expect(merged[ContentAxis.waiting].single.source, AxisLabelSource.web);
+    expect(merged[ContentAxis.waiting].single.citations, isNotEmpty);
+    expect(merged[ContentAxis.waiting].single.quotes, isNotEmpty);
   });
 
   test('a web label extends an axis the screenshot already used', () {
@@ -85,23 +85,23 @@ void main() {
     final merged = screen.mergedWith(const ContentAxes.empty());
 
     expect(merged[ContentAxis.kind].single.value, '파스타');
-    expect(merged[ContentAxis.access], isEmpty);
+    expect(merged[ContentAxis.waiting], isEmpty);
   });
 
   test('a merged web label survives a snapshot round-trip', () {
     final merged = const ContentAxes.empty().mergedWith(
       ContentAxes(
         labels: {
-          ContentAxis.access: [_web('예약 필수')],
+          ContentAxis.waiting: [_web('상시 웨이팅')],
         },
       ),
     );
 
     final restored = ContentAxes.fromJson(merged.toJson());
-    final label = restored[ContentAxis.access].single;
+    final label = restored[ContentAxis.waiting].single;
 
     expect(label.source, AxisLabelSource.web);
-    expect(label.citations, ['https://example.com/예약 필수']);
-    expect(label.quotes, ['예약 필수 라고 적힌 문장']);
+    expect(label.citations, ['https://example.com/상시 웨이팅']);
+    expect(label.quotes, ['상시 웨이팅 라고 적힌 문장']);
   });
 }

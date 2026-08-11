@@ -170,7 +170,7 @@ void main() {
       ),
     );
 
-    final byAccess = Map.fromEntries(groupBy(ContentAxis.access, [item]));
+    final byAccess = Map.fromEntries(groupBy(ContentAxis.waiting, [item]));
 
     // Nothing vanishes when an axis has nothing to say about it.
     expect(byAccess.keys, ['분류 필요']);

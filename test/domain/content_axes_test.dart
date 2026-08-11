@@ -54,7 +54,9 @@ void main() {
         axes: {
           'kind': [_label('파스타'), _label('와인바', confidence: 0.6)],
           'location': [_label('성수')],
-          'access': [_label('예약 필수', confidence: 0.5)],
+          'price': const <Map<String, Object?>>[],
+          'waiting': [_label('상시 웨이팅', confidence: 0.5)],
+          'parking': const <Map<String, Object?>>[],
           'savedReason': const <Map<String, Object?>>[],
         },
       ),
@@ -66,7 +68,7 @@ void main() {
       ['파스타', '와인바'],
     );
     expect(analysis.axes[ContentAxis.location].single.value, '성수');
-    expect(analysis.axes[ContentAxis.access].single.value, '예약 필수');
+    expect(analysis.axes[ContentAxis.waiting].single.value, '상시 웨이팅');
     expect(analysis.axes.isEmpty, isFalse);
   });
 
@@ -76,7 +78,9 @@ void main() {
         axes: {
           'kind': [_label('파스타'), _label('파스타', confidence: 0.4)],
           'location': const <Map<String, Object?>>[],
-          'access': const <Map<String, Object?>>[],
+          'price': const <Map<String, Object?>>[],
+            'waiting': const <Map<String, Object?>>[],
+            'parking': const <Map<String, Object?>>[],
           'savedReason': const <Map<String, Object?>>[],
         },
       ),
@@ -92,7 +96,9 @@ void main() {
           axes: {
             'kind': [_label('파스타 #맛집 🍝')],
             'location': const <Map<String, Object?>>[],
-            'access': const <Map<String, Object?>>[],
+            'price': const <Map<String, Object?>>[],
+            'waiting': const <Map<String, Object?>>[],
+            'parking': const <Map<String, Object?>>[],
               'savedReason': const <Map<String, Object?>>[],
           },
         ),
@@ -108,7 +114,9 @@ void main() {
           axes: {
             'kind': [_label('파스타')],
             'location': const <Map<String, Object?>>[],
-            'access': const <Map<String, Object?>>[],
+            'price': const <Map<String, Object?>>[],
+            'waiting': const <Map<String, Object?>>[],
+            'parking': const <Map<String, Object?>>[],
               'mood': const <Map<String, Object?>>[],
           },
         ),
@@ -136,7 +144,7 @@ void main() {
     // becomes the one location label. Nothing else is invented.
     expect(analysis.axes[ContentAxis.kind].single.value, '파스타');
     expect(analysis.axes[ContentAxis.location].single.value, '성수');
-    expect(analysis.axes[ContentAxis.access], isEmpty);
+    expect(analysis.axes[ContentAxis.waiting], isEmpty);
     expect(analysis.axes[ContentAxis.savedReason], isEmpty);
   });
 
@@ -160,7 +168,7 @@ void main() {
 
     expect(analysis.axes[ContentAxis.kind].single.value, '파스타');
     expect(analysis.axes[ContentAxis.location].single.value, '성수');
-    expect(analysis.axes[ContentAxis.access], isEmpty);
+    expect(analysis.axes[ContentAxis.waiting], isEmpty);
   });
 
   test('leaves location empty for a legacy capture with no place', () {
@@ -178,7 +186,9 @@ void main() {
         axes: {
           'kind': [_label('파스타'), _label('와인바')],
           'location': [_label('성수')],
-          'access': const <Map<String, Object?>>[],
+          'price': const <Map<String, Object?>>[],
+            'waiting': const <Map<String, Object?>>[],
+            'parking': const <Map<String, Object?>>[],
           'savedReason': const <Map<String, Object?>>[],
         },
       ),

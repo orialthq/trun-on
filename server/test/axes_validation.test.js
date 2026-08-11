@@ -51,12 +51,14 @@ test("drops a kind label that observed nothing", () => {
   assert.deepEqual(validated.axes.kind, []);
 });
 
-test("the screenshot pass leaves 예약·대기 to the web", () => {
-  // A caption almost never states whether a place takes bookings, so the axis is
-  // present and empty rather than guessed from a photo.
+test("the screenshot pass leaves the facts axes to the web", () => {
+  // A caption almost never states a price band, a queue, or a parking lot, so
+  // the axes are present and empty rather than guessed from a photo.
   const validated = validateAnalysisResult(makeValidAnalysis());
 
-  assert.deepEqual(validated.axes.access, []);
+  assert.deepEqual(validated.axes.price, []);
+  assert.deepEqual(validated.axes.waiting, []);
+  assert.deepEqual(validated.axes.parking, []);
   // The model is not even offered them.
   const offered = Object.keys(makeValidAnalysis().axes);
   assert.deepEqual(offered, ["kind", "location"]);

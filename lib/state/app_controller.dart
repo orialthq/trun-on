@@ -573,13 +573,17 @@ final class AppController extends ChangeNotifier {
   /// own findings immediately, and web labels arrive on top a few seconds later.
   /// A capture with no place, or one already looked up, costs nothing.
   Future<void> _enrichPlace(String captureId) async {
-    if (!_attemptedPlaceEnrichment.add(captureId)) {
-      return;
-    }
     final capture = captureById(captureId);
     final structured = capture?.analysis?.structuredContent;
     final placeName = structured?.place?.name?.trim();
     if (structured == null || placeName == null || placeName.isEmpty) {
+      return;
+    }
+    // Marked only once a lookup will actually run. A failed analysis passes
+    // through here too, and burning the one attempt on a capture that had no
+    // structured content yet would skip the lookup forever after a retry
+    // succeeds.
+    if (!_attemptedPlaceEnrichment.add(captureId)) {
       return;
     }
 

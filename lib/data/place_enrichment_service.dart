@@ -3,11 +3,16 @@ import 'dart:io';
 
 import '../domain/models.dart';
 
-/// Looks a saved place up on the web to fill the axes a screenshot cannot.
+/// Looks a saved place up to fill the axes a screenshot cannot.
 ///
-/// A screenshot almost never shows a price, and rarely says who a place suits.
-/// This pass searches for `상호명 + 지역` — the same query the map opens with —
-/// and returns labels that each carry the page supporting them.
+/// A screenshot almost never shows a price, a queue, or a parking lot. The
+/// server keeps what people wrote about the place — review sentences, the
+/// shop's own platform notices — and derives three filter values from them at
+/// read time: 가격대, 웨이팅, 주차. What arrives here is not a model's claim
+/// but a count over sentences the server holds, which is why these labels
+/// carry no quote: the deriving code is ours and deterministic, and the
+/// sentences behind it stay on the server rather than being re-attached to
+/// every capture.
 ///
 /// Every failure mode resolves to an empty result rather than an exception the
 /// caller has to reason about. The enrichment is an optional extra on top of a
@@ -28,9 +33,12 @@ final class RemotePlaceEnrichmentService implements PlaceEnrichmentService {
   final String baseUrl;
   final Duration timeout;
 
-  static const _axisByField = {
-    'kind': ContentAxis.kind,
-    'access': ContentAxis.access,
+  /// The server names filters in Korean because the values are user-facing;
+  /// the axis enum names stay English because they are storage keys.
+  static const _axisByFilter = {
+    '가격대': ContentAxis.price,
+    '웨이팅': ContentAxis.waiting,
+    '주차': ContentAxis.parking,
   };
 
   @override
@@ -39,7 +47,7 @@ final class RemotePlaceEnrichmentService implements PlaceEnrichmentService {
     if (trimmedName.isEmpty) {
       return const ContentAxes.empty();
     }
-    final endpoint = Uri.tryParse(baseUrl)?.resolve('/v1/enrich-place');
+    final endpoint = Uri.tryParse(baseUrl)?.resolve('/v1/place-facts');
     if (endpoint == null ||
         !const {'http', 'https'}.contains(endpoint.scheme) ||
         endpoint.host.isEmpty) {
@@ -77,45 +85,29 @@ final class RemotePlaceEnrichmentService implements PlaceEnrichmentService {
   }
 
   ContentAxes _axesFrom(Map<String, Object?> json) {
+    // A lookup the server could not pin to one shop returns no place, and a
+    // capture must not wear another shop's filters.
+    if (json['place'] is! Map<String, Object?>) {
+      return const ContentAxes.empty();
+    }
+    final filters = json['filters'];
+    if (filters is! Map<String, Object?>) {
+      return const ContentAxes.empty();
+    }
     final labels = <ContentAxis, List<AxisLabel>>{};
-    for (final entry in _axisByField.entries) {
-      final raw = json[entry.key];
-      if (raw is! List) continue;
-      final parsed = <AxisLabel>[];
-      for (final item in raw) {
-        if (item is! Map<String, Object?>) continue;
-        final value = item['value'];
-        final quote = item['quote'];
-        final citations = item['citations'];
-        // A web label without a quoted sentence and a page to check it against
-        // is indistinguishable from a guess.
-        if (value is! String ||
-            !isValidContentSubcategory(value) ||
-            quote is! String ||
-            quote.trim().isEmpty ||
-            citations is! List) {
-          continue;
-        }
-        final sources = citations
-            .whereType<String>()
-            .where((url) => url.startsWith('https://'))
-            .toList(growable: false);
-        if (sources.isEmpty) continue;
-        final confidence = item['confidence'];
-        parsed.add(
-          AxisLabel(
-            value: value,
-            confidence: confidence is num
-                ? confidence.toDouble().clamp(0.0, 1.0)
-                : 0.0,
-            evidenceIds: const [],
-            source: AxisLabelSource.web,
-            quotes: [quote.trim()],
-            citations: sources,
-          ),
-        );
+    for (final entry in _axisByFilter.entries) {
+      final value = filters[entry.key];
+      if (value is! String || !isValidContentSubcategory(value)) {
+        continue;
       }
-      labels[entry.value] = List.unmodifiable(parsed);
+      labels[entry.value] = List.unmodifiable([
+        AxisLabel(
+          value: value,
+          confidence: 1.0,
+          evidenceIds: const [],
+          source: AxisLabelSource.web,
+        ),
+      ]);
     }
     return ContentAxes(labels: Map.unmodifiable(labels));
   }

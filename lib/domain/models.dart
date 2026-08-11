@@ -815,14 +815,21 @@ final class StructuredPlace {
   };
 }
 
-/// The five fixed axes a saved capture is filed under.
+/// The fixed axes a saved capture is filed under.
 ///
 /// Fixed because the library's filter row is fixed; a new axis is a product
 /// decision, not something an analysis may invent.
+///
+/// 예약·대기 was replaced in 1.6 by the three axes the evidence actually
+/// supports: measured over 21 shops' reviews, 웨이팅 and 가격대 reached 57%
+/// and 주차 48%, right in the half-true band a filter needs, while the old
+/// access labels skewed to one value on nearly every shop.
 enum ContentAxis {
   kind('종류'),
   location('위치'),
-  access('예약·대기'),
+  price('가격대'),
+  waiting('웨이팅'),
+  parking('주차'),
   savedReason('저장이유');
 
   const ContentAxis(this.label);
@@ -908,7 +915,7 @@ final class ContentAxes {
   factory ContentAxes.fromJson(Map<String, Object?> json) {
     _requireExactKeys(
       json,
-      const {'kind', 'location', 'access', 'savedReason'},
+      const {'kind', 'location', 'price', 'waiting', 'parking', 'savedReason'},
       'axes',
     );
     final labels = <ContentAxis, List<AxisLabel>>{};
@@ -1434,17 +1441,21 @@ Map<String, Object?> _legacyAxes(Map<String, Object?> json) {
   return {
     'kind': kind,
     'location': location,
-    'access': const <Map<String, Object?>>[],
+    'price': const <Map<String, Object?>>[],
+    'waiting': const <Map<String, Object?>>[],
+    'parking': const <Map<String, Object?>>[],
     'savedReason': const <Map<String, Object?>>[],
   };
 }
 
 /// Carries a stored capture across every axis change so far.
 ///
-/// 상황 and 가격대 went in 1.4, 인원 in 1.5. Each was dropped rather than
-/// remapped: nothing in a 데이트, a 2~5만원, or a 단체 가능 says whether the place
-/// takes bookings. Retired labels are discarded and any new axis starts empty,
-/// filling on the next web lookup.
+/// 상황 and 가격대 went in 1.4, 인원 in 1.5, 예약·대기 in 1.6. Each was dropped
+/// rather than
+/// remapped: nothing in a 데이트 or a 단체 가능 says whether the place takes
+/// bookings, and an old 예약 가능 says nothing a 웨이팅 band can trust. Retired
+/// labels are discarded and any new axis starts empty, filling on the next web
+/// lookup.
 ///
 /// 인원 in particular was not wrong, it was useless — 단체 가능 came back true for
 /// all ten shops it was measured on, and a label on every card cannot filter.
@@ -1456,10 +1467,7 @@ Map<String, Object?> _migratedAxes(Object? stored) {
   const empty = <Map<String, Object?>>[];
   if (stored is! Map<String, Object?>) {
     return {
-      'kind': empty,
-      'location': empty,
-      'access': empty,
-      'savedReason': empty,
+      for (final axis in ContentAxis.values) axis.name: empty,
     };
   }
   return {

@@ -182,10 +182,10 @@ function sanitizeAxes(value) {
   const location = sanitizeLabelList(value.location, "axes.location").map(
     ({ sanitized }) => ({ ...sanitized, quotes: [] }),
   );
-  // access is always empty here. The screenshot pass does not report it, and
-  // the client needs every axis present so the two passes produce the same
-  // shape.
-  return { kind, location, access: [], savedReason: [] };
+  // The facts axes are always empty here. The screenshot pass does not report
+  // them — 가격대, 웨이팅, and 주차 come from the place-facts lookup — and the
+  // client needs every axis present so the two passes produce the same shape.
+  return { kind, location, price: [], waiting: [], parking: [], savedReason: [] };
 }
 
 function assertStringArray(value, path, { nonEmptyItems = true } = {}) {
