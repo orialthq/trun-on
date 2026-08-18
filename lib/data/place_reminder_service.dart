@@ -1,8 +1,118 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 
 import 'place_map_links.dart';
+
+abstract interface class PlaceReminderOpenInbox {
+  Stream<String> get opened;
+
+  Future<List<String>> pending();
+
+  Future<void> acknowledge(Iterable<String> captureIds);
+
+  Future<void> close();
+}
+
+/// Delivers durable Android notification destinations to the Flutter router.
+///
+/// Native code keeps each id until [acknowledge] succeeds, so a cold start or a
+/// process death between tapping a notification and rendering the first frame
+/// cannot lose the requested destination.
+final class MethodChannelPlaceReminderOpenInbox
+    implements PlaceReminderOpenInbox {
+  MethodChannelPlaceReminderOpenInbox({MethodChannel? channel})
+    : _channel = channel ?? const MethodChannel(_channelName) {
+    _channel.setMethodCallHandler(_handleMethodCall);
+  }
+
+  static const _channelName = 'com.orialthq.ori_beauty/place_reminders/v1';
+
+  final MethodChannel _channel;
+  final StreamController<String> _openedController =
+      StreamController<String>.broadcast();
+
+  @override
+  Stream<String> get opened => _openedController.stream;
+
+  Future<Object?> _handleMethodCall(MethodCall call) async {
+    if (call.method != 'placeReminderOpened') return null;
+    final arguments = call.arguments;
+    if (arguments is Map<Object?, Object?>) {
+      final captureId = arguments['captureId'];
+      if (captureId is String && captureId.trim().isNotEmpty) {
+        _openedController.add(captureId.trim());
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<List<String>> pending() async {
+    try {
+      final raw = await _channel.invokeMethod<List<Object?>>(
+        'pendingPlaceReminderOpens',
+      );
+      return [
+        for (final value in raw ?? const <Object?>[])
+          if (value is String && value.trim().isNotEmpty) value.trim(),
+      ];
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> acknowledge(Iterable<String> captureIds) async {
+    final ids = captureIds.where((id) => id.trim().isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return;
+    try {
+      await _channel.invokeMethod<void>('acknowledgePlaceReminderOpens', {
+        'ids': ids,
+      });
+    } on MissingPluginException {
+      // Non-Android platforms do not own this durable queue.
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    _channel.setMethodCallHandler(null);
+    await _openedController.close();
+  }
+}
+
+final class InMemoryPlaceReminderOpenInbox implements PlaceReminderOpenInbox {
+  InMemoryPlaceReminderOpenInbox([Iterable<String> pending = const []])
+    : _pending = pending.toList();
+
+  final List<String> _pending;
+  final List<String> acknowledged = [];
+  final StreamController<String> _openedController =
+      StreamController<String>.broadcast();
+
+  @override
+  Stream<String> get opened => _openedController.stream;
+
+  @override
+  Future<List<String>> pending() async => List.unmodifiable(_pending);
+
+  void emit(String captureId) {
+    if (!_pending.contains(captureId)) _pending.add(captureId);
+    _openedController.add(captureId);
+  }
+
+  @override
+  Future<void> acknowledge(Iterable<String> captureIds) async {
+    final ids = captureIds.toSet();
+    acknowledged.addAll(ids.where((id) => !acknowledged.contains(id)));
+    _pending.removeWhere(ids.contains);
+  }
+
+  @override
+  Future<void> close() => _openedController.close();
+}
 
 enum PlaceReminderEnableStatus {
   enabled,
@@ -136,6 +246,26 @@ final class PlaceReminderService {
           'requestForegroundLocationPermission',
         ) ??
         false;
+  }
+
+  /// Requests permission to post the local notifications used by plans.
+  ///
+  /// Android versions before 13 grant this capability at install time. Other
+  /// platforms do not implement this Android-specific method channel contract,
+  /// so they return `false` and can handle notification authorization through
+  /// their own native integration.
+  Future<bool> requestNotificationPermission() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+    try {
+      return await _channel.invokeMethod<bool>(
+            'requestNotificationPermission',
+          ) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    }
   }
 
   Future<void> openBackgroundLocationSettings() async {

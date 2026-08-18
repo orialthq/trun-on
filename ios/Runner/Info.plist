@@ -31,6 +31,10 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>같은 Wi-Fi에 있는 Mac의 분석 서버로 캡처를 보내 분석합니다.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>저장한 장소 근처에 도착했을 때 필요한 내용을 알려드리기 위해 위치를 사용합니다.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>앱을 열지 않아도 저장한 장소 근처에서 알림을 보내기 위해 위치를 사용합니다.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>

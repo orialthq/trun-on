@@ -96,6 +96,20 @@ class IncomingShareStore(context: Context) {
     }
 
     @Synchronized
+    fun loadPlanSnapshot(): String? = preferences.getString(KEY_PLAN_SNAPSHOT, null)
+
+    @Synchronized
+    fun savePlanSnapshot(snapshot: String): Boolean {
+        if (snapshot.isBlank()) {
+            return false
+        }
+        return preferences
+            .edit()
+            .putString(KEY_PLAN_SNAPSHOT, snapshot)
+            .commit()
+    }
+
+    @Synchronized
     fun acknowledge(ids: Collection<String>): Boolean {
         if (ids.isEmpty()) {
             return true
@@ -171,5 +185,6 @@ class IncomingShareStore(context: Context) {
         private const val PREFERENCES_NAME = "incoming_share_store"
         private const val KEY_PENDING_SHARES = "pending_shares_v1"
         private const val KEY_APP_SNAPSHOT = "app_snapshot_v1"
+        private const val KEY_PLAN_SNAPSHOT = "plan_snapshot_v1"
     }
 }

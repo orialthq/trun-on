@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -12,12 +13,44 @@ import UIKit
   private var placeReminderChannel: FlutterMethodChannel?
   private var portableTipChannel: FlutterMethodChannel?
   private var incomingShareChannel: FlutterMethodChannel?
+  private let nativeTriggerScheduler = NativeTriggerSchedulerBridge()
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    nativeTriggerScheduler.applicationDidFinishLaunching()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    if nativeTriggerScheduler.handleWillPresent(notification, completion: completionHandler) {
+      return
+    }
+    super.userNotificationCenter(
+      center,
+      willPresent: notification,
+      withCompletionHandler: completionHandler
+    )
+  }
+
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    if nativeTriggerScheduler.handleResponse(response, completion: completionHandler) {
+      return
+    }
+    super.userNotificationCenter(
+      center,
+      didReceive: response,
+      withCompletionHandler: completionHandler
+    )
   }
 
   override func application(
@@ -33,6 +66,8 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    nativeTriggerScheduler.attach(to: engineBridge.applicationRegistrar.messenger())
 
     let incomingChannel = FlutterMethodChannel(
       name: "com.orialthq.ori_beauty/incoming_share/v1",
@@ -59,6 +94,8 @@ import UIKit
         }
       case "loadAppSnapshot":
         result(AppSnapshotFileStore.shared.load())
+      case "loadPlanSnapshot":
+        result(AppSnapshotFileStore.shared.loadPlanSnapshot())
       case "saveAppSnapshot":
         guard let snapshot = call.arguments as? String, !snapshot.isEmpty else {
           result(
@@ -77,6 +114,28 @@ import UIKit
             FlutterError(
               code: "snapshot_save_failed",
               message: "App snapshot could not be committed to durable storage.",
+              details: nil
+            )
+          )
+        }
+      case "savePlanSnapshot":
+        guard let snapshot = call.arguments as? String, !snapshot.isEmpty else {
+          result(
+            FlutterError(
+              code: "invalid_plan_snapshot",
+              message: "Plan snapshot must be a non-empty string.",
+              details: nil
+            )
+          )
+          return
+        }
+        if AppSnapshotFileStore.shared.savePlanSnapshot(snapshot) {
+          result(true)
+        } else {
+          result(
+            FlutterError(
+              code: "plan_snapshot_save_failed",
+              message: "Plan snapshot could not be committed to durable storage.",
               details: nil
             )
           )

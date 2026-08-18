@@ -51,7 +51,7 @@ final class AppController extends ChangeNotifier {
   Future<void> _incomingDrainTail = Future<void>.value();
   Future<void> _portableTipDrainTail = Future<void>.value();
   CaptureFilter _filter = CaptureFilter.all;
-  bool _initialized = false;
+  Future<void>? _initialization;
 
   List<CaptureRecord> get captures => List.unmodifiable(_captures);
   List<ProductGroup> get groups => List.unmodifiable(_groups);
@@ -289,11 +289,9 @@ final class AppController extends ChangeNotifier {
       )
       .toList(growable: false);
 
-  Future<void> initialize() async {
-    if (_initialized) {
-      return;
-    }
-    _initialized = true;
+  Future<void> initialize() => _initialization ??= _initialize();
+
+  Future<void> _initialize() async {
     await _restoreSnapshot();
     _incomingSubscription = _incomingShareService.pendingChanged.listen((_) {
       unawaited(_drainIncomingShares());

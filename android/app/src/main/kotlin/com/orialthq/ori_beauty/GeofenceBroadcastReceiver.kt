@@ -52,7 +52,9 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 context,
                 reminder.id.hashCode(),
                 Intent(context, MainActivity::class.java).apply {
+                    action = MainActivity.ACTION_OPEN_PLACE_REMINDER
                     flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(MainActivity.EXTRA_PLACE_REMINDER_CAPTURE_ID, reminder.id)
                 },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )

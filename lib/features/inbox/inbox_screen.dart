@@ -639,10 +639,12 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
   var _importingTip = false;
   var _pickingCapture = false;
 
-  /// Android reaches the same picker through its quick settings tile, so the
-  /// in-app entry point only appears where that tile does not exist.
+  /// Both mobile platforms expose the picker in-app. Android also keeps its
+  /// quick settings tile as an optional shortcut.
   bool get _showsCapturePicker =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android);
 
   @override
   void dispose() {
@@ -702,9 +704,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.image_rounded, size: 20),
-                  label: Text(
-                    _pickingCapture ? '스크린샷을 읽고 있어요…' : '스크린샷 가져오기',
-                  ),
+                  label: Text(_pickingCapture ? '스크린샷을 읽고 있어요…' : '스크린샷 가져오기'),
                 ),
               ),
               const SizedBox(height: 10),
@@ -804,9 +804,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('스크린샷을 가져오지 못했어요.')),
-        );
+        ..showSnackBar(const SnackBar(content: Text('스크린샷을 가져오지 못했어요.')));
     } finally {
       if (mounted) {
         setState(() => _pickingCapture = false);

@@ -20,6 +20,13 @@ class PlaceReminderManager(private val context: Context) {
     private val geofencingClient = LocationServices.getGeofencingClient(context)
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    fun enqueuePendingOpen(id: String): Boolean = store.enqueuePendingOpen(id)
+
+    fun pendingOpenIds(): List<String> = store.pendingOpenIds()
+
+    fun acknowledgePendingOpens(ids: List<String>): Boolean =
+        store.acknowledgePendingOpens(ids)
+
     fun state(id: String): Map<String, Any> {
         val reminder = store.find(id)
         return mapOf(

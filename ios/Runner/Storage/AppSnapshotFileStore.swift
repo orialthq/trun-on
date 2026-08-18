@@ -6,7 +6,7 @@ final class AppSnapshotFileStore {
 
   private let maximumBytes = 16 * 1024 * 1024
   private let fileManager = FileManager.default
-  private lazy var fileURL: URL? = {
+  private lazy var applicationSupportURL: URL? = {
     guard let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
     else {
       return nil
@@ -17,15 +17,39 @@ final class AppSnapshotFileStore {
         withIntermediateDirectories: true,
         attributes: nil
       )
-      return base.appendingPathComponent("app_snapshot.json", isDirectory: false)
+      return base
     } catch {
       return nil
     }
   }()
+  private lazy var fileURL: URL? = applicationSupportURL?.appendingPathComponent(
+    "app_snapshot.json",
+    isDirectory: false
+  )
+  private lazy var planFileURL: URL? = applicationSupportURL?.appendingPathComponent(
+    "plan_snapshot.json",
+    isDirectory: false
+  )
 
   private init() {}
 
   func load() -> String? {
+    load(from: fileURL)
+  }
+
+  func save(_ snapshot: String) -> Bool {
+    save(snapshot, to: fileURL)
+  }
+
+  func loadPlanSnapshot() -> String? {
+    load(from: planFileURL)
+  }
+
+  func savePlanSnapshot(_ snapshot: String) -> Bool {
+    save(snapshot, to: planFileURL)
+  }
+
+  private func load(from fileURL: URL?) -> String? {
     guard let fileURL,
       let data = try? Data(contentsOf: fileURL),
       data.count > 0,
@@ -36,7 +60,7 @@ final class AppSnapshotFileStore {
     return String(data: data, encoding: .utf8)
   }
 
-  func save(_ snapshot: String) -> Bool {
+  private func save(_ snapshot: String, to fileURL: URL?) -> Bool {
     guard let fileURL,
       let data = snapshot.data(using: .utf8),
       data.count > 0,

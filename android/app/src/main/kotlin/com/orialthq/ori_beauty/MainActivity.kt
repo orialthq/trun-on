@@ -10,6 +10,7 @@ import android.provider.MediaStore
 import com.orialthq.ori_beauty.share.IncomingShareIngestor
 import com.orialthq.ori_beauty.share.IncomingShareRoutePolicy
 import com.orialthq.ori_beauty.share.IncomingShareStore
+import com.orialthq.ori_beauty.trigger.TriggerSchedulerChannel
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -19,6 +20,9 @@ class MainActivity : FlutterActivity() {
     private var placeReminderChannel: MethodChannel? = null
     private var appNavigationChannel: MethodChannel? = null
     private var portableTipChannel: MethodChannel? = null
+    private val triggerSchedulerChannel: TriggerSchedulerChannel by lazy {
+        TriggerSchedulerChannel(applicationContext)
+    }
     private val incomingStore: IncomingShareStore by lazy {
         IncomingShareStore(applicationContext)
     }
@@ -38,7 +42,10 @@ class MainActivity : FlutterActivity() {
         PortableTipStore(applicationContext)
     }
     private var pendingCaptureNotificationId: String? = null
+    private var pendingCapturePickerResult: MethodChannel.Result? = null
     private var pendingLocationPermissionResult: MethodChannel.Result? = null
+    private var pendingNotificationPermissionResult: MethodChannel.Result? = null
+    private var notificationPermissionRequestInFlight = false
     private var pendingSourceDeletionResult: MethodChannel.Result? = null
     private var pendingSourceDeletionTransportId: String? = null
 
@@ -65,7 +72,9 @@ class MainActivity : FlutterActivity() {
                                 }
                             result.success(pending)
                         }
+                        "presentCapturePicker" -> presentCapturePicker(result)
                         "loadAppSnapshot" -> result.success(incomingStore.loadAppSnapshot())
+                        "loadPlanSnapshot" -> result.success(incomingStore.loadPlanSnapshot())
                         "saveAppSnapshot" -> {
                             val snapshot = call.arguments as? String
                             if (snapshot.isNullOrBlank()) {
@@ -80,6 +89,24 @@ class MainActivity : FlutterActivity() {
                                 result.error(
                                     "snapshot_save_failed",
                                     "App snapshot could not be committed to durable storage.",
+                                    null,
+                                )
+                            }
+                        }
+                        "savePlanSnapshot" -> {
+                            val snapshot = call.arguments as? String
+                            if (snapshot.isNullOrBlank()) {
+                                result.error(
+                                    "invalid_plan_snapshot",
+                                    "Plan snapshot must be a non-empty string.",
+                                    null,
+                                )
+                            } else if (incomingStore.savePlanSnapshot(snapshot)) {
+                                result.success(true)
+                            } else {
+                                result.error(
+                                    "plan_snapshot_save_failed",
+                                    "Plan snapshot could not be committed to durable storage.",
                                     null,
                                 )
                             }
@@ -140,6 +167,8 @@ class MainActivity : FlutterActivity() {
                         }
                         "requestForegroundLocationPermission" ->
                             requestForegroundLocationPermission(result)
+                        "requestNotificationPermission" ->
+                            requestNotificationPermission(result)
                         "openBackgroundLocationSettings" -> {
                             if (openBackgroundLocationSettings()) {
                                 result.success(null)
@@ -153,6 +182,23 @@ class MainActivity : FlutterActivity() {
                         }
                         "enablePlaceReminder" -> enablePlaceReminder(call.arguments, result)
                         "disablePlaceReminder" -> disablePlaceReminder(call.arguments, result)
+                        "pendingPlaceReminderOpens" ->
+                            result.success(placeReminderManager.pendingOpenIds())
+                        "acknowledgePlaceReminderOpens" -> {
+                            val ids =
+                                ((call.arguments as? Map<*, *>)?.get("ids") as? List<*>)
+                                    ?.filterIsInstance<String>()
+                                    .orEmpty()
+                            if (placeReminderManager.acknowledgePendingOpens(ids)) {
+                                result.success(null)
+                            } else {
+                                result.error(
+                                    "place_open_acknowledge_failed",
+                                    "Pending place destinations could not be committed.",
+                                    null,
+                                )
+                            }
+                        }
                         "getMapProviders" -> getMapProviders(result)
                         "openMapProvider" -> openMapProvider(call.arguments, result)
                         "openMap" -> openMap(call.arguments, result)
@@ -194,6 +240,10 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }
+
+        triggerSchedulerChannel.attach(
+            flutterEngine.dartExecutor.binaryMessenger,
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -210,6 +260,16 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(flutterIntent)
         setIntent(flutterIntent)
         handleIncomingIntent(incomingIntent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        triggerSchedulerChannel.emitPendingInteractions()
+    }
+
+    override fun onDestroy() {
+        triggerSchedulerChannel.detach()
+        super.onDestroy()
     }
 
     override fun onActivityResult(
@@ -230,20 +290,46 @@ class MainActivity : FlutterActivity() {
             pendingSourceDeletionTransportId = null
             return
         }
-        if (requestCode != PICK_CAPTURE_REQUEST_CODE || resultCode != RESULT_OK) {
+        if (requestCode != PICK_CAPTURE_REQUEST_CODE) {
             return
         }
-        val selectedUri = data?.data ?: return
+        if (resultCode != RESULT_OK) {
+            pendingCapturePickerResult?.success(false)
+            pendingCapturePickerResult = null
+            return
+        }
+        val selectedUri = data?.data
+        if (selectedUri == null) {
+            pendingCapturePickerResult?.success(false)
+            pendingCapturePickerResult = null
+            return
+        }
         val mimeType = contentResolver.getType(selectedUri) ?: "image/*"
-        stageIncomingShare(
+        val accepted =
+            stageIncomingShare(
             Intent(Intent.ACTION_VIEW, selectedUri).apply {
                 type = mimeType
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             },
         )
+        pendingCapturePickerResult?.success(accepted)
+        pendingCapturePickerResult = null
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
+        if (triggerSchedulerChannel.handleIntent(intent)) {
+            return
+        }
+        if (intent?.action == ACTION_OPEN_PLACE_REMINDER) {
+            val captureId = intent.getStringExtra(EXTRA_PLACE_REMINDER_CAPTURE_ID)?.trim()
+            if (!captureId.isNullOrEmpty() && placeReminderManager.enqueuePendingOpen(captureId)) {
+                placeReminderChannel?.invokeMethod(
+                    "placeReminderOpened",
+                    mapOf("captureId" to captureId),
+                )
+            }
+            return
+        }
         if (intent?.action == ACTION_PICK_CAPTURE) {
             launchCapturePicker()
             return
@@ -270,6 +356,28 @@ class MainActivity : FlutterActivity() {
                 }
             }
         startActivityForResult(pickerIntent, PICK_CAPTURE_REQUEST_CODE)
+    }
+
+    private fun presentCapturePicker(result: MethodChannel.Result) {
+        if (pendingCapturePickerResult != null) {
+            result.error(
+                "capture_picker_in_progress",
+                "A capture picker is already open.",
+                null,
+            )
+            return
+        }
+        pendingCapturePickerResult = result
+        try {
+            launchCapturePicker()
+        } catch (_: Exception) {
+            pendingCapturePickerResult = null
+            result.error(
+                "capture_picker_unavailable",
+                "The capture picker could not be presented.",
+                null,
+            )
+        }
     }
 
     private fun locationPermissionState(): Map<String, Any> {
@@ -316,6 +424,42 @@ class MainActivity : FlutterActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION,
             ),
             LOCATION_PERMISSION_REQUEST_CODE,
+        )
+    }
+
+    private fun requestNotificationPermission(result: MethodChannel.Result) {
+        if (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+        ) {
+            result.success(true)
+            return
+        }
+        if (pendingNotificationPermissionResult != null) {
+            result.error(
+                "permission_request_in_progress",
+                "A notification permission request is already in progress.",
+                null,
+            )
+            return
+        }
+
+        pendingNotificationPermissionResult = result
+        if (notificationPermissionRequestInFlight) {
+            // A capture notification may already have opened the same system
+            // permission dialog. Resolve this Flutter request from that result.
+            return
+        }
+
+        notificationPermissionRequestInFlight = true
+        getSharedPreferences(NOTIFICATION_PREFERENCES_NAME, MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, true)
+            .apply()
+        requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            NOTIFICATION_PERMISSION_REQUEST_CODE,
         )
     }
 
@@ -600,16 +744,16 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun stageIncomingShare(intent: Intent?) {
+    private fun stageIncomingShare(intent: Intent?): Boolean {
         val sourcePackage = referrer?.host
         val payload =
             incomingShareIngestor.ingest(
                 intent = intent,
                 sourcePackage = sourcePackage,
-            ) ?: return
+            ) ?: return false
         if (!incomingStore.append(payload)) {
             incomingShareIngestor.deleteAttachments(payload.attachments)
-            return
+            return false
         }
         if (payload.sourceImageUris.isNotEmpty()) {
             sharedMediaDeletionManager.remember(payload.id, payload.sourceImageUris)
@@ -618,6 +762,7 @@ class MainActivity : FlutterActivity() {
             notifyCaptureReceived(payload.id)
         }
         incomingChannel?.invokeMethod("pendingSharesChanged", null)
+        return true
     }
 
     private fun notifyCaptureReceived(transportId: String) {
@@ -641,6 +786,7 @@ class MainActivity : FlutterActivity() {
             .edit()
             .putBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, true)
             .apply()
+        notificationPermissionRequestInFlight = true
         requestPermissions(
             arrayOf(Manifest.permission.POST_NOTIFICATIONS),
             NOTIFICATION_PERMISSION_REQUEST_CODE,
@@ -655,10 +801,15 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
             NOTIFICATION_PERMISSION_REQUEST_CODE -> {
-                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                val granted =
+                    grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+                if (granted) {
                     pendingCaptureNotificationId?.let(captureNotifications::showReceived)
                 }
                 pendingCaptureNotificationId = null
+                pendingNotificationPermissionResult?.success(granted)
+                pendingNotificationPermissionResult = null
+                notificationPermissionRequestInFlight = false
             }
             LOCATION_PERMISSION_REQUEST_CODE -> {
                 val granted =
@@ -673,6 +824,9 @@ class MainActivity : FlutterActivity() {
     companion object {
         const val ACTION_PICK_CAPTURE =
             "com.orialthq.ori_beauty.action.PICK_CAPTURE"
+        const val ACTION_OPEN_PLACE_REMINDER =
+            "com.orialthq.ori_beauty.action.OPEN_PLACE_REMINDER"
+        const val EXTRA_PLACE_REMINDER_CAPTURE_ID = "place_reminder_capture_id"
         private const val INCOMING_SHARE_CHANNEL =
             "com.orialthq.ori_beauty/incoming_share/v1"
         private const val PLACE_REMINDER_CHANNEL =

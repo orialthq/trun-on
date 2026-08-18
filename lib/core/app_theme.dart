@@ -26,6 +26,227 @@ abstract final class AppTheme {
   static const caution = Color(0xFFFFB84D);
   static const negative = Color(0xFFFF6B67);
 
+  // A quiet, editorial palette used by the planning flow only. Keeping these
+  // tokens separate lets the new surface feel calm and paper-like without
+  // changing the established dark archive/inbox experience.
+  static const planCanvas = Color(0xFFF5F2ED);
+  static const planSurface = Color(0xFFFCFAF7);
+  static const planInk = Color(0xFF302C2A);
+  static const planMuted = Color(0xFF7D7470);
+  static const planSubtle = Color(0xFFA49A95);
+  static const planBorder = Color(0xFFE4DDD6);
+  static const planMauve = Color(0xFF947986);
+  static const planMauveSoft = Color(0xFFEDE3E7);
+  static const planSage = Color(0xFF708071);
+  static const planSageSoft = Color(0xFFE5EBE4);
+  static const planSand = Color(0xFF9B765D);
+  static const planSandSoft = Color(0xFFF0E5DB);
+  static const planNegative = Color(0xFF9E5E5C);
+
+  /// Local theme for the plan inbox/editor.
+  ///
+  /// This is intentionally opt-in. Feature screens wrap themselves with this
+  /// theme so legacy surfaces keep the original high-contrast dark palette.
+  static ThemeData plansTheme(ThemeData base) {
+    const scheme = ColorScheme.light(
+      primary: planMauve,
+      onPrimary: Colors.white,
+      primaryContainer: planMauveSoft,
+      onPrimaryContainer: planInk,
+      secondary: planSage,
+      onSecondary: Colors.white,
+      secondaryContainer: planSageSoft,
+      onSecondaryContainer: planInk,
+      surface: planSurface,
+      onSurface: planInk,
+      error: planNegative,
+      outline: planBorder,
+      outlineVariant: Color(0xFFEDE7E1),
+    );
+
+    final textTheme = base.textTheme
+        .apply(bodyColor: planInk, displayColor: planInk)
+        .copyWith(
+          headlineMedium: const TextStyle(
+            color: planInk,
+            fontSize: 30,
+            height: 1.2,
+            letterSpacing: -0.9,
+            fontWeight: FontWeight.w800,
+          ),
+          titleLarge: const TextStyle(
+            color: planInk,
+            fontSize: 18,
+            height: 1.35,
+            letterSpacing: -0.35,
+            fontWeight: FontWeight.w700,
+          ),
+          titleMedium: const TextStyle(
+            color: planInk,
+            fontSize: 16,
+            height: 1.4,
+            letterSpacing: -0.2,
+            fontWeight: FontWeight.w700,
+          ),
+          bodyLarge: const TextStyle(
+            color: planInk,
+            fontSize: 16,
+            height: 1.55,
+            letterSpacing: -0.15,
+            fontWeight: FontWeight.w400,
+          ),
+          bodyMedium: const TextStyle(
+            color: planInk,
+            fontSize: 14,
+            height: 1.5,
+            letterSpacing: -0.1,
+            fontWeight: FontWeight.w400,
+          ),
+          labelLarge: const TextStyle(
+            color: planInk,
+            fontSize: 15,
+            height: 1.4,
+            letterSpacing: -0.1,
+            fontWeight: FontWeight.w700,
+          ),
+        );
+
+    return base.copyWith(
+      colorScheme: scheme,
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: planCanvas,
+      canvasColor: planCanvas,
+      textTheme: textTheme,
+      iconTheme: const IconThemeData(color: planMuted),
+      dividerTheme: const DividerThemeData(
+        color: planBorder,
+        thickness: 1,
+        space: 1,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: planCanvas,
+        foregroundColor: planInk,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        toolbarHeight: 64,
+        iconTheme: IconThemeData(color: planInk, size: 23),
+        titleTextStyle: TextStyle(
+          color: planInk,
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.25,
+        ),
+      ),
+      cardTheme: const CardThemeData(
+        color: planSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: planBorder),
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        filled: true,
+        fillColor: planSurface,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+        labelStyle: TextStyle(color: planMuted, fontWeight: FontWeight.w500),
+        floatingLabelStyle: TextStyle(
+          color: planMauve,
+          fontWeight: FontWeight.w600,
+        ),
+        helperStyle: TextStyle(color: planSubtle, fontSize: 12, height: 1.4),
+        hintStyle: TextStyle(color: planSubtle),
+        prefixIconColor: planMuted,
+        suffixIconColor: planMuted,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: planBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: planBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: planMauve, width: 1.4),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: planNegative),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: planNegative, width: 1.4),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 54),
+          backgroundColor: planInk,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: planBorder,
+          disabledForegroundColor: planSubtle,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.15,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 52),
+          foregroundColor: planInk,
+          side: const BorderSide(color: planBorder),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: planMauve,
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: planSurface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      datePickerTheme: const DatePickerThemeData(
+        backgroundColor: planSurface,
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: planMauveSoft,
+        headerForegroundColor: planInk,
+      ),
+      timePickerTheme: const TimePickerThemeData(
+        backgroundColor: planSurface,
+        dialBackgroundColor: planMauveSoft,
+        dialHandColor: planMauve,
+        hourMinuteColor: planMauveSoft,
+        hourMinuteTextColor: planInk,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: planSurface,
+        modalBackgroundColor: planSurface,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        dragHandleColor: planBorder,
+      ),
+    );
+  }
+
   static ThemeData get dark {
     const scheme = ColorScheme.dark(
       primary: primary,

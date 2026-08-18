@@ -14,8 +14,8 @@ abstract interface class IncomingShareService {
   /// share intent uses, so the caller waits for [pendingChanged] rather than a
   /// returned image. Resolves to true when at least one image was accepted.
   ///
-  /// Only iOS implements this today; Android reaches the same picker through its
-  /// quick settings tile.
+  /// Supported on both iOS and Android. Android also keeps its quick settings
+  /// tile as a shortcut to the same picker.
   Future<bool> presentCapturePicker();
 
   Future<void> acknowledge(Iterable<String> ids);

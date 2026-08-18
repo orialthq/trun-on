@@ -11,15 +11,26 @@ import '../common/capture_action_ui.dart';
 import '../common/content_folder_ui.dart';
 import '../sharing/share_tip_screen.dart';
 
+typedef MapOpenedCallback =
+    FutureOr<void> Function({
+      required MapProvider provider,
+      required String captureId,
+      String? planId,
+    });
+
 final class StructuredReviewScreen extends StatefulWidget {
   const StructuredReviewScreen({
     required this.controller,
     required this.captureId,
+    this.planId,
+    this.onMapOpened,
     super.key,
   });
 
   final AppController controller;
   final String captureId;
+  final String? planId;
+  final MapOpenedCallback? onMapOpened;
 
   @override
   State<StructuredReviewScreen> createState() => _StructuredReviewScreenState();
@@ -188,6 +199,8 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
               captureId: capture.raw.id,
               title: place.name ?? structured.title.value ?? '저장한 장소',
               place: place,
+              planId: widget.planId,
+              onMapOpened: widget.onMapOpened,
             ),
           ],
           if (structured.conflicts.isNotEmpty ||
@@ -911,11 +924,15 @@ final class _PlaceCard extends StatefulWidget {
     required this.captureId,
     required this.title,
     required this.place,
+    this.planId,
+    this.onMapOpened,
   });
 
   final String captureId;
   final String title;
   final StructuredPlace place;
+  final String? planId;
+  final MapOpenedCallback? onMapOpened;
 
   @override
   State<_PlaceCard> createState() => _PlaceCardState();
@@ -1143,13 +1160,29 @@ final class _PlaceCardState extends State<_PlaceCard>
         builder: (_) => _MapProviderSheet(options: options),
       );
       if (provider == null) return;
-      await _service.openMapWithProvider(
+      final result = await _service.openMapWithProvider(
         provider: provider,
         name: widget.place.name,
         address: _address,
         searchArea: widget.place.searchArea,
         mode: mode,
       );
+      final onMapOpened = widget.onMapOpened;
+      if (onMapOpened != null) {
+        try {
+          await onMapOpened(
+            provider: result.provider,
+            captureId: widget.captureId,
+            planId: widget.planId,
+          );
+        } on Object catch (error, stackTrace) {
+          // Opening the map already succeeded. An analytics persistence
+          // failure must not be presented as a navigation failure.
+          debugPrint(
+            'Map-open interaction recording failed: $error\n$stackTrace',
+          );
+        }
+      }
     } on Object {
       if (mounted) _showMessage('지도를 열지 못했어요.');
     }

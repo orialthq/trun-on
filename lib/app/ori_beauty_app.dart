@@ -2,13 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_theme.dart';
+import '../data/place_reminder_service.dart';
 import '../features/home/home_shell.dart';
 import '../state/app_controller.dart';
+import '../state/plan_controller.dart';
 
 final class OriBeautyApp extends StatelessWidget {
-  const OriBeautyApp({required this.controller, super.key});
+  const OriBeautyApp({
+    required this.controller,
+    this.planController,
+    this.placeReminderOpenInbox,
+    super.key,
+  });
 
   final AppController controller;
+  final PlanController? planController;
+  final PlaceReminderOpenInbox? placeReminderOpenInbox;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +38,11 @@ final class OriBeautyApp extends StatelessWidget {
         ),
         child: child ?? const SizedBox.shrink(),
       ),
-      home: HomeShell(controller: controller),
+      home: HomeShell(
+        controller: controller,
+        planController: planController,
+        placeReminderOpenInbox: placeReminderOpenInbox,
+      ),
     );
   }
 }
