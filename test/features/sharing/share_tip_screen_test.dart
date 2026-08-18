@@ -73,6 +73,15 @@ void main() {
     await tester.fling(scrollView, const Offset(0, 2000), 3000);
     await tester.pumpAndSettle();
     expect(find.text('친구에게 건넬 카드'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Theme &&
+            widget.data.brightness == Brightness.light &&
+            widget.data.scaffoldBackgroundColor == AppTheme.planCanvas,
+      ),
+      findsWidgets,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -104,6 +113,38 @@ void main() {
       capture.contentFolder.color,
       reason: 'The exported PNG frame must not leave transparent corners.',
     );
+  });
+
+  testWidgets('sharing editor remains usable at 150 percent text scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: ShareTipScreen(capture: _denseCapture()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('친구에게 건넬 카드'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final scrollView = find.byType(SingleChildScrollView);
+    await tester.drag(scrollView, const Offset(0, -700));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    await tester.fling(scrollView, const Offset(0, -2200), 3000);
+    await tester.pumpAndSettle();
+    expect(find.text('Trun On으로 보내기'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 

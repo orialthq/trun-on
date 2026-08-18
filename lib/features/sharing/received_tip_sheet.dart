@@ -12,11 +12,16 @@ Future<ReceivedTipDecision> showReceivedTipSheet(
 ) async {
   return await showModalBottomSheet<ReceivedTipDecision>(
         context: context,
+        backgroundColor: AppTheme.planSurface,
         isScrollControlled: true,
         isDismissible: false,
         enableDrag: false,
         useSafeArea: true,
-        builder: (_) => _ReceivedTipSheet(tip: tip),
+        showDragHandle: false,
+        builder: (sheetContext) => Theme(
+          data: AppTheme.plansTheme(Theme.of(sheetContext)),
+          child: _ReceivedTipSheet(tip: tip),
+        ),
       ) ??
       ReceivedTipDecision.discard;
 }
@@ -53,7 +58,7 @@ final class _ReceivedTipSheet extends StatelessWidget {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppTheme.border,
+                  color: AppTheme.planBorder,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -83,7 +88,7 @@ final class _ReceivedTipSheet extends StatelessWidget {
                       Text(
                         '${tip.category.label} · ${tip.subcategory}',
                         style: const TextStyle(
-                          color: AppTheme.muted,
+                          color: AppTheme.planMuted,
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                         ),
@@ -105,7 +110,7 @@ final class _ReceivedTipSheet extends StatelessWidget {
                 child: Text(
                   '“$message”',
                   style: const TextStyle(
-                    color: AppTheme.ink,
+                    color: AppTheme.planInk,
                     fontSize: 15,
                     height: 1.45,
                     fontWeight: FontWeight.w800,
@@ -120,7 +125,7 @@ final class _ReceivedTipSheet extends StatelessWidget {
               Text(
                 tip.summary,
                 style: const TextStyle(
-                  color: AppTheme.muted,
+                  color: AppTheme.planMuted,
                   fontSize: 14,
                   height: 1.5,
                 ),
@@ -146,9 +151,9 @@ final class _ReceivedTipSheet extends StatelessWidget {
               const SizedBox(height: 18),
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceRaised,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppTheme.border),
+                  color: AppTheme.planSurface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.planBorder),
                 ),
                 child: Column(
                   children: [
@@ -165,7 +170,7 @@ final class _ReceivedTipSheet extends StatelessWidget {
                             Text(
                               sections[sectionIndex].title,
                               style: const TextStyle(
-                                color: AppTheme.primary,
+                                color: AppTheme.planMauve,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -182,7 +187,7 @@ final class _ReceivedTipSheet extends StatelessWidget {
                                       child: Icon(
                                         Icons.circle,
                                         size: 4,
-                                        color: AppTheme.subtle,
+                                        color: AppTheme.planSubtle,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -190,7 +195,7 @@ final class _ReceivedTipSheet extends StatelessWidget {
                                       child: Text(
                                         item,
                                         style: const TextStyle(
-                                          color: AppTheme.ink,
+                                          color: AppTheme.planInk,
                                           fontSize: 14,
                                           height: 1.42,
                                         ),
@@ -251,7 +256,7 @@ final class _PreviewRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: AppTheme.primary, size: 19),
+        Icon(icon, color: AppTheme.planMauve, size: 19),
         const SizedBox(width: 9),
         Expanded(
           child: Text.rich(
@@ -265,7 +270,7 @@ final class _PreviewRow extends StatelessWidget {
               ],
             ),
             style: const TextStyle(
-              color: AppTheme.ink,
+              color: AppTheme.planInk,
               fontSize: 14,
               height: 1.45,
             ),

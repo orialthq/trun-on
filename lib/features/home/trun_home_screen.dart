@@ -25,62 +25,68 @@ final class TrunHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final recent = controller.captures.take(3).toList(growable: false);
-        final hasPendingWork =
-            controller.needsReviewCount > 0 || controller.analyzingCount > 0;
-        return ListView(
-          key: const PageStorageKey('trun-home'),
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
-          children: [
-            _Masthead(onAdd: onAdd),
-            const SizedBox(height: 20),
-            _NextStepCard(
-              needsReview: controller.needsReviewCount,
-              analyzing: controller.analyzingCount,
-              onTap: hasPendingWork ? onOpenInbox : onAdd,
-            ),
-            const SizedBox(height: 28),
-            const _SectionTitle(title: '카테고리'),
-            const SizedBox(height: 14),
-            _CategoryRoulette(
-              controller: controller,
-              onOpenLibrary: onOpenLibrary,
-            ),
-            const SizedBox(height: 34),
-            _SectionTitle(
-              title: '최근 콘텐츠',
-              actionLabel: '전체 보기',
-              onAction: onOpenInbox,
-            ),
-            const SizedBox(height: 14),
-            if (recent.isEmpty)
-              _EmptyRecent(onAdd: onAdd)
-            else
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppTheme.surface,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppTheme.border),
+    return Theme(
+      data: AppTheme.plansTheme(Theme.of(context)),
+      child: ColoredBox(
+        color: AppTheme.planCanvas,
+        child: AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) {
+            final recent = controller.captures.take(3).toList(growable: false);
+            final hasPendingWork =
+                controller.needsReviewCount > 0 ||
+                controller.analyzingCount > 0;
+            return ListView(
+              key: const PageStorageKey('trun-home'),
+              padding: const EdgeInsets.fromLTRB(22, 27, 22, 48),
+              children: [
+                _Masthead(onAdd: onAdd),
+                const SizedBox(height: 26),
+                _NextStepCard(
+                  needsReview: controller.needsReviewCount,
+                  analyzing: controller.analyzingCount,
+                  onTap: hasPendingWork ? onOpenInbox : onAdd,
                 ),
-                child: Column(
-                  children: [
-                    for (var index = 0; index < recent.length; index++) ...[
-                      _RecentRow(
-                        capture: recent[index],
-                        onTap: () => onOpenCapture(recent[index]),
-                      ),
-                      if (index != recent.length - 1)
-                        const Divider(indent: 68, endIndent: 16),
+                const SizedBox(height: 38),
+                const _SectionTitle(
+                  title: '카테고리',
+                  description: '정리한 내용을 주제별로 둘러보세요.',
+                ),
+                const SizedBox(height: 16),
+                _CategoryRoulette(
+                  controller: controller,
+                  onOpenLibrary: onOpenLibrary,
+                ),
+                const SizedBox(height: 40),
+                _SectionTitle(
+                  title: '최근 콘텐츠',
+                  actionLabel: '전체 보기',
+                  onAction: onOpenInbox,
+                ),
+                const SizedBox(height: 10),
+                if (recent.isEmpty)
+                  _EmptyRecent(onAdd: onAdd)
+                else
+                  Column(
+                    children: [
+                      const Divider(height: 1),
+                      for (var index = 0; index < recent.length; index++) ...[
+                        _RecentRow(
+                          capture: recent[index],
+                          onTap: () => onOpenCapture(recent[index]),
+                        ),
+                        Divider(
+                          height: 1,
+                          indent: index == recent.length - 1 ? 0 : 48,
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ),
-          ],
-        );
-      },
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -93,49 +99,77 @@ final class _Masthead extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Expanded(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'TRUN ON',
-                style: TextStyle(
-                  color: AppTheme.ink,
-                  fontSize: 20,
-                  letterSpacing: -0.6,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SizedBox(width: 8),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppTheme.primarySoft,
-                  borderRadius: BorderRadius.all(Radius.circular(999)),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Text(
-                    'BETA',
+              Wrap(
+                spacing: 9,
+                runSpacing: 5,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'TRUN ON',
                     style: TextStyle(
-                      color: AppTheme.primary,
-                      fontSize: 11,
-                      letterSpacing: 0.6,
-                      fontWeight: FontWeight.w900,
+                      color: AppTheme.planInk,
+                      fontSize: 28,
+                      height: 1.12,
+                      letterSpacing: -1.05,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.fromBorderSide(
+                        BorderSide(color: AppTheme.planBorder),
+                      ),
+                      borderRadius: BorderRadius.all(Radius.circular(6)),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      child: Text(
+                        'BETA',
+                        style: TextStyle(
+                          color: AppTheme.planSubtle,
+                          fontSize: 10,
+                          height: 1.2,
+                          letterSpacing: 0.7,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 7),
+              Text(
+                '저장한 정보를 필요한 순간으로 이어요.',
+                style: TextStyle(
+                  color: AppTheme.planMuted,
+                  fontSize: 14,
+                  height: 1.45,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ],
           ),
         ),
-        IconButton.filled(
+        const SizedBox(width: 16),
+        IconButton(
           tooltip: '콘텐츠 추가',
           onPressed: onAdd,
           style: IconButton.styleFrom(
-            backgroundColor: AppTheme.primary,
-            foregroundColor: const Color(0xFF101208),
+            minimumSize: const Size.square(44),
+            backgroundColor: AppTheme.planSurface,
+            foregroundColor: AppTheme.planInk,
+            side: const BorderSide(color: AppTheme.planBorder),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
-          icon: const Icon(Icons.add_rounded),
+          icon: const Icon(Icons.add_rounded, size: 21),
         ),
       ],
     );
@@ -170,10 +204,24 @@ final class _NextStepCard extends StatelessWidget {
         : needsReview > 0
         ? '확인하고 정리하기'
         : '콘텐츠 가져오기';
+    final icon = analyzing > 0
+        ? Icons.hourglass_top_rounded
+        : needsReview > 0
+        ? Icons.task_alt_rounded
+        : Icons.note_add_outlined;
+    final accent = needsReview > 0 && analyzing == 0
+        ? AppTheme.planSage
+        : AppTheme.planMauve;
+    final accentSoft = needsReview > 0 && analyzing == 0
+        ? AppTheme.planSageSoft
+        : AppTheme.planMauveSoft;
 
     return Material(
-      color: AppTheme.primary,
-      borderRadius: BorderRadius.circular(26),
+      color: AppTheme.planSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(17),
+        side: const BorderSide(color: AppTheme.planBorder),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -181,66 +229,76 @@ final class _NextStepCard extends StatelessWidget {
           button: true,
           label: '$title, $actionLabel',
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
-            child: Column(
+            padding: const EdgeInsets.fromLTRB(17, 17, 15, 16),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Color(0xFF101208),
-                    fontSize: 25,
-                    height: 1.22,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.65,
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: accentSoft,
+                    borderRadius: BorderRadius.circular(11),
                   ),
+                  child: Icon(icon, color: accent, size: 20),
                 ),
-                if (description != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      color: Color(0xFF35430E),
-                      fontSize: 14,
-                      height: 1.45,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF101208),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(17, 11, 10, 11),
-                      child: Row(
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: AppTheme.planInk,
+                          fontSize: 17,
+                          height: 1.35,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.25,
+                        ),
+                      ),
+                      if (description != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          description,
+                          style: const TextStyle(
+                            color: AppTheme.planMuted,
+                            fontSize: 13,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Expanded(
-                            child: Text(
-                              actionLabel,
-                              style: const TextStyle(
-                                color: AppTheme.primary,
-                                fontSize: 14,
-                                height: 1.35,
-                                fontWeight: FontWeight.w900,
-                              ),
+                          Text(
+                            actionLabel,
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 13,
+                              height: 1.35,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox.square(
-                            dimension: 28,
-                            child: Icon(
-                              Icons.arrow_forward_rounded,
-                              color: AppTheme.primary,
-                              size: 20,
-                            ),
+                          const SizedBox(width: 3),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: accent,
+                            size: 16,
                           ),
                         ],
                       ),
-                    ),
+                    ],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 9),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppTheme.planSubtle,
+                    size: 20,
                   ),
                 ),
               ],
@@ -253,9 +311,15 @@ final class _NextStepCard extends StatelessWidget {
 }
 
 final class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, this.actionLabel, this.onAction});
+  const _SectionTitle({
+    required this.title,
+    this.description,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final String title;
+  final String? description;
   final String? actionLabel;
   final VoidCallback? onAction;
 
@@ -264,10 +328,47 @@ final class _SectionTitle extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppTheme.planInk,
+                  fontSize: 17,
+                  height: 1.35,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              if (description case final description?) ...[
+                const SizedBox(height: 3),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: AppTheme.planMuted,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
         if (actionLabel case final actionLabel?)
-          TextButton(onPressed: onAction, child: Text(actionLabel)),
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.planMuted,
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            child: Text(actionLabel),
+          ),
       ],
     );
   }
@@ -293,7 +394,7 @@ final class _CategoryRouletteState extends State<_CategoryRoulette> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.72);
+    _pageController = PageController(viewportFraction: 0.86);
   }
 
   @override
@@ -308,7 +409,7 @@ final class _CategoryRouletteState extends State<_CategoryRoulette> {
     return Column(
       children: [
         SizedBox(
-          height: textIsLarge ? 184 : 154,
+          height: textIsLarge ? 156 : 126,
           child: PageView.builder(
             key: const PageStorageKey('home-category-roulette'),
             controller: _pageController,
@@ -332,13 +433,9 @@ final class _CategoryRouletteState extends State<_CategoryRoulette> {
                       : _selectedIndex.toDouble();
                   final pageOffset = (page - index).clamp(-1.0, 1.0);
                   final distance = pageOffset.abs();
-                  final scale = 1 - (distance * 0.1);
+                  final scale = 1 - (distance * 0.035);
                   final transform = Matrix4.identity()
-                    ..setEntry(3, 2, 0.0012)
-                    // Positive Z increases homogeneous W with this perspective,
-                    // making side cards recede instead of projecting forward.
-                    ..translateByDouble(0, distance * 11, distance * 22, 1)
-                    ..rotateY(pageOffset * 0.2)
+                    ..translateByDouble(0, distance * 4, 0, 1)
                     ..scaleByDouble(scale, scale, scale, 1);
                   return Transform(
                     key: Key('home-category-transform-${folder.name}'),
@@ -347,13 +444,13 @@ final class _CategoryRouletteState extends State<_CategoryRoulette> {
                     filterQuality: FilterQuality.medium,
                     child: Opacity(
                       key: Key('home-category-opacity-${folder.name}'),
-                      opacity: 1 - (distance * 0.28),
+                      opacity: 1 - (distance * 0.22),
                       child: child,
                     ),
                   );
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   child: _CategoryCard(
                     key: Key('home-category-${folder.name}'),
                     folder: folder,
@@ -366,7 +463,7 @@ final class _CategoryRouletteState extends State<_CategoryRoulette> {
             },
           ),
         ),
-        const SizedBox(height: 9),
+        const SizedBox(height: 11),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -374,13 +471,13 @@ final class _CategoryRouletteState extends State<_CategoryRoulette> {
               AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
-                width: index == _selectedIndex ? 20 : 5,
-                height: 5,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: index == _selectedIndex ? 14 : 3,
+                height: 3,
+                margin: const EdgeInsets.symmetric(horizontal: 2.5),
                 decoration: BoxDecoration(
                   color: index == _selectedIndex
-                      ? AppTheme.primary
-                      : AppTheme.border,
+                      ? AppTheme.planMauve
+                      : AppTheme.planBorder,
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
@@ -408,11 +505,17 @@ final class _CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: folder.color,
-      elevation: active ? 10 : 0,
-      shadowColor: folder.color.withValues(alpha: 0.32),
+      color: active
+          ? AppTheme.planSurface
+          : AppTheme.planSurface.withValues(alpha: 0.72),
+      elevation: 0,
       animationDuration: const Duration(milliseconds: 180),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: active ? AppTheme.planMauve : AppTheme.planBorder,
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -420,49 +523,54 @@ final class _CategoryCard extends StatelessWidget {
           button: true,
           label: '${folder.label} $count개, 정리함에서 보기',
           child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(16, 15, 13, 15),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(folder.icon, color: const Color(0xFF171717), size: 25),
-                    const Spacer(),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF101010).withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        child: Text(
-                          '$count',
-                          style: const TextStyle(
-                            color: Color(0xFF171717),
-                            fontSize: 13,
-                            height: 1.2,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  folder.label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF171717),
-                    fontSize: 21,
-                    height: 1.12,
-                    letterSpacing: -0.55,
-                    fontWeight: FontWeight.w900,
+                Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: folder.color.withValues(alpha: 0.13),
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: Icon(folder.icon, color: folder.color, size: 21),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        folder.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppTheme.planInk,
+                          fontSize: 16,
+                          height: 1.3,
+                          letterSpacing: -0.2,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$count개 저장됨',
+                        style: const TextStyle(
+                          color: AppTheme.planMuted,
+                          fontSize: 12,
+                          height: 1.35,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: AppTheme.planSubtle,
+                  size: 15,
                 ),
               ],
             ),
@@ -498,22 +606,23 @@ final class _RecentRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 76),
+          constraints: const BoxConstraints(minHeight: 70),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
-                    color: folder.color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(14),
+                    color: folder.color.withValues(alpha: 0.11),
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  child: Icon(folder.icon, color: folder.color, size: 21),
+                  child: Icon(folder.icon, color: folder.color, size: 18),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -523,24 +632,30 @@ final class _RecentRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: AppTheme.ink,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
+                          color: AppTheme.planInk,
+                          fontSize: 14,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${folder.label} · ${formatCaptureTime(capture.raw.receivedAt)}',
                         style: const TextStyle(
-                          color: AppTheme.muted,
+                          color: AppTheme.planMuted,
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: AppTheme.subtle),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppTheme.planSubtle,
+                  size: 18,
+                ),
               ],
             ),
           ),
@@ -557,23 +672,44 @@ final class _EmptyRecent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
-        side: const BorderSide(color: AppTheme.border),
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: AppTheme.planBorder),
+          bottom: BorderSide(color: AppTheme.planBorder),
+        ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 13),
         child: Row(
           children: [
+            const Icon(
+              Icons.inbox_outlined,
+              color: AppTheme.planSubtle,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
             const Expanded(
               child: Text(
                 '아직 들어온 콘텐츠가 없어요.',
-                style: TextStyle(color: AppTheme.muted, fontSize: 14),
+                style: TextStyle(
+                  color: AppTheme.planMuted,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
               ),
             ),
-            TextButton(onPressed: onAdd, child: const Text('추가하기')),
+            TextButton(
+              onPressed: onAdd,
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.planInk,
+                textStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: const Text('추가하기'),
+            ),
           ],
         ),
       ),

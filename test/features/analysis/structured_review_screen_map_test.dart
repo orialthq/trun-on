@@ -84,6 +84,47 @@ void main() {
 
     expect(find.text('지도를 열지 못했어요.'), findsNothing);
   });
+
+  testWidgets('detail and map picker remain usable at 150 percent text scale', (
+    tester,
+  ) async {
+    _mockMapChannel(channel);
+    final fixture = await _StructuredMapFixture.create();
+    addTearDown(fixture.dispose);
+
+    await _pumpScreen(
+      tester,
+      fixture,
+      size: const Size(390, 844),
+      textScaleFactor: 1.5,
+      onMapOpened: ({required provider, required captureId, String? planId}) {},
+    );
+
+    expect(find.text('분석 결과'), findsWidgets);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Theme &&
+            widget.data.brightness == Brightness.light &&
+            widget.data.scaffoldBackgroundColor == AppTheme.planCanvas,
+      ),
+      findsWidgets,
+    );
+    expect(tester.takeException(), isNull);
+
+    final openMap = find.text('지도에서 보기');
+    await tester.ensureVisible(openMap);
+    await tester.pumpAndSettle();
+    await tester.tap(openMap);
+    await tester.pumpAndSettle();
+
+    expect(find.text('어떤 지도로 볼까요?'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const ValueKey('map-provider-naver')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 }
 
 void _mockMapChannel(
@@ -118,11 +159,15 @@ Future<void> _pumpScreen(
   WidgetTester tester,
   _StructuredMapFixture fixture, {
   required MapOpenedCallback onMapOpened,
+  Size size = const Size(430, 1000),
+  double textScaleFactor = 1,
 }) async {
-  tester.view.physicalSize = const Size(430, 1000);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
+  tester.platformDispatcher.textScaleFactorTestValue = textScaleFactor;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
   await tester.pumpWidget(
     MaterialApp(

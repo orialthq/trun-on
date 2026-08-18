@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 
 /// Shared visual language for Trun On.
 ///
-/// The palette intentionally keeps the teammate prototype's near-black canvas
-/// and acid-lime action color, while raising secondary-text contrast enough for
-/// small Android devices and larger accessibility text sizes.
+/// The editorial ivory palette is the primary product language. Legacy dark
+/// tokens remain temporarily available while old call sites are migrated.
 abstract final class AppTheme {
   /// Keeps bottom-sheet actions above Android gesture/three-button navigation.
   /// `showModalBottomSheet(useSafeArea: true)` does not protect the bottom edge.
@@ -26,27 +25,22 @@ abstract final class AppTheme {
   static const caution = Color(0xFFFFB84D);
   static const negative = Color(0xFFFF6B67);
 
-  // A quiet, editorial palette used by the planning flow only. Keeping these
-  // tokens separate lets the new surface feel calm and paper-like without
-  // changing the established dark archive/inbox experience.
+  // A quiet, editorial palette shared throughout the product.
   static const planCanvas = Color(0xFFF5F2ED);
   static const planSurface = Color(0xFFFCFAF7);
   static const planInk = Color(0xFF302C2A);
-  static const planMuted = Color(0xFF7D7470);
-  static const planSubtle = Color(0xFFA49A95);
+  static const planMuted = Color(0xFF6D6561);
+  static const planSubtle = Color(0xFF756C68);
   static const planBorder = Color(0xFFE4DDD6);
-  static const planMauve = Color(0xFF947986);
+  static const planMauve = Color(0xFF7A606D);
   static const planMauveSoft = Color(0xFFEDE3E7);
-  static const planSage = Color(0xFF708071);
+  static const planSage = Color(0xFF596B5B);
   static const planSageSoft = Color(0xFFE5EBE4);
-  static const planSand = Color(0xFF9B765D);
+  static const planSand = Color(0xFF805F48);
   static const planSandSoft = Color(0xFFF0E5DB);
-  static const planNegative = Color(0xFF9E5E5C);
+  static const planNegative = Color(0xFF8A4F4D);
 
-  /// Local theme for the plan inbox/editor.
-  ///
-  /// This is intentionally opt-in. Feature screens wrap themselves with this
-  /// theme so legacy surfaces keep the original high-contrast dark palette.
+  /// Editorial theme shared by workspace, detail, sharing, and planning flows.
   static ThemeData plansTheme(ThemeData base) {
     const scheme = ColorScheme.light(
       primary: planMauve,
@@ -114,10 +108,27 @@ abstract final class AppTheme {
     return base.copyWith(
       colorScheme: scheme,
       brightness: Brightness.light,
+      primaryColor: planMauve,
+      primaryColorLight: planMauveSoft,
+      primaryColorDark: planInk,
       scaffoldBackgroundColor: planCanvas,
       canvasColor: planCanvas,
+      cardColor: planSurface,
+      dividerColor: planBorder,
+      disabledColor: planSubtle,
+      focusColor: planMauve.withValues(alpha: 0.12),
+      hoverColor: planMauve.withValues(alpha: 0.06),
+      highlightColor: planMauve.withValues(alpha: 0.08),
+      splashColor: planMauve.withValues(alpha: 0.08),
+      shadowColor: Colors.transparent,
       textTheme: textTheme,
       iconTheme: const IconThemeData(color: planMuted),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: planInk,
+          minimumSize: const Size.square(44),
+        ),
+      ),
       dividerTheme: const DividerThemeData(
         color: planBorder,
         thickness: 1,
@@ -148,6 +159,24 @@ abstract final class AppTheme {
         shape: RoundedRectangleBorder(
           side: BorderSide(color: planBorder),
           borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: planSurface,
+        selectedColor: planMauveSoft,
+        checkmarkColor: planMauve,
+        side: const BorderSide(color: planBorder),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        labelStyle: const TextStyle(
+          color: planMuted,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          color: planInk,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
         ),
       ),
       inputDecorationTheme: const InputDecorationTheme(
@@ -217,8 +246,30 @@ abstract final class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: planMauve,
+          minimumSize: const Size.square(44),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? planMauve
+              : Colors.transparent;
+        }),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+        side: const BorderSide(color: planBorder, width: 1.4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? Colors.white
+              : planSubtle;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected) ? planMauve : planBorder;
+        }),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
       dialogTheme: const DialogThemeData(
         backgroundColor: planSurface,
@@ -243,6 +294,38 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         showDragHandle: true,
         dragHandleColor: planBorder,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: planSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        indicatorColor: planMauveSoft,
+        height: 72,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            color: selected ? planInk : planSubtle,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? planMauve : planSubtle,
+            size: 24,
+          );
+        }),
+      ),
+      snackBarTheme: const SnackBarThemeData(
+        backgroundColor: planInk,
+        contentTextStyle: TextStyle(color: Colors.white, fontSize: 14),
+        actionTextColor: planMauveSoft,
+        behavior: SnackBarBehavior.floating,
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: planMauve,
       ),
     );
   }
@@ -478,6 +561,6 @@ abstract final class AppTheme {
     );
   }
 
-  // Kept as a compatibility alias while feature files migrate to `dark`.
-  static ThemeData get light => dark;
+  /// App-wide editorial theme.
+  static ThemeData get light => plansTheme(dark);
 }

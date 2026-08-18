@@ -36,10 +36,10 @@ final class ProductArt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (category) {
-      '선케어' => const Color(0xFFF1CC55),
-      '클렌저' => const Color(0xFF52D0C9),
-      '크림' || '로션' => const Color(0xFFA47AF2),
-      _ => const Color(0xFFF16AA6),
+      '선케어' => AppTheme.planSand,
+      '클렌저' => AppTheme.planSage,
+      '크림' || '로션' => AppTheme.planMauve,
+      _ => const Color(0xFFA66F84),
     };
     final icon = switch (category) {
       '선케어' => Icons.wb_sunny_outlined,
@@ -54,11 +54,11 @@ final class ProductArt extends StatelessWidget {
         height: height,
         decoration: BoxDecoration(
           color: Color.alphaBlend(
-            color.withValues(alpha: 0.16),
-            AppTheme.surfaceRaised,
+            color.withValues(alpha: 0.10),
+            AppTheme.planSurface,
           ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: color.withValues(alpha: 0.20)),
         ),
         child: Center(
           child: Icon(icon, color: color, size: width * 0.34),
@@ -103,7 +103,7 @@ final class InfoBanner extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.body,
-    this.background = AppTheme.fill,
+    this.background = AppTheme.planSurface,
     super.key,
   });
 
@@ -119,7 +119,7 @@ final class InfoBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: AppTheme.planBorder),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,10 +128,10 @@ final class InfoBanner extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: const BoxDecoration(
-              color: AppTheme.surfaceRaised,
+              color: AppTheme.planMauveSoft,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: AppTheme.muted, size: 17),
+            child: Icon(icon, color: AppTheme.planMauve, size: 17),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -149,7 +149,7 @@ final class InfoBanner extends StatelessWidget {
                 Text(
                   body,
                   style: const TextStyle(
-                    color: AppTheme.muted,
+                    color: AppTheme.planMuted,
                     fontSize: 13,
                     height: 1.45,
                   ),

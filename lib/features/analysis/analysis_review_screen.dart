@@ -63,9 +63,19 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Theme(
+      data: AppTheme.plansTheme(Theme.of(context)),
+      child: Builder(builder: _buildReview),
+    );
+  }
+
+  Widget _buildReview(BuildContext context) {
     final capture = _capture;
     if (capture == null) {
-      return const Scaffold(body: Center(child: Text('가져온 내용을 찾지 못했어요.')));
+      return const Scaffold(
+        backgroundColor: AppTheme.planCanvas,
+        body: Center(child: Text('가져온 내용을 찾지 못했어요.')),
+      );
     }
     final analysis = capture.analysis;
     final mention = capture.primaryMention;
@@ -88,6 +98,7 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
     }
 
     return Scaffold(
+      backgroundColor: AppTheme.planCanvas,
       appBar: AppBar(
         title: const Text('분석 결과'),
         actions: [
@@ -109,34 +120,40 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
             const Row(
               children: [
                 _ResultMark(icon: Icons.auto_awesome_rounded),
-                SizedBox(width: 10),
+                SizedBox(width: 8),
                 Text(
                   '분석 결과',
                   style: TextStyle(
-                    color: AppTheme.primary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
+                    color: AppTheme.planMauve,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.35,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            Text('이렇게 정리했어요', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 14),
+            Text(
+              '이렇게 정리했어요',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             const SizedBox(height: 8),
             const Text(
               '저장하기 전에 잘못 읽힌 부분만 확인해 주세요.',
-              style: TextStyle(color: AppTheme.muted, fontSize: 15),
+              style: TextStyle(
+                color: AppTheme.planMuted,
+                fontSize: 15,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 24),
             _OriginalMaterialCard(capture: capture, platform: platform),
             if (capture.normalized.warnings.isNotEmpty) ...[
               const SizedBox(height: 12),
-              InfoBanner(
+              _ReviewNotice(
                 icon: Icons.info_outline_rounded,
                 title: '확인할 내용이 있어요',
                 body: capture.normalized.warnings.join(' '),
-                background: const Color(0xFF2B1F13),
               ),
             ],
             const SizedBox(height: 32),
@@ -217,15 +234,8 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           decoration: BoxDecoration(
-            color: AppTheme.surface,
-            border: const Border(top: BorderSide(color: AppTheme.border)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.22),
-                blurRadius: 20,
-                offset: const Offset(0, -6),
-              ),
-            ],
+            color: AppTheme.planSurface,
+            border: const Border(top: BorderSide(color: AppTheme.planBorder)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -241,7 +251,7 @@ final class _AnalysisReviewScreenState extends State<AnalysisReviewScreen> {
               TextButton(
                 onPressed: _saving ? null : _keepUnresolved,
                 style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.muted,
+                  foregroundColor: AppTheme.planMuted,
                   minimumSize: const Size(44, 48),
                 ),
                 child: const Text('제품을 찾지 못했어요'),
@@ -336,6 +346,7 @@ final class _LinkOnlyReview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.planCanvas,
       appBar: AppBar(
         title: const Text('가져온 링크'),
         actions: [
@@ -351,28 +362,18 @@ final class _LinkOnlyReview extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Color(0xFF2B1F13),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.link_rounded,
-              color: Color(0xFFB26A00),
-              size: 26,
-            ),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Icon(Icons.link_rounded, color: AppTheme.planSand, size: 28),
           ),
-          const SizedBox(height: 20),
-          Text('링크는 저장했어요', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 18),
+          Text('링크는 저장했어요', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 8),
           Text(
             '${sourcePlatformLabel(platform)}에서 게시물 이미지나 본문을 '
             '함께 보내지 않아 아직 내용을 정리할 수 없어요.',
             style: const TextStyle(
-              color: AppTheme.muted,
+              color: AppTheme.planMuted,
               fontSize: 15,
               height: 1.55,
             ),
@@ -413,9 +414,9 @@ final class _ScreenshotGuideCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceRaised,
-        border: Border.all(color: AppTheme.border),
-        borderRadius: BorderRadius.circular(20),
+        color: AppTheme.planSurface,
+        border: Border.all(color: AppTheme.planBorder),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
@@ -428,13 +429,13 @@ final class _ScreenshotGuideCard extends StatelessWidget {
                   height: 26,
                   alignment: Alignment.center,
                   decoration: const BoxDecoration(
-                    color: AppTheme.primarySoft,
+                    color: AppTheme.planMauveSoft,
                     shape: BoxShape.circle,
                   ),
                   child: Text(
                     steps[index].$1,
                     style: const TextStyle(
-                      color: AppTheme.primary,
+                      color: AppTheme.planMauve,
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
@@ -447,7 +448,7 @@ final class _ScreenshotGuideCard extends StatelessWidget {
                     child: Text(
                       steps[index].$2,
                       style: const TextStyle(
-                        color: AppTheme.ink,
+                        color: AppTheme.planInk,
                         fontSize: 14,
                         height: 1.5,
                       ),
@@ -467,20 +468,75 @@ final class _ScreenshotGuideCard extends StatelessWidget {
               Icon(
                 Icons.photo_library_outlined,
                 size: 17,
-                color: AppTheme.subtle,
+                color: AppTheme.planSubtle,
               ),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
                   '공유가 끝나면 갤러리 원본을 남길지 Trun On에서 직접 선택할 수 있어요.',
                   style: TextStyle(
-                    color: AppTheme.subtle,
+                    color: AppTheme.planSubtle,
                     fontSize: 12,
                     height: 1.45,
                   ),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _ReviewNotice extends StatelessWidget {
+  const _ReviewNotice({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: const BoxDecoration(
+        border: Border.symmetric(
+          horizontal: BorderSide(color: AppTheme.planBorder),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppTheme.planSand, size: 19),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppTheme.planInk,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  body,
+                  style: const TextStyle(
+                    color: AppTheme.planMuted,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -510,7 +566,7 @@ final class _SectionHeading extends StatelessWidget {
               child: Text(
                 title,
                 style: const TextStyle(
-                  color: AppTheme.ink,
+                  color: AppTheme.planInk,
                   fontSize: 19,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
@@ -518,12 +574,16 @@ final class _SectionHeading extends StatelessWidget {
               ),
             ),
             if (editable) ...[
-              const Icon(Icons.edit_rounded, size: 16, color: AppTheme.muted),
+              const Icon(
+                Icons.edit_rounded,
+                size: 15,
+                color: AppTheme.planMuted,
+              ),
               const SizedBox(width: 4),
               const Text(
                 '수정 가능',
                 style: TextStyle(
-                  color: AppTheme.muted,
+                  color: AppTheme.planMuted,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -536,7 +596,7 @@ final class _SectionHeading extends StatelessWidget {
           Text(
             description,
             style: const TextStyle(
-              color: AppTheme.muted,
+              color: AppTheme.planMuted,
               fontSize: 13,
               height: 1.4,
             ),
@@ -569,9 +629,9 @@ final class _OriginalMaterialCardState extends State<_OriginalMaterialCard> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceRaised,
-        border: Border.all(color: AppTheme.border),
-        borderRadius: BorderRadius.circular(20),
+        color: AppTheme.planSurface,
+        border: Border.all(color: AppTheme.planBorder),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -582,12 +642,12 @@ final class _OriginalMaterialCardState extends State<_OriginalMaterialCard> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: AppTheme.primarySoft,
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppTheme.planMauveSoft,
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   sourcePlatformIcon(widget.platform),
-                  color: AppTheme.primary,
+                  color: AppTheme.planMauve,
                   size: 20,
                 ),
               ),
@@ -599,7 +659,7 @@ final class _OriginalMaterialCardState extends State<_OriginalMaterialCard> {
                     const Text(
                       '가져온 내용',
                       style: TextStyle(
-                        color: AppTheme.ink,
+                        color: AppTheme.planInk,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -609,7 +669,7 @@ final class _OriginalMaterialCardState extends State<_OriginalMaterialCard> {
                       '${sourcePlatformLabel(widget.platform)} · '
                       '${formatCaptureTime(widget.capture.raw.receivedAt)}',
                       style: const TextStyle(
-                        color: AppTheme.subtle,
+                        color: AppTheme.planSubtle,
                         fontSize: 12,
                       ),
                     ),
@@ -623,7 +683,7 @@ final class _OriginalMaterialCardState extends State<_OriginalMaterialCard> {
             SelectableText(
               content,
               style: const TextStyle(
-                color: AppTheme.muted,
+                color: AppTheme.planMuted,
                 fontSize: 14,
                 height: 1.55,
               ),
@@ -634,7 +694,7 @@ final class _OriginalMaterialCardState extends State<_OriginalMaterialCard> {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: AppTheme.muted,
+                color: AppTheme.planMuted,
                 fontSize: 14,
                 height: 1.55,
               ),
@@ -684,7 +744,7 @@ final class _AnalysisField extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                color: AppTheme.ink,
+                color: AppTheme.planInk,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
@@ -693,7 +753,7 @@ final class _AnalysisField extends StatelessWidget {
               const SizedBox(width: 5),
               const Text(
                 '선택',
-                style: TextStyle(color: AppTheme.subtle, fontSize: 12),
+                style: TextStyle(color: AppTheme.planSubtle, fontSize: 12),
               ),
             ],
           ],
@@ -715,18 +775,21 @@ final class _AnalysisField extends StatelessWidget {
             suffixIcon: const Icon(
               Icons.edit_rounded,
               size: 18,
-              color: AppTheme.muted,
+              color: AppTheme.planMuted,
             ),
             helperText: guidance,
             helperMaxLines: 2,
-            helperStyle: const TextStyle(color: AppTheme.caution, fontSize: 12),
+            helperStyle: const TextStyle(
+              color: AppTheme.planSand,
+              fontSize: 12,
+            ),
             filled: true,
-            fillColor: AppTheme.surfaceRaised,
-            border: _fieldBorder(AppTheme.border),
-            enabledBorder: _fieldBorder(AppTheme.border),
-            focusedBorder: _fieldBorder(AppTheme.primary, width: 1.5),
-            errorBorder: _fieldBorder(AppTheme.negative),
-            focusedErrorBorder: _fieldBorder(AppTheme.negative, width: 1.5),
+            fillColor: AppTheme.planSurface,
+            border: _fieldBorder(AppTheme.planBorder),
+            enabledBorder: _fieldBorder(AppTheme.planBorder),
+            focusedBorder: _fieldBorder(AppTheme.planMauve, width: 1.4),
+            errorBorder: _fieldBorder(AppTheme.planNegative),
+            focusedErrorBorder: _fieldBorder(AppTheme.planNegative, width: 1.4),
           ),
         ),
       ],
@@ -748,7 +811,7 @@ final class _AnalysisField extends StatelessWidget {
 
   OutlineInputBorder _fieldBorder(Color color, {double width = 1}) {
     return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       borderSide: BorderSide(color: color, width: width),
     );
   }
@@ -763,9 +826,9 @@ final class _StatementList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surfaceRaised,
-        border: Border.all(color: AppTheme.border),
-        borderRadius: BorderRadius.circular(20),
+        color: AppTheme.planSurface,
+        border: Border.all(color: AppTheme.planBorder),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
@@ -800,7 +863,7 @@ final class _StatementRow extends StatelessWidget {
             height: 7,
             margin: const EdgeInsets.only(top: 7),
             decoration: const BoxDecoration(
-              color: AppTheme.primary,
+              color: AppTheme.planMauve,
               shape: BoxShape.circle,
             ),
           ),
@@ -812,7 +875,7 @@ final class _StatementRow extends StatelessWidget {
                 Text(
                   statement.topic,
                   style: const TextStyle(
-                    color: AppTheme.ink,
+                    color: AppTheme.planInk,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -821,7 +884,7 @@ final class _StatementRow extends StatelessWidget {
                 Text(
                   '“${statement.originalExpression}”',
                   style: const TextStyle(
-                    color: AppTheme.muted,
+                    color: AppTheme.planMuted,
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -860,14 +923,14 @@ final class _DisclosureCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceRaised,
-        border: Border.all(color: AppTheme.border),
-        borderRadius: BorderRadius.circular(20),
+        color: AppTheme.planSurface,
+        border: Border.all(color: AppTheme.planBorder),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppTheme.muted, size: 21),
+          Icon(icon, color: AppTheme.planMuted, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -876,7 +939,7 @@ final class _DisclosureCard extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    color: AppTheme.ink,
+                    color: AppTheme.planInk,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -885,7 +948,7 @@ final class _DisclosureCard extends StatelessWidget {
                 const Text(
                   '표시가 보이지 않아도 광고가 아니라고 단정하지 않아요.',
                   style: TextStyle(
-                    color: AppTheme.subtle,
+                    color: AppTheme.planSubtle,
                     fontSize: 12,
                     height: 1.45,
                   ),
@@ -907,18 +970,18 @@ final class _NoStatementsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceRaised,
-        border: Border.all(color: AppTheme.border),
-        borderRadius: BorderRadius.circular(20),
+        color: AppTheme.planSurface,
+        border: Border.all(color: AppTheme.planBorder),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: const Row(
         children: [
-          Icon(Icons.notes_outlined, color: AppTheme.subtle, size: 21),
+          Icon(Icons.notes_outlined, color: AppTheme.planSubtle, size: 21),
           SizedBox(width: 12),
           Expanded(
             child: Text(
               '가져온 내용에서 정리할 만한 표현을 찾지 못했어요.',
-              style: TextStyle(color: AppTheme.muted, fontSize: 14),
+              style: TextStyle(color: AppTheme.planMuted, fontSize: 14),
             ),
           ),
         ],
@@ -934,16 +997,6 @@ final class _ResultMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppTheme.primary.withValues(alpha: 0.14),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.36)),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Icon(icon, size: 22, color: AppTheme.primary),
-    );
+    return Icon(icon, size: 18, color: AppTheme.planMauve);
   }
 }

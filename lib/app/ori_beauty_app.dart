@@ -24,16 +24,16 @@ final class OriBeautyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Trun On',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
-      themeMode: ThemeMode.dark,
+      theme: AppTheme.light,
+      themeMode: ThemeMode.light,
       builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
         value: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-          systemNavigationBarColor: AppTheme.background,
-          systemNavigationBarDividerColor: AppTheme.background,
-          systemNavigationBarIconBrightness: Brightness.light,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+          systemNavigationBarColor: AppTheme.planSurface,
+          systemNavigationBarDividerColor: AppTheme.planSurface,
+          systemNavigationBarIconBrightness: Brightness.dark,
           systemNavigationBarContrastEnforced: false,
         ),
         child: child ?? const SizedBox.shrink(),

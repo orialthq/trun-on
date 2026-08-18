@@ -47,42 +47,50 @@ final class _ProductsScreenState extends State<ProductsScreen> {
             .where((item) => item.folder == ContentFolder.needsClassification)
             .length;
 
-        return ListView(
-          key: const PageStorageKey('products'),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.fromLTRB(
-            20,
-            22,
-            20,
-            40 + MediaQuery.viewPaddingOf(context).bottom,
-          ),
-          children: [
-            _ArchiveHeader(total: items.length),
-            if (needsClassificationCount > 0) ...[
-              const SizedBox(height: 14),
-              _NeedsClassificationBanner(
-                count: needsClassificationCount,
-                onTap: () => _openSubcategories(
-                  folder: ContentFolder.needsClassification,
+        return Theme(
+          data: AppTheme.plansTheme(Theme.of(context)),
+          child: ColoredBox(
+            color: AppTheme.planCanvas,
+            child: ListView(
+              key: const PageStorageKey('products'),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                22,
+                28,
+                22,
+                44 + MediaQuery.viewPaddingOf(context).bottom,
+              ),
+              children: [
+                _ArchiveHeader(total: items.length),
+                if (needsClassificationCount > 0) ...[
+                  const SizedBox(height: 24),
+                  _NeedsClassificationBanner(
+                    count: needsClassificationCount,
+                    onTap: () => _openSubcategories(
+                      folder: ContentFolder.needsClassification,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 34),
+                _FolderList(
+                  selected: _selectedFolder,
+                  itemsByFolder: itemsByFolder,
+                  onSelected: (folder) {
+                    setState(() => _selectedFolder = folder);
+                  },
+                  onOpenSubcategories: ({initialSubcategory}) =>
+                      _openSubcategories(
+                        initialSubcategory: initialSubcategory,
+                      ),
+                  onOpenItem: (item) => openSavedLibraryItem(
+                    context,
+                    controller: widget.controller,
+                    item: item,
+                  ),
                 ),
-              ),
-            ],
-            const SizedBox(height: 24),
-            _FolderStack(
-              selected: _selectedFolder,
-              itemsByFolder: itemsByFolder,
-              onSelected: (folder) {
-                setState(() => _selectedFolder = folder);
-              },
-              onOpenSubcategories: ({initialSubcategory}) =>
-                  _openSubcategories(initialSubcategory: initialSubcategory),
-              onOpenItem: (item) => openSavedLibraryItem(
-                context,
-                controller: widget.controller,
-                item: item,
-              ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -97,46 +105,41 @@ final class _ArchiveHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '정리함',
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  fontSize: 42,
-                  letterSpacing: -1.8,
+              Text('정리함', style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 7),
+              const Text(
+                '저장한 내용을 폴더별로 차분히 모아 봐요.',
+                style: TextStyle(
+                  color: AppTheme.planMuted,
+                  fontSize: 14,
+                  height: 1.5,
                 ),
               ),
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 3),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '$total',
+        const SizedBox(width: 16),
+        Semantics(
+          label: '저장된 콘텐츠 $total개',
+          child: ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(
+                '$total개',
                 style: const TextStyle(
-                  color: AppTheme.ink,
-                  fontSize: 27,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                '저장됨',
-                style: TextStyle(
-                  color: AppTheme.subtle,
-                  fontSize: 12,
+                  color: AppTheme.planSubtle,
+                  fontSize: 14,
+                  height: 1.4,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ],
@@ -155,52 +158,72 @@ final class _NeedsClassificationBanner extends StatelessWidget {
     final folder = ContentFolder.needsClassification;
     return Material(
       key: const Key('folder-needsClassification'),
-      color: AppTheme.accentSoft,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: folder.color.withValues(alpha: 0.46)),
+      color: Colors.transparent,
+      shape: const Border(
+        top: BorderSide(color: AppTheme.planBorder),
+        bottom: BorderSide(color: AppTheme.planBorder),
       ),
-      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 58),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-            child: Row(
-              children: [
-                Icon(folder.icon, color: folder.color, size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '분류가 필요한 콘텐츠 $count개',
-                        style: const TextStyle(
-                          color: AppTheme.ink,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
+        child: Semantics(
+          button: true,
+          label: '분류가 필요한 콘텐츠 $count개, 세부 분류 확인',
+          child: ExcludeSemantics(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 64),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    SizedBox.square(
+                      dimension: 36,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppTheme.planSandSoft,
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Icon(
+                          folder.icon,
+                          color: AppTheme.planSand,
+                          size: 19,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        '눌러서 세부 분류를 확인해요',
-                        style: TextStyle(
-                          color: AppTheme.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '분류가 필요한 콘텐츠 $count개',
+                            style: const TextStyle(
+                              color: AppTheme.planInk,
+                              fontSize: 14,
+                              height: 1.35,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            '폴더를 정해 정리함에 넣어 주세요.',
+                            style: TextStyle(
+                              color: AppTheme.planMuted,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppTheme.planSubtle,
+                      size: 21,
+                    ),
+                  ],
                 ),
-                const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: AppTheme.caution,
-                  size: 20,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -209,8 +232,8 @@ final class _NeedsClassificationBanner extends StatelessWidget {
   }
 }
 
-final class _FolderStack extends StatefulWidget {
-  const _FolderStack({
+final class _FolderList extends StatefulWidget {
+  const _FolderList({
     required this.selected,
     required this.itemsByFolder,
     required this.onSelected,
@@ -225,46 +248,26 @@ final class _FolderStack extends StatefulWidget {
   final ValueChanged<SavedLibraryItem> onOpenItem;
 
   @override
-  State<_FolderStack> createState() => _FolderStackState();
+  State<_FolderList> createState() => _FolderListState();
 }
 
-final class _FolderStackState extends State<_FolderStack> {
-  static const _itemExtent = 62.0;
-
+final class _FolderListState extends State<_FolderList> {
   late int _centeredIndex;
-  late FixedExtentScrollController _wheelController;
 
   @override
   void initState() {
     super.initState();
     _centeredIndex = _folderIndex(widget.selected);
-    _wheelController = FixedExtentScrollController(initialItem: _centeredIndex);
   }
 
   @override
-  void didUpdateWidget(covariant _FolderStack oldWidget) {
+  void didUpdateWidget(covariant _FolderList oldWidget) {
     super.didUpdateWidget(oldWidget);
     final nextIndex = _folderIndex(widget.selected);
     if (nextIndex == _centeredIndex) {
       return;
     }
     _centeredIndex = nextIndex;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_wheelController.hasClients) {
-        return;
-      }
-      _wheelController.animateToItem(
-        nextIndex,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _wheelController.dispose();
-    super.dispose();
   }
 
   int _folderIndex(ContentFolder folder) {
@@ -272,188 +275,81 @@ final class _FolderStackState extends State<_FolderStack> {
     return index < 0 ? 0 : index;
   }
 
-  void _handleWheelChange(int index) {
-    if (index == _centeredIndex) {
-      return;
-    }
-    setState(() => _centeredIndex = index);
-    widget.onSelected(defaultContentFolders[index]);
-  }
-
   void _selectIndex(int index) {
     final boundedIndex = index.clamp(0, defaultContentFolders.length - 1);
-    if (boundedIndex != _centeredIndex) {
-      setState(() => _centeredIndex = boundedIndex);
-      widget.onSelected(defaultContentFolders[boundedIndex]);
-    }
-    _wheelController.animateToItem(
-      boundedIndex,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  void _moveBy(int amount) {
-    var nextIndex = _centeredIndex + amount;
-    if (nextIndex < 0) {
-      nextIndex = defaultContentFolders.length - 1;
-    } else if (nextIndex >= defaultContentFolders.length) {
-      nextIndex = 0;
-    }
-    _selectIndex(nextIndex);
+    if (boundedIndex == _centeredIndex) return;
+    setState(() => _centeredIndex = boundedIndex);
+    widget.onSelected(defaultContentFolders[boundedIndex]);
   }
 
   @override
   Widget build(BuildContext context) {
     final folder = defaultContentFolders[_centeredIndex];
     final items = widget.itemsByFolder[folder] ?? const <SavedLibraryItem>[];
-    final textScale = MediaQuery.textScalerOf(context).scale(1);
-    final wheelDiameter = textScale > 1.3 ? 304.0 : 284.0;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Semantics(
-          label: '상위 폴더 룰렛, ${folder.label} 선택됨',
-          child: Center(
-            child: SizedBox.square(
-              dimension: wheelDiameter,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  AnimatedContainer(
-                    key: const Key('folder-roulette'),
-                    duration: const Duration(milliseconds: 240),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          folder.color.withValues(alpha: 0.2),
-                          AppTheme.surfaceRaised,
-                          AppTheme.surface,
-                        ],
-                        stops: const [0, 0.62, 1],
-                      ),
-                      border: Border.all(
-                        color: folder.color.withValues(alpha: 0.56),
-                        width: 1.4,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: folder.color.withValues(alpha: 0.13),
-                          blurRadius: 28,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                  ),
-                  ClipOval(
-                    child: ListWheelScrollView.useDelegate(
-                      key: const Key('top-folder-wheel'),
-                      controller: _wheelController,
-                      itemExtent: _itemExtent,
-                      diameterRatio: 1.35,
-                      perspective: 0.0045,
-                      squeeze: 0.94,
-                      physics: const FixedExtentScrollPhysics(),
-                      onSelectedItemChanged: _handleWheelChange,
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: defaultContentFolders.length,
-                        builder: (context, index) {
-                          final option = defaultContentFolders[index];
-                          return _RouletteFolderOption(
-                            key: Key('folder-${option.name}'),
-                            folder: option,
-                            count: widget.itemsByFolder[option]?.length ?? 0,
-                            selected: index == _centeredIndex,
-                            onTap: () => _selectIndex(index),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  IgnorePointer(
-                    child: Container(
-                      height: _itemExtent + 4,
-                      margin: const EdgeInsets.symmetric(horizontal: 18),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: folder.color.withValues(alpha: 0.9),
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 13),
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _WheelStepButton(
-              tooltip: '이전 폴더',
-              icon: Icons.keyboard_arrow_up_rounded,
-              onPressed: () => _moveBy(-1),
+            Expanded(
+              child: Text('폴더', style: Theme.of(context).textTheme.titleLarge),
             ),
-            const SizedBox(width: 18),
-            SizedBox(
-              width: 92,
-              child: Column(
-                children: [
-                  Text(
-                    folder.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppTheme.ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${_centeredIndex + 1} / ${defaultContentFolders.length}',
-                    style: const TextStyle(
-                      color: AppTheme.subtle,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+            const Text(
+              '8개',
+              style: TextStyle(
+                color: AppTheme.planSubtle,
+                fontSize: 12,
+                height: 1.4,
               ),
-            ),
-            const SizedBox(width: 18),
-            _WheelStepButton(
-              tooltip: '다음 폴더',
-              icon: Icons.keyboard_arrow_down_rounded,
-              onPressed: () => _moveBy(1),
             ),
           ],
         ),
-        const SizedBox(height: 24),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.03),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
+        const SizedBox(height: 13),
+        Semantics(
+          label: '상위 폴더 목록, ${folder.label} 선택됨',
+          child: Material(
+            key: const Key('folder-roulette'),
+            color: Colors.transparent,
+            shape: const Border(
+              top: BorderSide(color: AppTheme.planBorder),
+              bottom: BorderSide(color: AppTheme.planBorder),
             ),
-          ),
-          child: _FolderDetailCard(
-            key: Key('folder-detail-${folder.name}'),
-            folder: folder,
-            items: items,
-            onOpenSubcategories: widget.onOpenSubcategories,
-            onOpenItem: widget.onOpenItem,
+            child: Column(
+              key: const Key('top-folder-wheel'),
+              children: [
+                for (
+                  var index = 0;
+                  index < defaultContentFolders.length;
+                  index++
+                ) ...[
+                  _FolderOptionRow(
+                    key: Key('folder-${defaultContentFolders[index].name}'),
+                    folder: defaultContentFolders[index],
+                    count:
+                        widget
+                            .itemsByFolder[defaultContentFolders[index]]
+                            ?.length ??
+                        0,
+                    selected: index == _centeredIndex,
+                    onTap: () => _selectIndex(index),
+                  ),
+                  if (index == _centeredIndex)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(30, 2, 10, 22),
+                      child: _FolderDetails(
+                        key: Key('folder-detail-${folder.name}'),
+                        folder: folder,
+                        items: items,
+                        onOpenSubcategories: widget.onOpenSubcategories,
+                        onOpenItem: widget.onOpenItem,
+                      ),
+                    ),
+                  if (index != defaultContentFolders.length - 1)
+                    const Divider(indent: 30),
+                ],
+              ],
+            ),
           ),
         ),
       ],
@@ -461,8 +357,8 @@ final class _FolderStackState extends State<_FolderStack> {
   }
 }
 
-final class _RouletteFolderOption extends StatelessWidget {
-  const _RouletteFolderOption({
+final class _FolderOptionRow extends StatelessWidget {
+  const _FolderOptionRow({
     required this.folder,
     required this.count,
     required this.selected,
@@ -485,31 +381,44 @@ final class _RouletteFolderOption extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(8),
           child: Center(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               constraints: const BoxConstraints(minHeight: 48),
-              margin: const EdgeInsets.symmetric(horizontal: 28, vertical: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 19),
+              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: selected ? folder.color : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
+                color: selected ? AppTheme.planMauveSoft : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: selected ? 8 : 6,
+                    height: selected ? 8 : 6,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? folder.color.withValues(alpha: 0.82)
+                          : AppTheme.planBorder,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       folder.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: selected
-                            ? const Color(0xFF1B100C)
-                            : AppTheme.muted,
-                        fontSize: selected ? 18 : 15,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
+                        color: selected ? AppTheme.planInk : AppTheme.planMuted,
+                        fontSize: selected ? 17 : 14,
+                        height: 1.35,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ),
@@ -518,10 +427,11 @@ final class _RouletteFolderOption extends StatelessWidget {
                     '$count',
                     style: TextStyle(
                       color: selected
-                          ? const Color(0xFF1B100C)
-                          : AppTheme.subtle,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
+                          ? AppTheme.planMuted
+                          : AppTheme.planSubtle,
+                      fontSize: 12,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -534,36 +444,8 @@ final class _RouletteFolderOption extends StatelessWidget {
   }
 }
 
-final class _WheelStepButton extends StatelessWidget {
-  const _WheelStepButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      icon: Icon(icon),
-      color: AppTheme.ink,
-      iconSize: 25,
-      style: IconButton.styleFrom(
-        minimumSize: const Size.square(48),
-        backgroundColor: AppTheme.surfaceRaised,
-        side: const BorderSide(color: AppTheme.border),
-      ),
-    );
-  }
-}
-
-final class _FolderDetailCard extends StatelessWidget {
-  const _FolderDetailCard({
+final class _FolderDetails extends StatelessWidget {
+  const _FolderDetails({
     required this.folder,
     required this.items,
     required this.onOpenSubcategories,
@@ -592,99 +474,94 @@ final class _FolderDetailCard extends StatelessWidget {
         return countOrder != 0 ? countOrder : left.key.compareTo(right.key);
       });
 
-    return Container(
-      decoration: BoxDecoration(
-        color: folder.color,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: folder.color.withValues(alpha: 0.25),
-            blurRadius: 24,
-            offset: const Offset(0, 9),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          folder.description,
+          style: const TextStyle(
+            color: AppTheme.planMuted,
+            fontSize: 13,
+            height: 1.45,
           ),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        ),
+        const SizedBox(height: 14),
+        const Divider(),
+        if (items.isEmpty)
+          SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 30),
+              child: _EmptyFolderMessage(folder: folder),
+            ),
+          )
+        else ...[
+          const SizedBox(height: 22),
           Row(
             children: [
-              Expanded(
+              const Expanded(
                 child: Text(
-                  folder.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF1B100C),
-                    fontSize: 27,
-                    height: 1.05,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -1,
+                  '하위 분류',
+                  style: TextStyle(
+                    color: AppTheme.planInk,
+                    fontSize: 13,
+                    height: 1.4,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              Container(
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1B100C).withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '${items.length}',
-                  style: const TextStyle(
-                    color: Color(0xFF1B100C),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
+              Text(
+                '${subcategories.length}',
+                style: const TextStyle(
+                  color: AppTheme.planSubtle,
+                  fontSize: 12,
+                  height: 1.4,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          if (items.isEmpty)
-            SizedBox(
-              width: double.infinity,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 28),
-                child: _EmptyFolderMessage(folder: folder),
-              ),
-            )
-          else ...[
-            SizedBox(
-              height: 44,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: subcategories.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 7),
-                itemBuilder: (context, index) {
-                  final entry = subcategories[index];
-                  return _SubcategoryChip(
-                    key: Key('subcategory-${entry.key}'),
-                    label: entry.key,
-                    count: entry.value,
-                    onTap: () =>
-                        onOpenSubcategories(initialSubcategory: entry.key),
-                  );
-                },
-              ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 42,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: subcategories.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 7),
+              itemBuilder: (context, index) {
+                final entry = subcategories[index];
+                return _SubcategoryChip(
+                  key: Key('subcategory-${entry.key}'),
+                  label: entry.key,
+                  count: entry.value,
+                  onTap: () =>
+                      onOpenSubcategories(initialSubcategory: entry.key),
+                );
+              },
             ),
-            const SizedBox(height: 11),
-            _RecentItemRow(
-              item: items.first,
-              onTap: () => onOpenItem(items.first),
+          ),
+          const SizedBox(height: 27),
+          const Text(
+            '최근 저장',
+            style: TextStyle(
+              color: AppTheme.planInk,
+              fontSize: 13,
+              height: 1.4,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 17),
-            _OpenSubcategoriesButton(
-              folder: folder,
-              subcategoryCount: subcategories.length,
-              onTap: () => onOpenSubcategories(),
-            ),
-          ],
+          ),
+          const SizedBox(height: 9),
+          _RecentItemRow(
+            item: items.first,
+            onTap: () => onOpenItem(items.first),
+          ),
+          const SizedBox(height: 17),
+          _OpenSubcategoriesButton(
+            folder: folder,
+            subcategoryCount: subcategories.length,
+            onTap: () => onOpenSubcategories(),
+          ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -703,23 +580,33 @@ final class _SubcategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFF1B100C).withValues(alpha: 0.13),
-      borderRadius: BorderRadius.circular(999),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Center(
-              child: Text(
-                '$label $count',
-                style: const TextStyle(
-                  color: Color(0xFF1B100C),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
+    return Semantics(
+      button: true,
+      label: '$label 하위 분류, $count개',
+      child: Material(
+        color: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(9),
+          side: const BorderSide(color: AppTheme.planBorder),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: ExcludeSemantics(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 42),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                child: Center(
+                  child: Text(
+                    '$label  $count',
+                    style: const TextStyle(
+                      color: AppTheme.planMuted,
+                      fontSize: 12,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -738,42 +625,68 @@ final class _RecentItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFF1B100C).withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(15),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.bookmark_rounded,
-                  size: 18,
-                  color: Color(0xFF1B100C),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF1B100C),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
+    return Semantics(
+      button: true,
+      label: '최근 저장, ${item.title}, 열기',
+      child: Material(
+        color: Colors.transparent,
+        shape: const Border(
+          top: BorderSide(color: AppTheme.planBorder),
+          bottom: BorderSide(color: AppTheme.planBorder),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: ExcludeSemantics(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 62),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.bookmark_border_rounded,
+                      size: 19,
+                      color: AppTheme.planSubtle,
                     ),
-                  ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppTheme.planInk,
+                              fontSize: 14,
+                              height: 1.35,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            item.subcategory,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppTheme.planSubtle,
+                              fontSize: 11,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: AppTheme.planSubtle,
+                    ),
+                  ],
                 ),
-                const Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 18,
-                  color: Color(0xFF1B100C),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -797,33 +710,35 @@ final class _OpenSubcategoriesButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       key: Key('open-subcategories-${folder.name}'),
-      color: const Color(0xFF24100A),
-      borderRadius: BorderRadius.circular(17),
-      clipBehavior: Clip.antiAlias,
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 52),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '세부 분류 열기 · $subcategoryCount',
-                    style: TextStyle(
-                      color: folder.color,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
+        child: Semantics(
+          button: true,
+          label: '${folder.label} 세부 분류 $subcategoryCount개 열기',
+          child: ExcludeSemantics(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 52),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '세부 분류 열기 · $subcategoryCount',
+                      style: const TextStyle(
+                        color: AppTheme.planInk,
+                        fontSize: 13,
+                        height: 1.4,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: folder.color,
-                  size: 19,
-                ),
-              ],
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: AppTheme.planMuted,
+                    size: 18,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -842,20 +757,26 @@ final class _EmptyFolderMessage extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
-          folder.icon,
-          size: 38,
-          color: const Color(0xFF1B100C).withValues(alpha: 0.64),
-        ),
-        const SizedBox(height: 14),
+        Icon(folder.icon, size: 28, color: AppTheme.planSubtle),
+        const SizedBox(height: 12),
         Text(
           '${folder.label} 폴더가 비어 있어요',
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Color(0xFF1B100C),
-            fontSize: 18,
-            height: 1.35,
-            fontWeight: FontWeight.w900,
+            color: AppTheme.planMuted,
+            fontSize: 14,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 3),
+        const Text(
+          '새로 정리한 콘텐츠가 여기에 모여요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppTheme.planSubtle,
+            fontSize: 12,
+            height: 1.45,
           ),
         ),
       ],
