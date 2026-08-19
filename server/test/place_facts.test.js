@@ -438,25 +438,21 @@ test("platform snippets are extracted alongside reviews and stored as web eviden
   assert.ok(result.tips.some((tip) => tip.topic === "현장대기"));
 });
 
-test("a tabling listing alone answers 웨이팅 있음, and sentences outrank it", () => {
+test("a platform listing alone proves nothing about waiting", () => {
+  // Tabling sells reservations, takeout, and seat-claiming alongside queues —
+  // a listed shop is a customer of *something*, not proof a queue exists
+  // (쉐박: listed bakery, tags 예약가능·포장·배달, no waiting). Sentences are
+  // the only waiting evidence.
   const listed = { priceLevel: null, bookingLinks: ["https://tabling.co.kr/restaurant/1"] };
   const bare = deriveFacts({ place: listed, evidence: [], now: NOW });
-  assert.equal(bare.filters.웨이팅, "웨이팅 있음");
+  assert.equal(bare.filters.웨이팅, null);
 
-  // Three walked-right-in reports beat the listing.
   const walkedIn = deriveFacts({
     place: listed,
     evidence: [row("줄없음"), row("줄없음"), row("줄없음")],
     now: NOW,
   });
   assert.equal(walkedIn.filters.웨이팅, "웨이팅 없음");
-
-  const catchtableOnly = deriveFacts({
-    place: { bookingLinks: ["https://app.catchtable.co.kr/ct/shop/x"] },
-    evidence: [],
-    now: NOW,
-  });
-  assert.equal(catchtableOnly.filters.웨이팅, null);
 });
 
 // ── the full-evidence derivation ─────────────────────────────────────────────

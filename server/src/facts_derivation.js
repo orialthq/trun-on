@@ -28,7 +28,7 @@ export function deriveFacts({ place, evidence, now = Date.now() }) {
   return {
     filters: {
       가격대: priceBand(place?.priceLevel ?? null) ?? priceFromEvidence(rows),
-      웨이팅: waitingBand(rows, now) ?? waitingFromNotices(rows) ?? waitingFromListing(place),
+      웨이팅: waitingBand(rows, now) ?? waitingFromNotices(rows),
       주차: parking(rows),
     },
     tips: tips(rows),
@@ -40,18 +40,6 @@ export function deriveFacts({ place, evidence, now = Date.now() }) {
 /// queues. Existence only; intensity stays unknown.
 function waitingFromNotices(rows) {
   return rows.some((row) => row.topic === "현장대기" || row.topic === "원격대기")
-    ? "웨이팅 있음"
-    : null;
-}
-
-/// A shop on tabling pays for queue management, which no queue-less shop does —
-/// the listing itself is evidence of "웨이팅 있음". It proves nothing beyond
-/// that: whether the queue is remote-joinable is a per-shop toggle (금돼지식당
-/// runs the app with 원격웨이팅 disabled), so the 원격/현장 distinction only
-/// ever comes from sentences.
-function waitingFromListing(place) {
-  const links = Array.isArray(place?.bookingLinks) ? place.bookingLinks : [];
-  return links.some((link) => typeof link === "string" && link.includes("tabling.co.kr"))
     ? "웨이팅 있음"
     : null;
 }

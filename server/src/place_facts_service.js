@@ -115,7 +115,11 @@ export function createPlaceFactsService({
       serper.search(
         `"${placeName}" (site:tabling.co.kr OR site:app.catchtable.co.kr OR site:diningcode.com)`,
       ),
-      serper.videos(`"${placeName}"`),
+      // Unquoted on purpose: exact-phrase queries return zero videos, while the
+      // plain name returns ten. The name-relevance risk quotes were guarding
+      // against is small here — video results for a shop name are about the
+      // shop or nothing.
+      serper.videos(placeName),
     ]);
 
     const documents = [];
