@@ -10,6 +10,7 @@ import { createHttpServer } from "./http_app.js";
 import { createKakaoTransport } from "./kakao_transport.js";
 import { createOpenAITransport } from "./openai_transport.js";
 import { createPlaceResolutionService } from "./place_resolution_service.js";
+import { createRecommendationService } from "./recommendation_service.js";
 
 const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey) {
@@ -67,10 +68,13 @@ if (!apiKey) {
     );
   }
 
+  const recommendationService = createRecommendationService({ transport });
+
   const server = createHttpServer({
     analysisService,
     enrichmentService,
     placeResolutionService,
+    recommendationService,
     enrichmentModel,
   });
 

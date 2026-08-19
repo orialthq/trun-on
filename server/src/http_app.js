@@ -11,6 +11,7 @@ import { AppError, normalizeError } from "./errors.js";
 import {
   validateAnalyzeRequest,
   validateEnrichPlaceRequest,
+  validatePlanRecommendationRequest,
   validateResolvePlaceRequest,
 } from "./request_validation.js";
 
@@ -18,6 +19,7 @@ export function createHttpServer({
   analysisService,
   enrichmentService = null,
   placeResolutionService = null,
+  recommendationService = null,
   // Reported by /health so a comparison run can confirm which provider answered
   // rather than inferring it from the labels.
   enrichmentModel = MODEL,
@@ -36,6 +38,12 @@ export function createHttpServer({
   }
   if (enrichmentService && typeof enrichmentService.enrich !== "function") {
     throw new Error("An enrichmentService must expose enrich()");
+  }
+  if (
+    recommendationService &&
+    typeof recommendationService.recommend !== "function"
+  ) {
+    throw new Error("A recommendationService must expose recommend()");
   }
 
   return createServer(async (request, response) => {
@@ -74,6 +82,36 @@ export function createHttpServer({
             `[analyze] place=${result.place.name ?? "-"} ` +
               `area=${result.place.searchArea ?? "-"} ` +
               `kind=${result.axes.kind.map((l) => l.value).join("|") || "-"}`,
+          );
+        }
+        return sendJson(response, 200, result);
+      }
+
+      if (url.pathname === "/v1/plan-recommendation") {
+        if (request.method !== "POST") {
+          throw methodNotAllowed("POST");
+        }
+        if (!recommendationService) {
+          throw new AppError(
+            "RECOMMENDATION_NOT_CONFIGURED",
+            "추천을 사용할 수 없어요.",
+            { httpStatus: 503 },
+          );
+        }
+        assertJsonContentType(request.headers["content-type"]);
+        const body = await readJsonBody(request, {
+          maxBodyBytes,
+          timeoutMs: bodyTimeoutMs,
+        });
+        const input = validatePlanRecommendationRequest(body);
+        // Nothing matching is a normal answer, so this is a 200 whenever the
+        // call ran at all. The caller reads `status` to tell the two apart.
+        const result = await recommendationService.recommend(input);
+        if (process.env.TRUN_ON_DEBUG_LOG === "1") {
+          console.log(
+            `[recommend] "${input.plan.title}" 후보=${input.candidates.length} ` +
+              `→ ${result.status} 묶음=${result.groups.length} ` +
+              `할일=${result.todoCount} 담김=${result.attachedCount}`,
           );
         }
         return sendJson(response, 200, result);

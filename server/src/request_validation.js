@@ -283,3 +283,152 @@ function isHttpUrl(value) {
     return false;
   }
 }
+
+/// The most a single recommendation call will carry.
+///
+/// The baseline sends everything the reader saved on purpose — deciding what to
+/// leave out is exactly the kind of addition this is here to measure. But a
+/// request still has to be bounded, so this is set well above any real library
+/// and exists to stop a runaway payload, not to shape the answer.
+const MAX_RECOMMENDATION_CANDIDATES = 300;
+
+export function validatePlanRecommendationRequest(body) {
+  if (!isPlainObject(body)) {
+    throw new AppError("INVALID_REQUEST", "요청 형식이 올바르지 않아요.", {
+      httpStatus: 400,
+    });
+  }
+  assertKeys(body, new Set(["plan", "candidates"]), "요청");
+
+  if (!isPlainObject(body.plan)) {
+    throw new AppError("INVALID_REQUEST", "plan 정보가 필요해요.", {
+      httpStatus: 400,
+    });
+  }
+  assertKeys(body.plan, new Set(["title", "area", "scheduledAt"]), "plan");
+  const title = typeof body.plan.title === "string" ? body.plan.title.trim() : "";
+  if (title === "" || title.length > 200) {
+    throw new AppError("INVALID_REQUEST", "plan.title이 필요해요.", {
+      httpStatus: 400,
+    });
+  }
+  validateOptionalString(body.plan.area, "plan.area", 200);
+  validateOptionalString(body.plan.scheduledAt, "plan.scheduledAt", 64);
+
+  if (!Array.isArray(body.candidates)) {
+    throw new AppError("INVALID_REQUEST", "candidates가 필요해요.", {
+      httpStatus: 400,
+    });
+  }
+  if (body.candidates.length > MAX_RECOMMENDATION_CANDIDATES) {
+    throw new AppError(
+      "TOO_MANY_CANDIDATES",
+      "한 번에 보낼 수 있는 후보 수를 넘었어요.",
+      { httpStatus: 413 },
+    );
+  }
+
+  const seen = new Set();
+  const candidates = body.candidates.map((raw, index) => {
+    if (!isPlainObject(raw)) {
+      throw new AppError(
+        "INVALID_REQUEST",
+        `candidates[${index}] 형식이 올바르지 않아요.`,
+        { httpStatus: 400 },
+      );
+    }
+    assertKeys(
+      raw,
+      new Set([
+        "id",
+        "name",
+        "folder",
+        "area",
+        "labels",
+        "saveCount",
+        "lastSavedAt",
+      ]),
+      `candidates[${index}]`,
+    );
+    const id = typeof raw.id === "string" ? raw.id.trim() : "";
+    if (id === "" || id.length > 128) {
+      throw new AppError(
+        "INVALID_REQUEST",
+        `candidates[${index}].id 형식이 올바르지 않아요.`,
+        { httpStatus: 400 },
+      );
+    }
+    // Duplicate ids would make an answer ambiguous — the caller could not tell
+    // which of two identical rows was picked.
+    if (seen.has(id)) {
+      throw new AppError("INVALID_REQUEST", "candidates에 중복된 id가 있어요.", {
+        httpStatus: 400,
+      });
+    }
+    seen.add(id);
+
+    const name = typeof raw.name === "string" ? raw.name.trim() : "";
+    if (name === "" || name.length > 200) {
+      throw new AppError(
+        "INVALID_REQUEST",
+        `candidates[${index}].name 형식이 올바르지 않아요.`,
+        { httpStatus: 400 },
+      );
+    }
+    validateOptionalString(raw.folder, `candidates[${index}].folder`, 64);
+    validateOptionalString(raw.area, `candidates[${index}].area`, 120);
+    validateOptionalString(
+      raw.lastSavedAt,
+      `candidates[${index}].lastSavedAt`,
+      64,
+    );
+
+    let labels = [];
+    if (raw.labels !== undefined && raw.labels !== null) {
+      if (
+        !Array.isArray(raw.labels) ||
+        raw.labels.some(
+          (label) => typeof label !== "string" || label.length > 60,
+        )
+      ) {
+        throw new AppError(
+          "INVALID_REQUEST",
+          `candidates[${index}].labels 형식이 올바르지 않아요.`,
+          { httpStatus: 400 },
+        );
+      }
+      labels = raw.labels.map((label) => label.trim()).filter(Boolean);
+    }
+
+    let saveCount = 1;
+    if (raw.saveCount !== undefined && raw.saveCount !== null) {
+      if (!Number.isInteger(raw.saveCount) || raw.saveCount < 1) {
+        throw new AppError(
+          "INVALID_REQUEST",
+          `candidates[${index}].saveCount 형식이 올바르지 않아요.`,
+          { httpStatus: 400 },
+        );
+      }
+      saveCount = raw.saveCount;
+    }
+
+    return {
+      id,
+      name,
+      folder: raw.folder ?? null,
+      area: raw.area ?? null,
+      labels,
+      saveCount,
+      lastSavedAt: raw.lastSavedAt ?? null,
+    };
+  });
+
+  return {
+    plan: {
+      title,
+      area: body.plan.area?.trim() || null,
+      scheduledAt: body.plan.scheduledAt ?? null,
+    },
+    candidates,
+  };
+}
