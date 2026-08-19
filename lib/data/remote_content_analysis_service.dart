@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../domain/models.dart';
+import 'analysis_server.dart';
 import 'content_analysis_service.dart';
 
 final class AnalysisServiceException implements Exception {
@@ -25,17 +26,17 @@ final class AnalysisServiceException implements Exception {
 /// Flutter process.
 final class RemoteContentAnalysisService implements ContentAnalysisService {
   const RemoteContentAnalysisService({
-    this.baseUrl = const String.fromEnvironment(
-      'ORI_ANALYSIS_BASE_URL',
-      defaultValue: 'http://10.0.2.2:8787',
-    ),
+    this.baseUrl,
     this.timeout = const Duration(seconds: 90),
     this.fallback = const BaselineContentAnalysisService(),
   });
 
-  final String baseUrl;
+  /// Null until a build names one, which leaves the platform default to stand.
+  final String? baseUrl;
   final Duration timeout;
   final BaselineContentAnalysisService fallback;
+
+  String get _serverUrl => baseUrl ?? defaultAnalysisBaseUrl();
 
   @override
   CaptureRecord analyzeShare(
@@ -66,7 +67,7 @@ final class RemoteContentAnalysisService implements ContentAnalysisService {
       throw const AnalysisServiceException('multiple_images_not_supported');
     }
 
-    final endpoint = Uri.tryParse(baseUrl)?.resolve('/v1/analyze');
+    final endpoint = Uri.tryParse(_serverUrl)?.resolve('/v1/analyze');
     if (endpoint == null ||
         !const {'http', 'https'}.contains(endpoint.scheme) ||
         endpoint.host.isEmpty) {
