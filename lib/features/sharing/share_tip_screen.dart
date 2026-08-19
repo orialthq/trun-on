@@ -56,13 +56,6 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: AppTheme.plansTheme(Theme.of(context)),
-      child: Builder(builder: _buildScreen),
-    );
-  }
-
-  Widget _buildScreen(BuildContext context) {
     final title = _analysis.title.value?.trim().isNotEmpty == true
         ? _analysis.title.value!
         : '제목 없음';
@@ -137,7 +130,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
                 Text(
                   '${_selectedIds.length} / $_maxSelectedDetails',
                   style: const TextStyle(
-                    color: AppTheme.planMauve,
+                    color: AppTheme.primary,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
@@ -149,10 +142,10 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
               const _NoExtraDetails()
             else
               Material(
-                color: AppTheme.planSurface,
+                color: AppTheme.surface,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppTheme.planBorder),
+                  borderRadius: BorderRadius.circular(20),
+                  side: const BorderSide(color: AppTheme.border),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
@@ -245,7 +238,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
                         '두 번째는 Trun On에서 다시 저장하고 활용하는 팁 파일이에요.',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: AppTheme.planSubtle,
+                color: AppTheme.subtle,
                 fontSize: 12,
                 height: 1.45,
               ),
@@ -327,7 +320,7 @@ final class _ShareTipScreenState extends State<ShareTipScreen> {
     final answer = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.map_outlined, color: AppTheme.planMauve),
+        icon: const Icon(Icons.map_outlined, color: AppTheme.primary),
         title: const Text('지도 링크도 이어서 보낼까요?'),
         content: const Text('사진은 먼저 보냈어요. 같은 채팅방에 지도 링크도 이어서 보낼게요.'),
         actions: [
@@ -467,9 +460,20 @@ final class _LetterComposer extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.all(color: AppTheme.planBorder),
-        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2B2518), Color(0xFF1D1C18)],
+        ),
+        border: Border.all(color: AppTheme.primarySoft),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
@@ -480,14 +484,14 @@ final class _LetterComposer extends StatelessWidget {
               children: [
                 const DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppTheme.planMauveSoft,
+                    color: AppTheme.primarySoft,
                     shape: BoxShape.circle,
                   ),
                   child: SizedBox.square(
                     dimension: 36,
                     child: Icon(
                       Icons.mail_outline_rounded,
-                      color: AppTheme.planMauve,
+                      color: AppTheme.primary,
                       size: 19,
                     ),
                   ),
@@ -497,7 +501,7 @@ final class _LetterComposer extends StatelessWidget {
                   child: Text(
                     '짧은 편지',
                     style: TextStyle(
-                      color: AppTheme.planInk,
+                      color: AppTheme.ink,
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                     ),
@@ -505,7 +509,7 @@ final class _LetterComposer extends StatelessWidget {
                 ),
                 DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppTheme.planMauveSoft,
+                    color: Colors.white.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: const Padding(
@@ -513,7 +517,7 @@ final class _LetterComposer extends StatelessWidget {
                     child: Text(
                       '선택',
                       style: TextStyle(
-                        color: AppTheme.planMuted,
+                        color: AppTheme.muted,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                       ),
@@ -533,21 +537,23 @@ final class _LetterComposer extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: '이 정보를 왜 보내고 싶은지 적어보세요.\n예: 이번 주말에 같이 가볼래?',
                 hintStyle: const TextStyle(
-                  color: AppTheme.planSubtle,
+                  color: AppTheme.subtle,
                   fontSize: 14,
                   height: 1.45,
                 ),
                 filled: true,
-                fillColor: AppTheme.planCanvas,
+                fillColor: Colors.black.withValues(alpha: 0.18),
                 contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: AppTheme.planBorder),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.09),
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: const BorderSide(
-                    color: AppTheme.planMauve,
+                    color: AppTheme.primary,
                     width: 1.4,
                   ),
                 ),
@@ -562,12 +568,14 @@ final class _LetterComposer extends StatelessWidget {
                   ActionChip(
                     label: Text(suggestion),
                     labelStyle: const TextStyle(
-                      color: AppTheme.planMuted,
+                      color: AppTheme.muted,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
-                    backgroundColor: AppTheme.planCanvas,
-                    side: const BorderSide(color: AppTheme.planBorder),
+                    backgroundColor: Colors.white.withValues(alpha: 0.055),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.09),
+                    ),
                     onPressed: () => onSuggestion(suggestion),
                   ),
               ],
@@ -921,7 +929,7 @@ final class _DetailChoiceTile extends StatelessWidget {
       controlAffinity: ListTileControlAffinity.trailing,
       secondary: Icon(
         detail.icon,
-        color: selected ? AppTheme.planMauve : AppTheme.planSubtle,
+        color: selected ? AppTheme.primary : AppTheme.subtle,
       ),
       title: Text(
         detail.cardLabel,
@@ -944,13 +952,13 @@ final class _NoExtraDetails extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppTheme.planSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.planBorder),
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.border),
       ),
       child: const Text(
         '추가로 고를 정보가 없어 제목과 요약만 카드에 담아요.',
-        style: TextStyle(color: AppTheme.planMuted, fontSize: 13),
+        style: TextStyle(color: AppTheme.muted, fontSize: 13),
       ),
     );
   }

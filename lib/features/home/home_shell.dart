@@ -304,11 +304,7 @@ final class _HomeShellState extends State<HomeShell>
       isScrollControlled: true,
       isDismissible: false,
       enableDrag: false,
-      backgroundColor: AppTheme.planSurface,
-      builder: (sheetContext) => Theme(
-        data: AppTheme.plansTheme(Theme.of(sheetContext)),
-        child: const _SourceImageChoiceSheet(),
-      ),
+      builder: (context) => const _SourceImageChoiceSheet(),
     );
     if (!mounted) return;
 
@@ -455,20 +451,41 @@ final class _HomeShellState extends State<HomeShell>
           label: '계획함',
         ),
     ];
-    const navigationBackground = AppTheme.planSurface;
-    const navigationBorder = AppTheme.planBorder;
-    const navigationIndicator = AppTheme.planMauveSoft;
-    const navigationSelected = AppTheme.planMauve;
-    const navigationUnselected = AppTheme.planSubtle;
-    const systemUiStyle = SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-      systemNavigationBarColor: AppTheme.planSurface,
-      systemNavigationBarDividerColor: AppTheme.planSurface,
-      systemNavigationBarIconBrightness: Brightness.dark,
-      systemNavigationBarContrastEnforced: false,
-    );
+    final showingPlans = planController != null && _selectedIndex == 3;
+    final navigationBackground = showingPlans
+        ? AppTheme.planSurface
+        : AppTheme.surface;
+    final navigationBorder = showingPlans
+        ? AppTheme.planBorder
+        : AppTheme.border;
+    final navigationIndicator = showingPlans
+        ? AppTheme.planMauveSoft
+        : AppTheme.primarySoft;
+    final navigationSelected = showingPlans
+        ? AppTheme.planMauve
+        : AppTheme.primary;
+    final navigationUnselected = showingPlans
+        ? AppTheme.planSubtle
+        : AppTheme.subtle;
+    final systemUiStyle = showingPlans
+        ? const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+            statusBarBrightness: Brightness.light,
+            systemNavigationBarColor: AppTheme.planSurface,
+            systemNavigationBarDividerColor: AppTheme.planSurface,
+            systemNavigationBarIconBrightness: Brightness.dark,
+            systemNavigationBarContrastEnforced: false,
+          )
+        : const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+            systemNavigationBarColor: AppTheme.background,
+            systemNavigationBarDividerColor: AppTheme.background,
+            systemNavigationBarIconBrightness: Brightness.light,
+            systemNavigationBarContrastEnforced: false,
+          );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: systemUiStyle,
@@ -480,7 +497,6 @@ final class _HomeShellState extends State<HomeShell>
           }
         },
         child: Scaffold(
-          backgroundColor: AppTheme.planCanvas,
           body: Stack(
             children: [
               SafeArea(
@@ -1243,12 +1259,12 @@ final class _IncomingCaptureCard extends StatelessWidget {
         final state = _CaptureArrivalState.from(capture);
 
         return Material(
-          color: AppTheme.planSurface,
-          elevation: 3,
-          shadowColor: const Color(0x26000000),
+          color: AppTheme.surfaceRaised,
+          elevation: 14,
+          shadowColor: const Color(0x99000000),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppTheme.planBorder),
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppTheme.border),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -1270,7 +1286,7 @@ final class _IncomingCaptureCard extends StatelessWidget {
                             dimension: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.4,
-                              color: AppTheme.planMauve,
+                              color: AppTheme.primary,
                             ),
                           )
                         : Icon(state.icon, color: state.iconColor, size: 23),
@@ -1284,7 +1300,7 @@ final class _IncomingCaptureCard extends StatelessWidget {
                         Text(
                           state.title,
                           style: const TextStyle(
-                            color: AppTheme.planInk,
+                            color: AppTheme.ink,
                             fontSize: 16,
                             height: 1.3,
                             fontWeight: FontWeight.w700,
@@ -1295,7 +1311,7 @@ final class _IncomingCaptureCard extends StatelessWidget {
                         Text(
                           state.description,
                           style: const TextStyle(
-                            color: AppTheme.planMuted,
+                            color: AppTheme.muted,
                             fontSize: 13,
                             height: 1.35,
                             fontWeight: FontWeight.w500,
@@ -1310,7 +1326,7 @@ final class _IncomingCaptureCard extends StatelessWidget {
                     icon: const Icon(
                       Icons.close_rounded,
                       size: 20,
-                      color: AppTheme.planSubtle,
+                      color: AppTheme.muted,
                     ),
                   ),
                 ],
@@ -1341,8 +1357,8 @@ final class _CaptureArrivalState {
         title: '링크를 저장했어요',
         description: '게시물 내용은 전달되지 않았어요 · 스크린샷을 보내 주세요',
         icon: Icons.link_rounded,
-        iconColor: AppTheme.planSand,
-        iconBackground: AppTheme.planSandSoft,
+        iconColor: AppTheme.caution,
+        iconBackground: AppTheme.accentSoft,
       );
     }
     return switch (capture.status) {
@@ -1350,38 +1366,38 @@ final class _CaptureArrivalState {
         title: '캡처를 받았어요',
         description: '이미지 정리를 준비하고 있어요',
         icon: Icons.image_outlined,
-        iconColor: AppTheme.planMauve,
-        iconBackground: AppTheme.planMauveSoft,
+        iconColor: AppTheme.primary,
+        iconBackground: AppTheme.primarySoft,
       ),
       CaptureStatus.analyzing => const _CaptureArrivalState(
         title: '캡처를 받았어요',
         description: '이미지를 정리하고 있어요',
         icon: Icons.auto_awesome_rounded,
-        iconColor: AppTheme.planMauve,
-        iconBackground: AppTheme.planMauveSoft,
+        iconColor: AppTheme.primary,
+        iconBackground: AppTheme.primarySoft,
         isLoading: true,
       ),
       CaptureStatus.needsReview => const _CaptureArrivalState(
         title: '정리가 준비됐어요',
         description: '탭해서 내용을 확인해 주세요',
         icon: Icons.check_rounded,
-        iconColor: AppTheme.planSage,
-        iconBackground: AppTheme.planSageSoft,
+        iconColor: AppTheme.positive,
+        iconBackground: Color(0xFF15322D),
       ),
       CaptureStatus.organized => const _CaptureArrivalState(
         title: '정리를 완료했어요',
         description: '콘텐츠에 안전하게 보관했어요',
         icon: Icons.bookmark_added_rounded,
-        iconColor: AppTheme.planSage,
-        iconBackground: AppTheme.planSageSoft,
+        iconColor: AppTheme.primary,
+        iconBackground: AppTheme.primarySoft,
       ),
       CaptureStatus.sourceLimited ||
       CaptureStatus.failed => const _CaptureArrivalState(
         title: '내용을 확인해 주세요',
         description: '탭해서 결과를 살펴볼 수 있어요',
         icon: Icons.error_outline_rounded,
-        iconColor: AppTheme.planNegative,
-        iconBackground: Color(0xFFF3E5E3),
+        iconColor: AppTheme.negative,
+        iconBackground: Color(0xFF381D1E),
       ),
     };
   }
@@ -1415,7 +1431,7 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppTheme.planBorder,
+                    color: AppTheme.border,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -1426,12 +1442,12 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: const BoxDecoration(
-                color: AppTheme.planMauveSoft,
+                color: AppTheme.primarySoft,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.download_done_rounded,
-                color: AppTheme.planMauve,
+                color: AppTheme.primary,
               ),
             ),
             const SizedBox(height: 12),
@@ -1443,7 +1459,7 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
             const Text(
               '갤러리의 원본도 남겨둘까요? 어떤 선택을 해도 Trun On 안의 복사본은 유지돼요.',
               style: TextStyle(
-                color: AppTheme.planMuted,
+                color: AppTheme.muted,
                 fontSize: 14,
                 height: 1.45,
               ),
@@ -1461,9 +1477,7 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
               width: double.infinity,
               child: TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.planNegative,
-                ),
+                style: TextButton.styleFrom(foregroundColor: AppTheme.negative),
                 child: const Text('갤러리 원본 삭제'),
               ),
             ),

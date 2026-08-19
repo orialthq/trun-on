@@ -44,13 +44,6 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: AppTheme.plansTheme(Theme.of(context)),
-      child: Builder(builder: _buildScreen),
-    );
-  }
-
-  Widget _buildScreen(BuildContext context) {
     final capture = widget.controller.captureById(widget.captureId);
     final structured = capture?.analysis?.structuredContent;
     if (capture == null || structured == null) {
@@ -102,7 +95,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
                       ? '정리함에 저장됨'
                       : '분석 결과',
                   style: const TextStyle(
-                    color: AppTheme.planMauve,
+                    color: AppTheme.primary,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.2,
@@ -125,7 +118,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
                   ? '이미지 내용으로 추정한 제목이에요.'
                   : '이미지에서 제목을 확인하지 못했어요.',
               style: const TextStyle(
-                color: AppTheme.planSand,
+                color: AppTheme.caution,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -136,7 +129,7 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
             Text(
               structured.summary,
               style: const TextStyle(
-                color: AppTheme.planMuted,
+                color: AppTheme.muted,
                 fontSize: 15,
                 height: 1.55,
               ),
@@ -253,15 +246,13 @@ final class _StructuredReviewScreenState extends State<StructuredReviewScreen> {
               child: Container(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 decoration: BoxDecoration(
-                  color: AppTheme.planSurface,
-                  border: const Border(
-                    top: BorderSide(color: AppTheme.planBorder),
-                  ),
+                  color: AppTheme.surface,
+                  border: const Border(top: BorderSide(color: AppTheme.border)),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.planInk.withValues(alpha: 0.06),
-                      blurRadius: 16,
-                      offset: const Offset(0, -4),
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 20,
+                      offset: const Offset(0, -6),
                     ),
                   ],
                 ),
@@ -342,7 +333,7 @@ final class _SourceGalleryState extends State<_SourceGallery> {
               child: Text(
                 '원본 캡처',
                 style: TextStyle(
-                  color: AppTheme.planInk,
+                  color: AppTheme.ink,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
@@ -352,7 +343,7 @@ final class _SourceGalleryState extends State<_SourceGallery> {
               Text(
                 '${_page + 1} / ${widget.attachments.length}',
                 style: const TextStyle(
-                  color: AppTheme.planMuted,
+                  color: AppTheme.muted,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -374,7 +365,7 @@ final class _SourceGalleryState extends State<_SourceGallery> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: ColoredBox(
-                    color: AppTheme.planSurface,
+                    color: AppTheme.surfaceRaised,
                     child: Image.file(
                       File(attachment.filePath),
                       fit: BoxFit.cover,
@@ -385,14 +376,14 @@ final class _SourceGalleryState extends State<_SourceGallery> {
                           children: [
                             Icon(
                               Icons.broken_image_outlined,
-                              color: AppTheme.planSubtle,
+                              color: AppTheme.subtle,
                               size: 36,
                             ),
                             SizedBox(height: 8),
                             Text(
                               '이미지를 불러오지 못했어요',
                               style: TextStyle(
-                                color: AppTheme.planMuted,
+                                color: AppTheme.muted,
                                 fontSize: 13,
                               ),
                             ),
@@ -428,7 +419,7 @@ final class _KindBadge extends StatelessWidget {
       ContentKind.place => ('장소', Icons.location_on_outlined),
       ContentKind.unknown => ('정보', Icons.article_outlined),
     };
-    return _Badge(label: label, icon: icon, color: AppTheme.planMauve);
+    return _Badge(label: label, icon: icon, color: AppTheme.primary);
   }
 }
 
@@ -440,11 +431,11 @@ final class _CompletenessBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (completeness) {
-      StructuredCompleteness.complete => ('내용 충분', AppTheme.planSage),
-      StructuredCompleteness.partial => ('일부만 확인', AppTheme.planSand),
-      StructuredCompleteness.conflicted => ('서로 다른 내용', AppTheme.planNegative),
-      StructuredCompleteness.needsReview => ('확인 필요', AppTheme.planSand),
-      StructuredCompleteness.unsupported => ('분류 어려움', AppTheme.planMuted),
+      StructuredCompleteness.complete => ('내용 충분', AppTheme.positive),
+      StructuredCompleteness.partial => ('일부만 확인', AppTheme.caution),
+      StructuredCompleteness.conflicted => ('서로 다른 내용', AppTheme.negative),
+      StructuredCompleteness.needsReview => ('확인 필요', AppTheme.caution),
+      StructuredCompleteness.unsupported => ('분류 어려움', AppTheme.muted),
     };
     return _Badge(label: label, icon: Icons.check_circle_outline, color: color);
   }
@@ -502,23 +493,19 @@ final class _SectionTitle extends StatelessWidget {
               child: Text(
                 title,
                 style: const TextStyle(
-                  color: AppTheme.planInk,
+                  color: AppTheme.ink,
                   fontSize: 19,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
             if (editable) ...[
-              const Icon(
-                Icons.edit_rounded,
-                size: 16,
-                color: AppTheme.planMuted,
-              ),
+              const Icon(Icons.edit_rounded, size: 16, color: AppTheme.muted),
               const SizedBox(width: 4),
               const Text(
                 '수정 가능',
                 style: TextStyle(
-                  color: AppTheme.planMuted,
+                  color: AppTheme.muted,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -541,9 +528,9 @@ final class _IngredientGroupCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
       decoration: BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.all(color: AppTheme.planBorder),
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,7 +539,7 @@ final class _IngredientGroupCard extends StatelessWidget {
             Text(
               group.name,
               style: const TextStyle(
-                color: AppTheme.planInk,
+                color: AppTheme.ink,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
               ),
@@ -569,7 +556,7 @@ final class _IngredientGroupCard extends StatelessWidget {
                     child: Text(
                       ingredient.name,
                       style: const TextStyle(
-                        color: AppTheme.planInk,
+                        color: AppTheme.ink,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
@@ -582,8 +569,8 @@ final class _IngredientGroupCard extends StatelessWidget {
                     style: TextStyle(
                       color:
                           ingredient.amount == null && ingredient.unit == null
-                          ? AppTheme.planSubtle
-                          : AppTheme.planMuted,
+                          ? AppTheme.subtle
+                          : AppTheme.muted,
                       fontSize: 14,
                     ),
                   ),
@@ -617,9 +604,9 @@ final class _StepsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
       decoration: BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.all(color: AppTheme.planBorder),
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
@@ -634,13 +621,13 @@ final class _StepsCard extends StatelessWidget {
                     height: 28,
                     alignment: Alignment.center,
                     decoration: const BoxDecoration(
-                      color: AppTheme.planMauveSoft,
+                      color: AppTheme.primarySoft,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
                       '${step.order}',
                       style: const TextStyle(
-                        color: AppTheme.planMauve,
+                        color: AppTheme.primary,
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
@@ -654,7 +641,7 @@ final class _StepsCard extends StatelessWidget {
                         Text(
                           step.instruction,
                           style: const TextStyle(
-                            color: AppTheme.planInk,
+                            color: AppTheme.ink,
                             fontSize: 15,
                             height: 1.5,
                           ),
@@ -669,7 +656,7 @@ final class _StepsCard extends StatelessWidget {
                               ?step.temperature,
                             ].join(' · '),
                             style: const TextStyle(
-                              color: AppTheme.planMauve,
+                              color: AppTheme.primary,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -706,9 +693,9 @@ final class _FactsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
       decoration: BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.all(color: AppTheme.planBorder),
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
@@ -723,7 +710,7 @@ final class _FactsCard extends StatelessWidget {
                     child: Text(
                       fact.label,
                       style: const TextStyle(
-                        color: AppTheme.planMuted,
+                        color: AppTheme.muted,
                         fontSize: 14,
                       ),
                     ),
@@ -733,7 +720,7 @@ final class _FactsCard extends StatelessWidget {
                     child: Text(
                       fact.value,
                       style: const TextStyle(
-                        color: AppTheme.planInk,
+                        color: AppTheme.ink,
                         fontSize: 14,
                         height: 1.45,
                         fontWeight: FontWeight.w600,
@@ -782,10 +769,10 @@ final class _EvidenceDisclosureState extends State<_EvidenceDisclosure> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Material(
-          color: AppTheme.planSurface,
+          color: AppTheme.surfaceRaised,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppTheme.planBorder),
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: AppTheme.border),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -803,7 +790,7 @@ final class _EvidenceDisclosureState extends State<_EvidenceDisclosure> {
                   children: [
                     const Icon(
                       Icons.fact_check_outlined,
-                      color: AppTheme.planMuted,
+                      color: AppTheme.muted,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
@@ -811,7 +798,7 @@ final class _EvidenceDisclosureState extends State<_EvidenceDisclosure> {
                       child: Text(
                         '원본 근거',
                         style: TextStyle(
-                          color: AppTheme.planInk,
+                          color: AppTheme.ink,
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
                         ),
@@ -821,7 +808,7 @@ final class _EvidenceDisclosureState extends State<_EvidenceDisclosure> {
                       _expanded
                           ? Icons.keyboard_arrow_up_rounded
                           : Icons.keyboard_arrow_down_rounded,
-                      color: AppTheme.planMuted,
+                      color: AppTheme.muted,
                     ),
                   ],
                 ),
@@ -848,9 +835,9 @@ final class _EvidenceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
       decoration: BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.all(color: AppTheme.planBorder),
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
@@ -863,14 +850,14 @@ final class _EvidenceCard extends StatelessWidget {
                   const Icon(
                     Icons.format_quote_rounded,
                     size: 17,
-                    color: AppTheme.planSubtle,
+                    color: AppTheme.subtle,
                   ),
                   const SizedBox(width: 9),
                   Expanded(
                     child: Text(
                       evidence[index].text,
                       style: const TextStyle(
-                        color: AppTheme.planMuted,
+                        color: AppTheme.muted,
                         fontSize: 14,
                         height: 1.45,
                       ),
@@ -903,16 +890,16 @@ final class _ReviewNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.planSandSoft,
-        border: Border.all(color: AppTheme.planSand.withValues(alpha: 0.45)),
-        borderRadius: BorderRadius.circular(14),
+        color: const Color(0xFF2B1F13),
+        border: Border.all(color: AppTheme.caution),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Icon(
             Icons.info_outline_rounded,
-            color: AppTheme.planSand,
+            color: AppTheme.caution,
             size: 20,
           ),
           const SizedBox(width: 10),
@@ -920,7 +907,7 @@ final class _ReviewNotice extends StatelessWidget {
             child: Text(
               messages.join('\n'),
               style: const TextStyle(
-                color: AppTheme.planInk,
+                color: AppTheme.ink,
                 fontSize: 14,
                 height: 1.5,
               ),
@@ -1170,10 +1157,7 @@ final class _PlaceCardState extends State<_PlaceCard>
       final provider = await showModalBottomSheet<MapProvider>(
         context: context,
         useSafeArea: true,
-        builder: (sheetContext) => Theme(
-          data: AppTheme.plansTheme(Theme.of(sheetContext)),
-          child: _MapProviderSheet(options: options),
-        ),
+        builder: (_) => _MapProviderSheet(options: options),
       );
       if (provider == null) return;
       final result = await _service.openMapWithProvider(
@@ -1216,9 +1200,9 @@ final class _PlaceCardState extends State<_PlaceCard>
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.all(color: AppTheme.planBorder),
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surfaceRaised,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1248,7 +1232,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                   Text(
                     category,
                     style: const TextStyle(
-                      color: AppTheme.planMauve,
+                      color: AppTheme.primary,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1258,7 +1242,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                 Text(
                   widget.place.name ?? widget.title,
                   style: const TextStyle(
-                    color: AppTheme.planInk,
+                    color: AppTheme.ink,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1267,7 +1251,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                 Text(
                   _address,
                   style: const TextStyle(
-                    color: AppTheme.planMuted,
+                    color: AppTheme.muted,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -1293,10 +1277,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                       onPressed: () => _openMap(mode: MapQueryMode.address),
                       child: const Text(
                         '주소로만 찾기',
-                        style: TextStyle(
-                          color: AppTheme.planMuted,
-                          fontSize: 13,
-                        ),
+                        style: TextStyle(color: AppTheme.muted, fontSize: 13),
                       ),
                     ),
                   ),
@@ -1308,7 +1289,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                       child: Text(
                         '근처에 가면 알림',
                         style: TextStyle(
-                          color: AppTheme.planInk,
+                          color: AppTheme.ink,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -1330,11 +1311,9 @@ final class _PlaceCardState extends State<_PlaceCard>
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
                     decoration: BoxDecoration(
-                      color: AppTheme.planSandSoft,
+                      color: const Color(0xFF2B1F13),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: AppTheme.planSand.withValues(alpha: 0.45),
-                      ),
+                      border: Border.all(color: AppTheme.caution),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1347,7 +1326,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                               child: Icon(
                                 Icons.location_disabled_outlined,
                                 size: 18,
-                                color: AppTheme.planSand,
+                                color: AppTheme.caution,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -1360,7 +1339,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                                         ? '“$_backgroundPermissionLabel”이 필요해요'
                                         : '위치 권한이 필요해요',
                                     style: const TextStyle(
-                                      color: AppTheme.planInk,
+                                      color: AppTheme.ink,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -1371,7 +1350,7 @@ final class _PlaceCardState extends State<_PlaceCard>
                                         ? '권한 → 위치 → $_backgroundPermissionLabel'
                                         : '근처 알림을 켜려면 먼저 허용해 주세요.',
                                     style: const TextStyle(
-                                      color: AppTheme.planMuted,
+                                      color: AppTheme.muted,
                                       fontSize: 12,
                                       height: 1.35,
                                     ),
@@ -1410,13 +1389,13 @@ final class _PlaceCardState extends State<_PlaceCard>
                   children: [
                     const Text(
                       '알림 반경',
-                      style: TextStyle(color: AppTheme.planMuted, fontSize: 14),
+                      style: TextStyle(color: AppTheme.muted, fontSize: 14),
                     ),
                     const Spacer(),
                     Text(
                       _formatRadius(_radiusMeters),
                       style: const TextStyle(
-                        color: AppTheme.planInk,
+                        color: AppTheme.ink,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1442,14 +1421,14 @@ final class _PlaceCardState extends State<_PlaceCard>
                     Icon(
                       Icons.lock_outline_rounded,
                       size: 15,
-                      color: AppTheme.planSubtle,
+                      color: AppTheme.subtle,
                     ),
                     SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         '위치는 휴대폰 안에서만 확인해요.',
                         style: TextStyle(
-                          color: AppTheme.planSubtle,
+                          color: AppTheme.subtle,
                           fontSize: 12,
                           height: 1.4,
                         ),
@@ -1506,21 +1485,18 @@ final class _MapProviderSheet extends StatelessWidget {
             const SizedBox(height: 5),
             const Text(
               '설치된 앱을 먼저 열고, 없으면 웹 지도로 연결해요.',
-              style: TextStyle(color: AppTheme.planMuted, fontSize: 13),
+              style: TextStyle(color: AppTheme.muted, fontSize: 13),
             ),
             const SizedBox(height: 16),
             for (final option in options) ...[
               Material(
-                color: AppTheme.planSurface,
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: AppTheme.planBorder),
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                color: AppTheme.surfaceRaised,
+                borderRadius: BorderRadius.circular(16),
                 clipBehavior: Clip.antiAlias,
                 child: ListTile(
                   key: ValueKey('map-provider-${option.provider.id}'),
                   enabled: option.available,
-                  minTileHeight: 72,
+                  minTileHeight: 64,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                   leading: _MapProviderMark(provider: option.provider),
                   title: Text(
@@ -1657,7 +1633,7 @@ final class _AnimatedMapRadiusState extends State<_AnimatedMapRadius>
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: AppTheme.planMauve,
+                              color: AppTheme.primary,
                               width: 2,
                             ),
                           ),
@@ -1668,15 +1644,15 @@ final class _AnimatedMapRadiusState extends State<_AnimatedMapRadius>
                         height: diameter,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppTheme.planMauve.withValues(alpha: 0.12),
+                          color: AppTheme.primary.withValues(alpha: 0.12),
                           border: Border.all(
-                            color: AppTheme.planMauve.withValues(alpha: 0.62),
+                            color: AppTheme.primary.withValues(alpha: 0.62),
                             width: 1.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.planMauve.withValues(alpha: 0.12),
-                              blurRadius: 12,
+                              color: AppTheme.primary.withValues(alpha: 0.16),
+                              blurRadius: 18,
                             ),
                           ],
                         ),
@@ -1685,19 +1661,19 @@ final class _AnimatedMapRadiusState extends State<_AnimatedMapRadius>
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: AppTheme.planMauve,
+                          color: AppTheme.primary,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.planMauve.withValues(alpha: 0.18),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                              color: AppTheme.primary.withValues(alpha: 0.28),
+                              blurRadius: 16,
+                              offset: const Offset(0, 7),
                             ),
                           ],
                         ),
                         child: const Icon(
                           Icons.location_on_rounded,
-                          color: Colors.white,
+                          color: AppTheme.background,
                           size: 25,
                         ),
                       ),
@@ -1718,9 +1694,12 @@ final class _MapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = AppTheme.planSageSoft);
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF1C211D),
+    );
     final roadPaint = Paint()
-      ..color = const Color(0xFFD1D9D0)
+      ..color = const Color(0xFF333936)
       ..strokeWidth = 14
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(
@@ -1733,7 +1712,7 @@ final class _MapPainter extends CustomPainter {
       Offset(size.width * 0.72, size.height + 10),
       roadPaint..strokeWidth = 9,
     );
-    final blockPaint = Paint()..color = AppTheme.planSurface;
+    final blockPaint = Paint()..color = const Color(0xFF252C28);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(18, 14, size.width * 0.24, 29),
@@ -1764,14 +1743,14 @@ final class _ResultMark extends StatelessWidget {
       height: 44,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppTheme.planMauveSoft,
-        border: Border.all(color: AppTheme.planBorder),
-        borderRadius: BorderRadius.circular(12),
+        color: AppTheme.primary.withValues(alpha: 0.14),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.36)),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: const Icon(
         Icons.auto_awesome_rounded,
         size: 22,
-        color: AppTheme.planMauve,
+        color: AppTheme.primary,
       ),
     );
   }

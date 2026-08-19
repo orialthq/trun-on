@@ -22,83 +22,110 @@ final class InboxScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: AppTheme.plansTheme(Theme.of(context)),
-      child: AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final captures = controller.filteredCaptures;
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final captures = controller.filteredCaptures;
 
-          return ColoredBox(
-            color: AppTheme.planCanvas,
-            child: ListView(
-              key: const PageStorageKey('content-inbox'),
-              padding: const EdgeInsets.fromLTRB(22, 28, 22, 40),
+        return ListView(
+          key: const PageStorageKey('content-inbox'),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _InboxHeader(onAdd: () => openManualInput(context, controller)),
-                const SizedBox(height: 34),
-                _CaptureSummaryCard(controller: controller),
-                const SizedBox(height: 28),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  clipBehavior: Clip.none,
-                  child: Row(
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (
-                        var index = 0;
-                        index < CaptureFilter.values.length;
-                        index++
-                      )
-                        Builder(
-                          builder: (context) {
-                            final filter = CaptureFilter.values[index];
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                right: index == CaptureFilter.values.length - 1
-                                    ? 0
-                                    : 8,
-                              ),
-                              child: _FilterButton(
-                                label: _filterLabel(filter),
-                                count: _countForFilter(controller, filter),
-                                color: _filterColor(filter),
-                                selected: controller.filter == filter,
-                                onPressed: () => controller.setFilter(filter),
-                              ),
-                            );
-                          },
-                        ),
+                      Text(
+                        '콘텐츠',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 9),
-                const Divider(),
-                if (captures.isEmpty)
-                  _EmptyInbox(
-                    onShowAll: () {
-                      controller.setFilter(CaptureFilter.all);
-                    },
-                  )
-                else
-                  Column(
-                    children: [
-                      for (var index = 0; index < captures.length; index++) ...[
-                        _CaptureCard(
-                          capture: captures[index],
-                          controller: controller,
-                          onTap: () => _openCapture(context, captures[index]),
-                          onLongPress: () =>
-                              _openCaptureActions(context, captures[index]),
-                        ),
-                        if (index != captures.length - 1) const Divider(),
-                      ],
-                    ],
+                const SizedBox(width: 16),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(82, 46),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
+                  onPressed: () => openManualInput(context, controller),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: const Text('추가'),
+                ),
               ],
             ),
-          );
-        },
-      ),
+            const SizedBox(height: 28),
+            _CaptureSummaryCard(controller: controller),
+            const SizedBox(height: 22),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              child: Row(
+                children: [
+                  for (
+                    var index = 0;
+                    index < CaptureFilter.values.length;
+                    index++
+                  )
+                    Builder(
+                      builder: (context) {
+                        final filter = CaptureFilter.values[index];
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            right: index == CaptureFilter.values.length - 1
+                                ? 0
+                                : 4,
+                          ),
+                          child: _FilterButton(
+                            label: _filterLabel(filter),
+                            count: _countForFilter(controller, filter),
+                            color: _filterColor(filter),
+                            selected: controller.filter == filter,
+                            onPressed: () => controller.setFilter(filter),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (captures.isEmpty)
+              _EmptyInbox(
+                onShowAll: () {
+                  controller.setFilter(CaptureFilter.all);
+                },
+              )
+            else
+              Material(
+                color: AppTheme.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  side: const BorderSide(color: AppTheme.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    for (var index = 0; index < captures.length; index++) ...[
+                      _CaptureCard(
+                        capture: captures[index],
+                        controller: controller,
+                        onTap: () => _openCapture(context, captures[index]),
+                        onLongPress: () =>
+                            _openCaptureActions(context, captures[index]),
+                      ),
+                      if (index != captures.length - 1)
+                        const Divider(height: 1, indent: 18, endIndent: 18),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -110,11 +137,7 @@ final class InboxScreen extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: AppTheme.planSurface,
-      builder: (sheetContext) => Theme(
-        data: AppTheme.plansTheme(Theme.of(sheetContext)),
-        child: _ManualInputSheet(controller: controller),
-      ),
+      builder: (_) => _ManualInputSheet(controller: controller),
     );
     if (captureId == null || !context.mounted) {
       return;
@@ -222,70 +245,11 @@ final class InboxScreen extends StatelessWidget {
 
   static Color _filterColor(CaptureFilter filter) {
     return switch (filter) {
-      CaptureFilter.all => AppTheme.planMauve,
-      CaptureFilter.needsReview => AppTheme.planSand,
-      CaptureFilter.organized => AppTheme.planSage,
-      CaptureFilter.limitedOrFailed => AppTheme.planNegative,
+      CaptureFilter.all => AppTheme.primary,
+      CaptureFilter.needsReview => AppTheme.caution,
+      CaptureFilter.organized => AppTheme.positive,
+      CaptureFilter.limitedOrFailed => AppTheme.negative,
     };
-  }
-}
-
-final class _InboxHeader extends StatelessWidget {
-  const _InboxHeader({required this.onAdd});
-
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('콘텐츠', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 7),
-        const Text(
-          '저장한 캡처와 공유 내용을 차례로 살펴봐요.',
-          style: TextStyle(
-            color: AppTheme.planMuted,
-            fontSize: 14,
-            height: 1.5,
-          ),
-        ),
-      ],
-    );
-    final addButton = Tooltip(
-      message: '콘텐츠 추가',
-      child: OutlinedButton.icon(
-        key: const Key('inbox-add-button'),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(82, 44),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          foregroundColor: AppTheme.planInk,
-          backgroundColor: AppTheme.planSurface,
-          side: const BorderSide(color: AppTheme.planBorder),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        onPressed: onAdd,
-        icon: const Icon(Icons.add_rounded, size: 19),
-        label: const Text('추가'),
-      ),
-    );
-    final usesStackedHeader = MediaQuery.textScalerOf(context).scale(14) > 18;
-    if (usesStackedHeader) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [title, const SizedBox(height: 14), addButton],
-      );
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: title),
-        const SizedBox(width: 16),
-        addButton,
-      ],
-    );
   }
 }
 
@@ -304,78 +268,30 @@ final class _CaptureSummaryCard extends StatelessWidget {
         ? '들어온 콘텐츠를 모두 확인했어요'
         : '확인할 콘텐츠가 $needsReview개 있어요';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '한눈에 보기',
-          style: TextStyle(
-            color: AppTheme.planSubtle,
-            fontSize: 12,
-            height: 1.4,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-          ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          headline,
-          style: const TextStyle(
-            color: AppTheme.planInk,
-            fontSize: 19,
-            height: 1.4,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
-          ),
-        ),
-        const SizedBox(height: 15),
-        Wrap(
-          spacing: 22,
-          runSpacing: 9,
+    return Material(
+      color: AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: const BorderSide(color: AppTheme.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 21),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SummaryMetric(label: '전체', value: controller.captures.length),
-            _SummaryMetric(label: '확인 필요', value: needsReview),
-            _SummaryMetric(label: '분석 중', value: analyzing),
-            _SummaryMetric(label: '정리 완료', value: controller.organizedCount),
+            Text(
+              headline,
+              style: const TextStyle(
+                color: AppTheme.ink,
+                fontSize: 20,
+                height: 1.4,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              ),
+            ),
           ],
         ),
-      ],
-    );
-  }
-}
-
-final class _SummaryMetric extends StatelessWidget {
-  const _SummaryMetric({required this.label, required this.value});
-
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text(
-          '$value',
-          style: const TextStyle(
-            color: AppTheme.planInk,
-            fontSize: 14,
-            height: 1.3,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppTheme.planMuted,
-            fontSize: 12,
-            height: 1.3,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -397,53 +313,42 @@ final class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(8),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 44),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
+    return Material(
+      color: selected
+          ? Color.alphaBlend(color.withValues(alpha: 0.16), AppTheme.surface)
+          : AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? color : color.withValues(alpha: 0.28),
+        ),
+      ),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: selected ? 1 : 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        '$label $count',
-                        style: TextStyle(
-                          color: selected ? color : AppTheme.planMuted,
-                          fontSize: 13,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    curve: Curves.easeOutCubic,
-                    height: 2,
+                  Container(
+                    width: 6,
+                    height: 6,
                     decoration: BoxDecoration(
-                      color: selected ? color : Colors.transparent,
-                      borderRadius: BorderRadius.circular(99),
+                      color: color.withValues(alpha: selected ? 1 : 0.58),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    '$label $count',
+                    style: TextStyle(
+                      color: selected ? color : AppTheme.muted,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                     ),
                   ),
                 ],
@@ -468,35 +373,31 @@ final class _CaptureStatusLabel extends StatelessWidget {
         capture.raw.attachments.isEmpty &&
         capture.normalized.completeness == MaterialCompleteness.linkOnly;
     final (label, color) = isLinkOnly
-        ? ('링크 저장', AppTheme.planSand)
+        ? ('링크 저장', AppTheme.caution)
         : switch (capture.status) {
             CaptureStatus.received ||
-            CaptureStatus.analyzing => ('분석 중', AppTheme.planMauve),
-            CaptureStatus.sourceLimited => ('내용 부족', AppTheme.planSand),
-            CaptureStatus.needsReview => ('확인 필요', AppTheme.planSand),
-            CaptureStatus.organized => ('정리 완료', AppTheme.planSage),
-            CaptureStatus.failed => ('분석 실패', AppTheme.planNegative),
+            CaptureStatus.analyzing => ('분석 중', AppTheme.primary),
+            CaptureStatus.sourceLimited => ('내용 부족', AppTheme.caution),
+            CaptureStatus.needsReview => ('확인 필요', AppTheme.caution),
+            CaptureStatus.organized => ('정리 완료', AppTheme.positive),
+            CaptureStatus.failed => ('분석 실패', AppTheme.negative),
           };
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 5,
-          height: 5,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.9),
-            shape: BoxShape.circle,
-          ),
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 5),
+        const SizedBox(width: 6),
         Text(
           label,
           style: TextStyle(
-            color: color.withValues(alpha: 0.9),
-            fontSize: 11,
-            height: 1.3,
-            fontWeight: FontWeight.w600,
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],
@@ -552,104 +453,101 @@ final class _CaptureCard extends StatelessWidget {
       isLinkOnly: isLinkOnly,
     );
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: capture.status == CaptureStatus.failed
-            ? () => controller.retryAnalysis(capture.raw.id)
-            : onTap,
-        onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(2, 16, 0, 16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (capture.raw.attachments.isNotEmpty) ...[
-                _CaptureThumbnail(attachment: capture.raw.attachments.first),
-                const SizedBox(width: 13),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 9,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if (capture.raw.attachments.isEmpty)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isPortableTip
-                                    ? Icons.redeem_outlined
-                                    : sourcePlatformIcon(platform),
-                                color: AppTheme.planMuted,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                isPortableTip
-                                    ? '받은 팁'
-                                    : sourcePlatformLabel(platform),
-                                style: const TextStyle(
-                                  color: AppTheme.planMuted,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        Text(
-                          formatCaptureTime(capture.raw.receivedAt),
-                          style: const TextStyle(
-                            color: AppTheme.planSubtle,
-                            fontSize: 11,
-                          ),
-                        ),
-                        _CaptureStatusLabel(capture: capture),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: AppTheme.planInk,
-                        fontSize: 16,
-                        height: 1.4,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.planMuted,
-                        fontSize: 13,
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                capture.status == CaptureStatus.analyzing
-                    ? Icons.more_horiz
-                    : capture.status == CaptureStatus.failed
-                    ? Icons.refresh
-                    : Icons.chevron_right,
-                color: capture.status == CaptureStatus.failed
-                    ? AppTheme.planNegative
-                    : AppTheme.planSubtle,
-                size: 19,
-              ),
+    return InkWell(
+      onTap: capture.status == CaptureStatus.failed
+          ? () => controller.retryAnalysis(capture.raw.id)
+          : onTap,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 12, 18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (capture.raw.attachments.isNotEmpty) ...[
+              _CaptureThumbnail(attachment: capture.raw.attachments.first),
+              const SizedBox(width: 14),
             ],
-          ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 5,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (capture.raw.attachments.isEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isPortableTip
+                                  ? Icons.redeem_outlined
+                                  : sourcePlatformIcon(platform),
+                              color: AppTheme.muted,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isPortableTip
+                                  ? '받은 팁'
+                                  : sourcePlatformLabel(platform),
+                              style: const TextStyle(
+                                color: AppTheme.muted,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      Text(
+                        formatCaptureTime(capture.raw.receivedAt),
+                        style: const TextStyle(
+                          color: AppTheme.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                      _CaptureStatusLabel(capture: capture),
+                    ],
+                  ),
+                  const SizedBox(height: 11),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppTheme.ink,
+                      fontSize: 17,
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.muted,
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              capture.status == CaptureStatus.analyzing
+                  ? Icons.more_horiz
+                  : capture.status == CaptureStatus.failed
+                  ? Icons.refresh
+                  : Icons.chevron_right,
+              color: capture.status == CaptureStatus.failed
+                  ? AppTheme.negative
+                  : AppTheme.subtle,
+              size: 22,
+            ),
+          ],
         ),
       ),
     );
@@ -706,19 +604,19 @@ final class _CaptureThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(9),
+      borderRadius: BorderRadius.circular(14),
       child: SizedBox(
-        width: 54,
-        height: 68,
+        width: 64,
+        height: 80,
         child: ColoredBox(
-          color: AppTheme.planBorder,
+          color: AppTheme.fill,
           child: Image.file(
             File(attachment.filePath),
             fit: BoxFit.cover,
             cacheWidth: 192,
             errorBuilder: (_, _, _) => const Icon(
               Icons.image_not_supported_outlined,
-              color: AppTheme.planSubtle,
+              color: AppTheme.subtle,
             ),
           ),
         ),
@@ -781,7 +679,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppTheme.planBorder,
+                  color: AppTheme.border,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -792,7 +690,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
             const Text(
               'SNS에서 공유한 본문이나 링크를 붙여넣어 주세요.\n'
               '링크만 입력하면 원본 링크만 저장돼요.',
-              style: TextStyle(color: AppTheme.planMuted, height: 1.5),
+              style: TextStyle(color: AppTheme.muted, height: 1.5),
             ),
             const SizedBox(height: 18),
             if (_showsCapturePicker) ...[
@@ -832,7 +730,7 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
                   padding: EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
                     '또는 직접 입력',
-                    style: TextStyle(color: AppTheme.planSubtle, fontSize: 12),
+                    style: TextStyle(color: AppTheme.subtle, fontSize: 12),
                   ),
                 ),
                 Expanded(child: Divider()),
@@ -846,22 +744,22 @@ final class _ManualInputSheetState extends State<_ManualInputSheet> {
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 hintText: '본문 텍스트 또는 URL을 입력해 주세요',
-                hintStyle: const TextStyle(color: AppTheme.planSubtle),
+                hintStyle: const TextStyle(color: AppTheme.subtle),
                 filled: true,
-                fillColor: AppTheme.planCanvas,
+                fillColor: AppTheme.background,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppTheme.planBorder),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppTheme.planBorder),
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: AppTheme.planMauve,
-                    width: 1.4,
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: AppTheme.primary.withValues(alpha: 0.5),
+                    width: 1.5,
                   ),
                 ),
                 contentPadding: const EdgeInsets.all(16),
@@ -975,15 +873,23 @@ final class _EmptyInbox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 62),
+      padding: const EdgeInsets.symmetric(vertical: 72),
       child: Column(
         children: [
-          const Icon(
-            Icons.inbox_outlined,
-            size: 23,
-            color: AppTheme.planSubtle,
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: AppTheme.surface,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.inbox_outlined,
+              size: 24,
+              color: AppTheme.muted,
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Text(
             '이 상태의 콘텐츠가 없어요',
             style: Theme.of(context).textTheme.titleMedium,
@@ -991,14 +897,10 @@ final class _EmptyInbox extends StatelessWidget {
           const SizedBox(height: 6),
           const Text(
             '다른 상태를 확인하거나 새 콘텐츠를 추가해 보세요.',
-            style: TextStyle(color: AppTheme.planMuted),
+            style: TextStyle(color: AppTheme.muted),
           ),
-          const SizedBox(height: 12),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppTheme.planMuted),
-            onPressed: onShowAll,
-            child: const Text('전체 보기'),
-          ),
+          const SizedBox(height: 14),
+          TextButton(onPressed: onShowAll, child: const Text('전체 보기')),
         ],
       ),
     );

@@ -96,48 +96,80 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: AppTheme.plansTheme(Theme.of(context)),
-      child: AnimatedBuilder(
-        animation: widget.controller,
-        builder: (context, _) {
-          final groupedItems = _groupedItems();
-          final selectedIndex = groupedItems.isEmpty
-              ? 0
-              : _selectedIndex.clamp(0, groupedItems.length - 1);
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (context, _) {
+        final groupedItems = _groupedItems();
+        final selectedIndex = groupedItems.isEmpty
+            ? 0
+            : _selectedIndex.clamp(0, groupedItems.length - 1);
 
-          return Scaffold(
-            appBar: AppBar(
-              leading: IconButton(
-                tooltip: '뒤로',
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back_rounded),
+        return Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              tooltip: '뒤로',
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            titleSpacing: 2,
+            title: Text(
+              widget.folder.label,
+              style: const TextStyle(
+                color: AppTheme.ink,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.8,
               ),
-              titleSpacing: 2,
-              title: Text(widget.folder.label),
             ),
-            body: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _DeckIntro(
-                  folder: widget.folder,
-                  selectedIndex: selectedIndex,
-                  total: groupedItems.length,
+            actions: [
+              if (groupedItems.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${selectedIndex + 1}/${groupedItems.length}',
+                        style: TextStyle(
+                          color: AppTheme.ink,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const Text(
+                        '하위 분류',
+                        style: TextStyle(
+                          color: AppTheme.subtle,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                // Kept outside the empty branch so an axis with nothing on it
-                // can still be swapped back out.
-                _AxisFilterRow(selected: _axis, onSelected: _selectAxis),
-                const Divider(height: 1),
-                Expanded(
-                  child: groupedItems.isEmpty
-                      ? _EmptyDeck(folder: widget.folder)
-                      : _deckList(context, groupedItems, selectedIndex),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+            ],
+          ),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Kept outside the empty branch so an axis with nothing on it can
+              // still be swapped back out.
+              _AxisFilterRow(
+                selected: _axis,
+                folder: widget.folder,
+                onSelected: _selectAxis,
+              ),
+              Expanded(
+                child: groupedItems.isEmpty
+                    ? _EmptyDeck(folder: widget.folder)
+                    : _deckList(context, groupedItems, selectedIndex),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -150,7 +182,7 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
       key: PageStorageKey('subcategory-deck-${widget.folder.name}'),
       padding: EdgeInsets.fromLTRB(
         20,
-        10,
+        12,
         20,
         36 + MediaQuery.viewPaddingOf(context).bottom,
       ),
@@ -174,7 +206,7 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
             },
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 28),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -189,10 +221,10 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
-                  groupedItems.length > 1 ? '목록을 밀거나 버튼으로 옮겨요' : '하위 분류가 1개예요',
+                  groupedItems.length > 1 ? '카드를 밀거나 버튼으로 넘겨요' : '하위 분류가 1개예요',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: AppTheme.planSubtle,
+                    color: AppTheme.subtle,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -213,152 +245,66 @@ final class _SubcategoryDeckScreenState extends State<SubcategoryDeckScreen> {
   }
 }
 
-final class _DeckIntro extends StatelessWidget {
-  const _DeckIntro({
-    required this.folder,
-    required this.selectedIndex,
-    required this.total,
-  });
-
-  final ContentFolder folder;
-  final int selectedIndex;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppTheme.planSageSoft,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            alignment: Alignment.center,
-            child: Icon(folder.icon, color: AppTheme.planSage, size: 20),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Semantics(
-                  header: true,
-                  child: const Text(
-                    '하위 분류',
-                    style: TextStyle(
-                      color: AppTheme.planInk,
-                      fontSize: 21,
-                      height: 1.3,
-                      letterSpacing: -0.45,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  folder.description,
-                  style: const TextStyle(
-                    color: AppTheme.planMuted,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-                if (total > 0) ...[
-                  const SizedBox(height: 5),
-                  Text(
-                    '${selectedIndex + 1}/$total  ·  $total개 분류',
-                    style: const TextStyle(
-                      color: AppTheme.planMauve,
-                      fontSize: 12,
-                      height: 1.35,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// The fixed five axes as a scrolling chip row.
 ///
 /// Fixed order and fixed membership: an axis is a product decision, so this row
 /// never grows from analysis output.
 final class _AxisFilterRow extends StatelessWidget {
-  const _AxisFilterRow({required this.selected, required this.onSelected});
+  const _AxisFilterRow({
+    required this.selected,
+    required this.folder,
+    required this.onSelected,
+  });
 
   final ContentAxis selected;
+  final ContentFolder folder;
   final ValueChanged<ContentAxis> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: Row(
-        children: [
-          for (var index = 0; index < ContentAxis.values.length; index++) ...[
-            Builder(
-              builder: (context) {
-                final axis = ContentAxis.values[index];
-                final isSelected = axis == selected;
-                return Semantics(
-                  selected: isSelected,
-                  button: true,
-                  child: InkWell(
-                    key: Key('axis-chip-${axis.name}'),
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => onSelected(axis),
-                    child: Container(
-                      alignment: Alignment.center,
-                      constraints: const BoxConstraints(
-                        minHeight: 42,
-                        minWidth: 58,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.planMauveSoft
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: isSelected
-                              ? AppTheme.planMauve
-                              : AppTheme.planBorder,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        axis.label,
-                        style: TextStyle(
-                          color: isSelected
-                              ? AppTheme.planMauve
-                              : AppTheme.planMuted,
-                          fontSize: 14,
-                          height: 1.25,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+    return SizedBox(
+      height: 68,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        itemCount: ContentAxis.values.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final axis = ContentAxis.values[index];
+          final isSelected = axis == selected;
+          return Semantics(
+            selected: isSelected,
+            button: true,
+            child: InkWell(
+              key: Key('axis-chip-${axis.name}'),
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => onSelected(axis),
+              child: Container(
+                alignment: Alignment.center,
+                constraints: const BoxConstraints(minHeight: 44, minWidth: 64),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                decoration: BoxDecoration(
+                  color: isSelected ? folder.color : Colors.transparent,
+                  border: Border.all(
+                    color: isSelected ? folder.color : AppTheme.border,
+                    width: 1.4,
                   ),
-                );
-              },
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  axis.label,
+                  style: TextStyle(
+                    color: isSelected
+                        ? const Color(0xFF16120F)
+                        : AppTheme.muted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
             ),
-            if (index != ContentAxis.values.length - 1)
-              const SizedBox(width: 7),
-          ],
-        ],
+          );
+        },
       ),
     );
   }
@@ -373,6 +319,11 @@ final class _SubcategoryDeck extends StatelessWidget {
     required this.onSelected,
   });
 
+  static const _collapsedHeight = 112.0;
+  static const _expandedHeight = 356.0;
+  static const _step = 68.0;
+  static const _expansionOffset = _expandedHeight - _collapsedHeight;
+
   final AppController controller;
   final ContentFolder folder;
   final List<MapEntry<String, List<SavedLibraryItem>>> entries;
@@ -381,32 +332,45 @@ final class _SubcategoryDeck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.symmetric(
-          horizontal: BorderSide(color: AppTheme.planBorder),
-        ),
-      ),
-      child: Column(
-        children: [
-          for (var index = 0; index < entries.length; index++) ...[
-            KeyedSubtree(
-              key: ValueKey('deck-position-${entries[index].key}'),
-              child: _SubcategoryCard(
-                key: Key('subcategory-${entries[index].key}'),
-                controller: controller,
-                folder: folder,
-                name: entries[index].key,
-                items: entries[index].value,
-                expanded: index == selectedIndex,
-                onTap: index == selectedIndex ? null : () => onSelected(index),
-              ),
-            ),
-            if (index != entries.length - 1)
-              const Divider(height: 1, indent: 50),
-          ],
-        ],
+    final height =
+        (entries.length - 1) * _step +
+        _expandedHeight +
+        (entries.isEmpty ? 0 : 0);
+    final cards = <Widget>[];
+    for (var index = 0; index < entries.length; index++) {
+      if (index == selectedIndex) {
+        continue;
+      }
+      cards.add(_positionedCard(context, index));
+    }
+    cards.add(_positionedCard(context, selectedIndex));
+
+    return SizedBox(
+      height: height,
+      child: Stack(clipBehavior: Clip.none, children: cards),
+    );
+  }
+
+  Widget _positionedCard(BuildContext context, int index) {
+    final selected = index == selectedIndex;
+    final top = index * _step + (index > selectedIndex ? _expansionOffset : 0);
+    return AnimatedPositioned(
+      key: ValueKey('deck-position-${entries[index].key}'),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      left: 0,
+      right: 0,
+      top: top,
+      height: selected ? _expandedHeight : _collapsedHeight,
+      child: _SubcategoryCard(
+        key: Key('subcategory-${entries[index].key}'),
+        controller: controller,
+        folder: folder,
+        index: index,
+        name: entries[index].key,
+        items: entries[index].value,
+        expanded: selected,
+        onTap: selected ? null : () => onSelected(index),
       ),
     );
   }
@@ -416,6 +380,7 @@ final class _SubcategoryCard extends StatelessWidget {
   const _SubcategoryCard({
     required this.controller,
     required this.folder,
+    required this.index,
     required this.name,
     required this.items,
     required this.expanded,
@@ -425,6 +390,7 @@ final class _SubcategoryCard extends StatelessWidget {
 
   final AppController controller;
   final ContentFolder folder;
+  final int index;
   final String name;
   final List<SavedLibraryItem> items;
   final bool expanded;
@@ -432,126 +398,97 @@ final class _SubcategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = _subcategoryColor(index, folder.color);
+    final foreground = const Color(0xFF1B100C);
     return Semantics(
       button: !expanded,
       selected: expanded,
       label: '$name 하위 분류, ${items.length}개',
       child: Material(
-        color: Colors.transparent,
+        color: color,
+        elevation: expanded ? 12 : 4,
+        shadowColor: color.withValues(alpha: 0.36),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final showExpandedContent =
+                  expanded &&
+                  constraints.maxHeight >= _SubcategoryDeck._expandedHeight - 1;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: expanded
-                            ? AppTheme.planMauveSoft
-                            : AppTheme.planSageSoft,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        expanded
-                            ? Icons.folder_open_outlined
-                            : Icons.folder_outlined,
-                        color: expanded
-                            ? AppTheme.planMauve
-                            : AppTheme.planSage,
-                        size: 17,
-                      ),
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: TextStyle(
-                          color: AppTheme.planInk,
-                          fontSize: expanded ? 18 : 16,
-                          height: 1.35,
-                          letterSpacing: -0.3,
-                          fontWeight: expanded
-                              ? FontWeight.w800
-                              : FontWeight.w700,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: foreground,
+                              fontSize: 29,
+                              height: 1.05,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -1.1,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      constraints: const BoxConstraints(minWidth: 28),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.planCanvas,
-                        border: Border.all(color: AppTheme.planBorder),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '${items.length}',
-                        style: const TextStyle(
-                          color: AppTheme.planMuted,
-                          fontSize: 12,
-                          height: 1.2,
-                          fontWeight: FontWeight.w700,
+                        const SizedBox(width: 10),
+                        Text(
+                          '${items.length}',
+                          style: TextStyle(
+                            color: foreground.withValues(alpha: 0.62),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
+                    if (showExpandedContent) ...[
+                      const SizedBox(height: 17),
+                      for (final item in items.take(3)) ...[
+                        _DeckItemRow(
+                          item: item,
+                          onTap: () => openSavedLibraryItem(
+                            context,
+                            controller: controller,
+                            item: item,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      if (items.length > 3)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: foreground,
+                              minimumSize: const Size(44, 44),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => SubcategoryContentsScreen(
+                                    controller: controller,
+                                    folder: folder,
+                                    subcategory: name,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Text('전체 ${items.length}개 보기  →'),
+                          ),
+                        ),
+                    ],
                   ],
                 ),
-                if (expanded) ...[
-                  const SizedBox(height: 12),
-                  const Divider(height: 1, indent: 41),
-                  for (
-                    var index = 0;
-                    index < items.take(3).length;
-                    index++
-                  ) ...[
-                    _DeckItemRow(
-                      item: items[index],
-                      onTap: () => openSavedLibraryItem(
-                        context,
-                        controller: controller,
-                        item: items[index],
-                      ),
-                    ),
-                    if (index != items.take(3).length - 1)
-                      const Divider(height: 1, indent: 41),
-                  ],
-                  if (items.length > 3)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppTheme.planMauve,
-                          minimumSize: const Size(44, 44),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => SubcategoryContentsScreen(
-                                controller: controller,
-                                folder: folder,
-                                subcategory: name,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Text('전체 ${items.length}개 보기  →'),
-                      ),
-                    ),
-                ],
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -568,40 +505,51 @@ final class _DeckItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: const Color(0xFF32170F).withValues(alpha: 0.16),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(41, 12, 2, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.bookmark_border_rounded,
-                color: AppTheme.planSubtle,
-                size: 17,
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Text(
-                  item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.planInk,
-                    fontSize: 14,
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 58),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF32170F).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(
+                    Icons.bookmark_rounded,
+                    color: Color(0xFF32170F),
+                    size: 18,
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppTheme.planSubtle,
-                size: 19,
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF1B100C),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Color(0xFF32170F),
+                  size: 18,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -622,17 +570,16 @@ final class _DeckControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return IconButton.filledTonal(
       tooltip: tooltip,
       onPressed: onPressed,
       style: IconButton.styleFrom(
-        minimumSize: const Size.square(48),
-        backgroundColor: AppTheme.planSurface,
-        disabledBackgroundColor: AppTheme.planCanvas,
-        foregroundColor: AppTheme.planInk,
-        disabledForegroundColor: AppTheme.planSubtle,
-        side: const BorderSide(color: AppTheme.planBorder),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        minimumSize: const Size.square(64),
+        backgroundColor: AppTheme.surfaceRaised,
+        disabledBackgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.ink,
+        disabledForegroundColor: AppTheme.subtle,
+        side: const BorderSide(color: AppTheme.border),
       ),
       icon: Icon(icon),
     );
@@ -653,81 +600,71 @@ final class SubcategoryContentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: AppTheme.plansTheme(Theme.of(context)),
-      child: AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final items = savedLibraryItems(controller)
-              .where(
-                (item) =>
-                    item.folder == folder && item.subcategory == subcategory,
-              )
-              .toList(growable: false);
-          return Scaffold(
-            appBar: AppBar(title: Text(subcategory)),
-            body: ListView.separated(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                10,
-                20,
-                36 + MediaQuery.viewPaddingOf(context).bottom,
-              ),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, indent: 50),
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return Material(
-                  color: Colors.transparent,
-                  child: ListTile(
-                    minTileHeight: 70,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                    onTap: () => openSavedLibraryItem(
-                      context,
-                      controller: controller,
-                      item: item,
-                    ),
-                    leading: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppTheme.planSageSoft,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        folder.icon,
-                        color: AppTheme.planSage,
-                        size: 19,
-                      ),
-                    ),
-                    title: Text(
-                      item.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.planInk,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: item.subtitle.isEmpty
-                        ? null
-                        : Text(
-                            item.subtitle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppTheme.planMuted),
-                          ),
-                    trailing: const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppTheme.planSubtle,
-                    ),
-                  ),
-                );
-              },
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final items = savedLibraryItems(controller)
+            .where(
+              (item) =>
+                  item.folder == folder && item.subcategory == subcategory,
+            )
+            .toList(growable: false);
+        return Scaffold(
+          appBar: AppBar(title: Text(subcategory)),
+          body: ListView.separated(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              12,
+              20,
+              36 + MediaQuery.viewPaddingOf(context).bottom,
             ),
-          );
-        },
-      ),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return Material(
+                color: AppTheme.surfaceRaised,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: const BorderSide(color: AppTheme.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: ListTile(
+                  minTileHeight: 70,
+                  onTap: () => openSavedLibraryItem(
+                    context,
+                    controller: controller,
+                    item: item,
+                  ),
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: folder.softColor,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(folder.icon, color: folder.color, size: 20),
+                  ),
+                  title: Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: item.subtitle.isEmpty
+                      ? null
+                      : Text(
+                          item.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -745,15 +682,7 @@ final class _EmptyDeck extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: AppTheme.planSageSoft,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(folder.icon, color: AppTheme.planSage, size: 24),
-            ),
+            Icon(folder.icon, color: folder.color, size: 40),
             const SizedBox(height: 16),
             Text(
               '${folder.label} 폴더가 비어 있어요',
@@ -764,11 +693,28 @@ final class _EmptyDeck extends StatelessWidget {
             Text(
               folder.description,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.planMuted),
+              style: const TextStyle(color: AppTheme.muted),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+Color _subcategoryColor(int index, Color seed) {
+  const palette = <Color>[
+    Color(0xFFFFB300),
+    Color(0xFFFF6845),
+    Color(0xFFE93F91),
+    Color(0xFFFF8845),
+    Color(0xFFE76867),
+    Color(0xFFF2C02F),
+    Color(0xFFB061E8),
+    Color(0xFF24CFC8),
+  ];
+  if (index == 0) {
+    return seed;
+  }
+  return palette[(index - 1) % palette.length];
 }

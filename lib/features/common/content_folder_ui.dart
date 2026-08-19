@@ -57,19 +57,19 @@ extension ContentFolderUi on ContentFolder {
   };
 
   Color get color => switch (this) {
-    ContentFolder.beauty => const Color(0xFFA66F84),
-    ContentFolder.healthFitness => const Color(0xFF708071),
-    ContentFolder.restaurantCafe => const Color(0xFFAD705D),
-    ContentFolder.recipe => const Color(0xFF9B7C50),
-    ContentFolder.shopping => const Color(0xFF85718F),
-    ContentFolder.travelPlace => const Color(0xFF648682),
-    ContentFolder.lifeTip => const Color(0xFF6C7F98),
-    ContentFolder.other => const Color(0xFF8E8782),
-    ContentFolder.needsClassification => const Color(0xFF9B765D),
+    ContentFolder.beauty => const Color(0xFFF16AA6),
+    ContentFolder.healthFitness => const Color(0xFF9AE65B),
+    ContentFolder.restaurantCafe => const Color(0xFFFF8155),
+    ContentFolder.recipe => const Color(0xFFF1CC55),
+    ContentFolder.shopping => const Color(0xFFA47AF2),
+    ContentFolder.travelPlace => const Color(0xFF52D0C9),
+    ContentFolder.lifeTip => const Color(0xFF6595F4),
+    ContentFolder.other => const Color(0xFFB9B7B1),
+    ContentFolder.needsClassification => const Color(0xFFFFB84D),
   };
 
   Color get softColor =>
-      Color.alphaBlend(color.withValues(alpha: 0.10), AppTheme.planSurface);
+      Color.alphaBlend(color.withValues(alpha: 0.16), AppTheme.surfaceRaised);
 }
 
 final class ContentFolderPicker extends StatelessWidget {
@@ -87,18 +87,14 @@ final class ContentFolderPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppTheme.planSurface,
+      color: AppTheme.surfaceRaised,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: BorderSide(
-          color: needsReview
-              ? value.color.withValues(alpha: 0.55)
-              : AppTheme.planBorder,
-        ),
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: needsReview ? value.color : AppTheme.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(18),
         onTap: () async {
           final selected = await showContentFolderSheet(
             context,
@@ -124,7 +120,7 @@ final class ContentFolderPicker extends StatelessWidget {
                       Text(
                         needsReview ? '저장할 폴더를 확인해 주세요' : '저장할 폴더',
                         style: const TextStyle(
-                          color: AppTheme.planMuted,
+                          color: AppTheme.muted,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -133,7 +129,7 @@ final class ContentFolderPicker extends StatelessWidget {
                       Text(
                         value.label,
                         style: const TextStyle(
-                          color: AppTheme.planInk,
+                          color: AppTheme.ink,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -146,7 +142,7 @@ final class ContentFolderPicker extends StatelessWidget {
                   height: 44,
                   child: Icon(
                     Icons.edit_outlined,
-                    color: AppTheme.planSubtle,
+                    color: AppTheme.subtle,
                     size: 20,
                   ),
                 ),
@@ -179,14 +175,14 @@ final class ContentSubcategoryPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = value.trim();
     return Material(
-      color: AppTheme.planSurface,
+      color: AppTheme.surfaceRaised,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: const BorderSide(color: AppTheme.planBorder),
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: AppTheme.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(18),
         onTap: () async {
           final updated = await showContentSubcategoryEditor(
             context,
@@ -226,7 +222,7 @@ final class ContentSubcategoryPicker extends StatelessWidget {
                       Text(
                         aiSuggested ? '자동 분류 · 수정 가능' : '하위 폴더 · 수정 가능',
                         style: const TextStyle(
-                          color: AppTheme.planMuted,
+                          color: AppTheme.muted,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -239,9 +235,7 @@ final class ContentSubcategoryPicker extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: label.isEmpty
-                              ? AppTheme.planMuted
-                              : AppTheme.planInk,
+                          color: label.isEmpty ? AppTheme.muted : AppTheme.ink,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -254,7 +248,7 @@ final class ContentSubcategoryPicker extends StatelessWidget {
                   height: 44,
                   child: Icon(
                     Icons.edit_outlined,
-                    color: AppTheme.planSubtle,
+                    color: AppTheme.subtle,
                     size: 20,
                   ),
                 ),
@@ -274,16 +268,11 @@ Future<String?> showContentSubcategoryEditor(
 }) {
   return showModalBottomSheet<String>(
     context: context,
-    backgroundColor: AppTheme.planSurface,
+    backgroundColor: AppTheme.surfaceRaised,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => Theme(
-      data: AppTheme.plansTheme(Theme.of(sheetContext)),
-      child: _ContentSubcategorySheet(
-        folder: folder,
-        initialValue: initialValue,
-      ),
-    ),
+    builder: (_) =>
+        _ContentSubcategorySheet(folder: folder, initialValue: initialValue),
   );
 }
 
@@ -341,7 +330,7 @@ final class _ContentSubcategorySheetState
             Text(
               '${widget.folder.label} 안에서 다시 찾기 쉬운 넓은 분류로 적어 주세요.',
               style: const TextStyle(
-                color: AppTheme.planMuted,
+                color: AppTheme.muted,
                 fontSize: 14,
                 height: 1.45,
               ),
@@ -400,68 +389,62 @@ Future<ContentFolder?> showContentFolderSheet(
 }) {
   return showModalBottomSheet<ContentFolder>(
     context: context,
-    backgroundColor: AppTheme.planSurface,
+    backgroundColor: AppTheme.surfaceRaised,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => Theme(
-      data: AppTheme.plansTheme(Theme.of(sheetContext)),
-      child: SafeArea(
-        top: false,
-        maintainBottomViewPadding: true,
-        minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '어디에 저장할까요?',
-                style: Theme.of(sheetContext).textTheme.titleLarge,
+    builder: (context) => SafeArea(
+      top: false,
+      maintainBottomViewPadding: true,
+      minimum: const EdgeInsets.only(bottom: AppTheme.bottomSheetSafeInset),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('어디에 저장할까요?', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 6),
+            const Text(
+              '나중에 정리함에서도 언제든 바꿀 수 있어요.',
+              style: TextStyle(color: AppTheme.muted, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.62,
               ),
-              const SizedBox(height: 6),
-              const Text(
-                '나중에 정리함에서도 언제든 바꿀 수 있어요.',
-                style: TextStyle(color: AppTheme.planMuted, fontSize: 14),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: contentFolderPickerItems.length,
+                separatorBuilder: (_, _) =>
+                    const Divider(height: 1, indent: 58),
+                itemBuilder: (context, index) {
+                  final folder = contentFolderPickerItems[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    minVerticalPadding: 8,
+                    leading: _FolderIcon(folder: folder, size: 42),
+                    title: Text(
+                      folder.label,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(folder.description),
+                    trailing: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: folder == selected
+                          ? const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppTheme.primary,
+                            )
+                          : null,
+                    ),
+                    onTap: () => Navigator.of(context).pop(folder),
+                  );
+                },
               ),
-              const SizedBox(height: 16),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.62,
-                ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: contentFolderPickerItems.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, indent: 58),
-                  itemBuilder: (context, index) {
-                    final folder = contentFolderPickerItems[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      minVerticalPadding: 8,
-                      leading: _FolderIcon(folder: folder, size: 42),
-                      title: Text(
-                        folder.label,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      subtitle: Text(folder.description),
-                      trailing: SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: folder == selected
-                            ? const Icon(
-                                Icons.check_circle_rounded,
-                                color: AppTheme.planMauve,
-                              )
-                            : null,
-                      ),
-                      onTap: () => Navigator.of(context).pop(folder),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     ),

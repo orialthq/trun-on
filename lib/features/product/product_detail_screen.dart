@@ -21,86 +21,83 @@ final class ProductDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: AppTheme.plansTheme(Theme.of(context)),
-      child: AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final group = controller.groupById(groupId);
-          if (group == null) {
-            return const Scaffold(body: Center(child: Text('제품을 찾지 못했어요.')));
-          }
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final group = controller.groupById(groupId);
+        if (group == null) {
+          return const Scaffold(body: Center(child: Text('제품을 찾지 못했어요.')));
+        }
 
-          final captures = controller.capturesForGroup(groupId);
-          final captureById = {
-            for (final capture in captures) capture.raw.id: capture,
-          };
-          final evidenceGroups = _evidenceGroups(group.statements);
+        final captures = controller.capturesForGroup(groupId);
+        final captureById = {
+          for (final capture in captures) capture.raw.id: capture,
+        };
+        final evidenceGroups = _evidenceGroups(group.statements);
 
-          return Scaffold(
-            appBar: AppBar(title: const Text('제품별 정리')),
-            body: ListView(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                4,
-                20,
-                44 + MediaQuery.viewPaddingOf(context).bottom,
-              ),
-              children: [
-                _ProductHeader(group: group),
-                const SizedBox(height: 24),
-                ContentFolderPicker(
-                  value: controller.folderForGroup(groupId),
-                  onChanged: (folder) {
-                    unawaited(
-                      controller.updateGroupContentFolder(groupId, folder),
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                ContentSubcategoryPicker(
-                  key: const Key('content-subcategory-picker'),
-                  folder: controller.folderForGroup(groupId),
-                  value: controller.subcategoryForGroup(groupId),
-                  aiSuggested: false,
-                  onChanged: (subcategory) {
-                    unawaited(
-                      controller.updateGroupContentSubcategory(
-                        groupId,
-                        subcategory,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 36),
-                _SectionHeading(
-                  title: '콘텐츠에서 나온 이야기',
-                  description: '저장한 원문의 표현을 주제별로 모았어요.',
-                ),
-                const SizedBox(height: 14),
-                if (evidenceGroups.isEmpty)
-                  const _EmptyTopics()
-                else
-                  _EvidenceList(
-                    evidenceGroups: evidenceGroups,
-                    captureById: captureById,
-                  ),
-                const SizedBox(height: 36),
-                const _SectionHeading(title: '광고·협찬 표시'),
-                const SizedBox(height: 14),
-                _DisclosureSummary(captures: captures),
-                const SizedBox(height: 36),
-                _SectionHeading(
-                  title: '저장한 원문',
-                  description: '${captures.length}개의 콘텐츠가 연결되어 있어요.',
-                ),
-                const SizedBox(height: 14),
-                _SourceList(captures: captures),
-              ],
+        return Scaffold(
+          appBar: AppBar(title: const Text('제품별 정리')),
+          body: ListView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              4,
+              20,
+              44 + MediaQuery.viewPaddingOf(context).bottom,
             ),
-          );
-        },
-      ),
+            children: [
+              _ProductHeader(group: group),
+              const SizedBox(height: 24),
+              ContentFolderPicker(
+                value: controller.folderForGroup(groupId),
+                onChanged: (folder) {
+                  unawaited(
+                    controller.updateGroupContentFolder(groupId, folder),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              ContentSubcategoryPicker(
+                key: const Key('content-subcategory-picker'),
+                folder: controller.folderForGroup(groupId),
+                value: controller.subcategoryForGroup(groupId),
+                aiSuggested: false,
+                onChanged: (subcategory) {
+                  unawaited(
+                    controller.updateGroupContentSubcategory(
+                      groupId,
+                      subcategory,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 36),
+              _SectionHeading(
+                title: '콘텐츠에서 나온 이야기',
+                description: '저장한 원문의 표현을 주제별로 모았어요.',
+              ),
+              const SizedBox(height: 14),
+              if (evidenceGroups.isEmpty)
+                const _EmptyTopics()
+              else
+                _EvidenceList(
+                  evidenceGroups: evidenceGroups,
+                  captureById: captureById,
+                ),
+              const SizedBox(height: 36),
+              const _SectionHeading(title: '광고·협찬 표시'),
+              const SizedBox(height: 14),
+              _DisclosureSummary(captures: captures),
+              const SizedBox(height: 36),
+              _SectionHeading(
+                title: '저장한 원문',
+                description: '${captures.length}개의 콘텐츠가 연결되어 있어요.',
+              ),
+              const SizedBox(height: 14),
+              _SourceList(captures: captures),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -147,16 +144,13 @@ final class _ProductHeader extends StatelessWidget {
       group.identity.amount,
     ].where((value) => value.trim().isNotEmpty).join(' · ');
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(0, 12, 0, 22),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppTheme.planBorder)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _EditorialProductArt(group: group),
-          const SizedBox(width: 16),
+          ProductArt.forGroup(group, width: 88, height: 88),
+          const SizedBox(width: 18),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,41 +158,29 @@ final class _ProductHeader extends StatelessWidget {
                 Text(
                   group.identity.brand,
                   style: const TextStyle(
-                    color: AppTheme.planMuted,
-                    fontSize: 13,
-                    height: 1.35,
+                    color: AppTheme.muted,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   group.identity.name,
-                  style: const TextStyle(
-                    color: AppTheme.planInk,
-                    fontSize: 23,
-                    height: 1.25,
-                    letterSpacing: -0.55,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
                 if (meta.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(
                     meta,
-                    style: const TextStyle(
-                      color: AppTheme.planMuted,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
+                    style: const TextStyle(color: AppTheme.muted, fontSize: 14),
                   ),
                 ],
-                const SizedBox(height: 9),
+                const SizedBox(height: 10),
                 Text(
-                  '연결된 콘텐츠 ${group.sourceCount}개',
+                  '콘텐츠 ${group.sourceCount}개',
                   style: const TextStyle(
-                    color: AppTheme.planMauve,
-                    fontSize: 13,
-                    height: 1.35,
+                    color: AppTheme.primary,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -206,38 +188,6 @@ final class _ProductHeader extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-final class _EditorialProductArt extends StatelessWidget {
-  const _EditorialProductArt({required this.group});
-
-  final ProductGroup group;
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = switch (group.identity.category) {
-      '선케어' => Icons.wb_sunny_outlined,
-      '클렌저' => Icons.waves_outlined,
-      '크림' || '로션' => Icons.spa_outlined,
-      _ => Icons.water_drop_outlined,
-    };
-
-    return Semantics(
-      label:
-          '${group.identity.brand} ${group.identity.name}, ${group.identity.category}',
-      child: Container(
-        width: 76,
-        height: 76,
-        decoration: BoxDecoration(
-          color: AppTheme.planMauveSoft,
-          border: Border.all(color: AppTheme.planBorder),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        alignment: Alignment.center,
-        child: Icon(icon, color: AppTheme.planMauve, size: 25),
       ),
     );
   }
@@ -263,7 +213,7 @@ final class _SectionHeading extends StatelessWidget {
           Text(
             description!,
             style: const TextStyle(
-              color: AppTheme.planMuted,
+              color: AppTheme.muted,
               fontSize: 14,
               height: 1.45,
             ),
@@ -286,11 +236,10 @@ final class _EvidenceList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.symmetric(
-          horizontal: BorderSide(color: AppTheme.planBorder),
-        ),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         children: [
@@ -330,7 +279,7 @@ final class _EvidenceRow extends StatelessWidget {
           Text(
             evidence.topics.join(' · '),
             style: const TextStyle(
-              color: AppTheme.planMauve,
+              color: AppTheme.primary,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
@@ -340,13 +289,13 @@ final class _EvidenceRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: 12),
             decoration: const BoxDecoration(
               border: Border(
-                left: BorderSide(color: AppTheme.planMauve, width: 2),
+                left: BorderSide(color: AppTheme.primary, width: 3),
               ),
             ),
             child: Text(
               evidence.expression,
               style: const TextStyle(
-                color: AppTheme.planInk,
+                color: AppTheme.ink,
                 fontSize: 15,
                 height: 1.55,
               ),
@@ -357,7 +306,7 @@ final class _EvidenceRow extends StatelessWidget {
             Text(
               '${sourcePlatformLabel(platform)} · '
               '${formatCaptureTime(capture!.raw.receivedAt)}',
-              style: const TextStyle(color: AppTheme.planSubtle, fontSize: 12),
+              style: const TextStyle(color: AppTheme.subtle, fontSize: 12),
             ),
           ],
         ],
@@ -410,11 +359,10 @@ final class _DisclosureSummary extends StatelessWidget {
     final unknown = captures.length - observed - notObserved;
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.symmetric(
-          horizontal: BorderSide(color: AppTheme.planBorder),
-        ),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
@@ -423,20 +371,20 @@ final class _DisclosureSummary extends StatelessWidget {
             _DisclosureRow(
               label: '표시가 있는 콘텐츠',
               count: observed,
-              color: AppTheme.planSage,
+              color: AppTheme.positive,
             ),
             const Divider(),
             _DisclosureRow(
               label: '표시를 찾지 못한 콘텐츠',
               count: notObserved,
-              color: AppTheme.planSubtle,
+              color: AppTheme.subtle,
             ),
             if (unknown > 0) ...[
               const Divider(),
               _DisclosureRow(
                 label: '확인할 수 없는 콘텐츠',
                 count: unknown,
-                color: AppTheme.planSubtle,
+                color: AppTheme.subtle,
               ),
             ],
             const SizedBox(height: 8),
@@ -445,7 +393,7 @@ final class _DisclosureSummary extends StatelessWidget {
               child: Text(
                 '표시가 보이지 않는다고 해서 비광고라는 뜻은 아니에요.',
                 style: TextStyle(
-                  color: AppTheme.planSubtle,
+                  color: AppTheme.subtle,
                   fontSize: 12,
                   height: 1.45,
                 ),
@@ -484,13 +432,13 @@ final class _DisclosureRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(color: AppTheme.planInk, fontSize: 14),
+              style: const TextStyle(color: AppTheme.ink, fontSize: 14),
             ),
           ),
           Text(
             '$count개',
             style: const TextStyle(
-              color: AppTheme.planInk,
+              color: AppTheme.ink,
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
@@ -513,11 +461,10 @@ final class _SourceList extends StatelessWidget {
     }
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.symmetric(
-          horizontal: BorderSide(color: AppTheme.planBorder),
-        ),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         children: [
@@ -557,7 +504,7 @@ final class _SourceSectionState extends State<_SourceSection> {
     final rawText = capture.raw.rawText.trim();
     final content = rawText.isEmpty ? '공유된 내용이 없어요.' : rawText;
     const sourceTextStyle = TextStyle(
-      color: AppTheme.planInk,
+      color: AppTheme.ink,
       fontSize: 14,
       height: 1.6,
     );
@@ -573,12 +520,12 @@ final class _SourceSectionState extends State<_SourceSection> {
                 width: 36,
                 height: 36,
                 decoration: const BoxDecoration(
-                  color: AppTheme.planMauveSoft,
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                  color: AppTheme.fill,
+                  shape: BoxShape.circle,
                 ),
                 child: Icon(
                   sourcePlatformIcon(platform),
-                  color: AppTheme.planMauve,
+                  color: AppTheme.muted,
                   size: 18,
                 ),
               ),
@@ -590,7 +537,7 @@ final class _SourceSectionState extends State<_SourceSection> {
                     Text(
                       sourcePlatformLabel(platform),
                       style: const TextStyle(
-                        color: AppTheme.planInk,
+                        color: AppTheme.ink,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -599,7 +546,7 @@ final class _SourceSectionState extends State<_SourceSection> {
                     Text(
                       formatCaptureTime(capture.raw.receivedAt),
                       style: const TextStyle(
-                        color: AppTheme.planSubtle,
+                        color: AppTheme.subtle,
                         fontSize: 12,
                       ),
                     ),
@@ -661,8 +608,8 @@ final class _SourceSectionState extends State<_SourceSection> {
                     ? Icons.check_circle_outline_rounded
                     : Icons.info_outline_rounded,
                 color: hasExplicitDisclosure
-                    ? AppTheme.planSage
-                    : AppTheme.planSubtle,
+                    ? AppTheme.positive
+                    : AppTheme.subtle,
                 size: 16,
               ),
               const SizedBox(width: 7),
@@ -671,8 +618,8 @@ final class _SourceSectionState extends State<_SourceSection> {
                   disclosureLabel(disclosure),
                   style: TextStyle(
                     color: hasExplicitDisclosure
-                        ? AppTheme.planSage
-                        : AppTheme.planMuted,
+                        ? AppTheme.positive
+                        : AppTheme.muted,
                     fontSize: 13,
                     height: 1.4,
                     fontWeight: FontWeight.w600,
@@ -694,15 +641,14 @@ final class _EmptyTopics extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.symmetric(
-          horizontal: BorderSide(color: AppTheme.planBorder),
-        ),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: const Text(
         '아직 함께 묶을 만한 이야기가 없어요.',
-        style: TextStyle(color: AppTheme.planMuted, fontSize: 14),
+        style: TextStyle(color: AppTheme.muted, fontSize: 14),
       ),
     );
   }
@@ -715,15 +661,14 @@ final class _EmptySources extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: AppTheme.planSurface,
-        border: Border.symmetric(
-          horizontal: BorderSide(color: AppTheme.planBorder),
-        ),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
       ),
       child: const Text(
         '연결된 원문이 없어요.',
-        style: TextStyle(color: AppTheme.planMuted, fontSize: 14),
+        style: TextStyle(color: AppTheme.muted, fontSize: 14),
       ),
     );
   }

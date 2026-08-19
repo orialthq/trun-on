@@ -9,28 +9,6 @@ import 'package:ori_beauty/features/product/product_detail_screen.dart';
 import 'package:ori_beauty/state/app_controller.dart';
 
 void main() {
-  test('editorial text colors keep readable contrast on ivory surfaces', () {
-    const foregroundColors = <Color>[
-      AppTheme.planMuted,
-      AppTheme.planSubtle,
-      AppTheme.planMauve,
-      AppTheme.planSage,
-      AppTheme.planSand,
-      AppTheme.planNegative,
-    ];
-    const surfaces = <Color>[AppTheme.planCanvas, AppTheme.planSurface];
-
-    for (final foreground in foregroundColors) {
-      for (final background in surfaces) {
-        expect(
-          _contrastRatio(foreground, background),
-          greaterThanOrEqualTo(4.5),
-          reason: '$foreground should remain readable on $background',
-        );
-      }
-    }
-  });
-
   testWidgets('renders the Trun On home and organized library navigation', (
     tester,
   ) async {
@@ -44,16 +22,6 @@ void main() {
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.title, 'Trun On');
-    expect(app.themeMode, ThemeMode.light);
-    expect(app.theme?.brightness, Brightness.light);
-    expect(app.theme?.scaffoldBackgroundColor, AppTheme.planCanvas);
-    expect(app.theme?.primaryColor, AppTheme.planMauve);
-    expect(app.theme?.cardColor, AppTheme.planSurface);
-    expect(app.theme?.dividerColor, AppTheme.planBorder);
-    expect(
-      app.theme?.textButtonTheme.style?.minimumSize?.resolve({}),
-      const Size.square(44),
-    );
     expect(find.text('TRUN ON'), findsOneWidget);
     expect(find.text('1개만 확인하면 끝'), findsOneWidget);
     expect(find.textContaining('TODAY'), findsNothing);
@@ -200,12 +168,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(Key('subcategory-$beautySubcategory')), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.byKey(Key('subcategory-$beautySubcategory')),
-      220,
-      scrollable: archiveScroll,
-    );
-    await tester.pumpAndSettle();
     await tester.tap(find.byKey(Key('subcategory-$beautySubcategory')));
     await tester.pumpAndSettle();
     // The deck is grouped by whichever axis is selected, starting on 종류.
@@ -216,7 +178,7 @@ void main() {
     expect(find.text('포어 밸런스 세럼'), findsOneWidget);
   });
 
-  testWidgets('keeps archive navigation keys in a flat folder list', (
+  testWidgets('keeps the archive focused on the folder roulette', (
     tester,
   ) async {
     final service = InMemoryIncomingShareService();
@@ -232,14 +194,6 @@ void main() {
 
     expect(find.byKey(const Key('folder-roulette')), findsOneWidget);
     expect(find.byKey(const Key('top-folder-wheel')), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('folder-roulette')),
-        matching: find.byType(ListWheelScrollView),
-      ),
-      findsNothing,
-    );
-    expect(find.text('저장한 내용을 폴더별로 차분히 모아 봐요.'), findsOneWidget);
     expect(find.byKey(const Key('library-search-field')), findsNothing);
     expect(find.textContaining('CROSS'), findsNothing);
     expect(find.text('B E A U T Y'), findsNothing);
@@ -257,10 +211,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final cases = <(String, Color)>[
-      ('전체 ${controller.captures.length}', AppTheme.planMauve),
-      ('확인 필요 ${controller.needsReviewCount}', AppTheme.planSand),
-      ('정리 완료 ${controller.organizedCount}', AppTheme.planSage),
-      ('내용 부족 ${controller.limitedOrFailedCount}', AppTheme.planNegative),
+      ('전체 ${controller.captures.length}', AppTheme.primary),
+      ('확인 필요 ${controller.needsReviewCount}', AppTheme.caution),
+      ('정리 완료 ${controller.organizedCount}', AppTheme.positive),
+      ('내용 부족 ${controller.limitedOrFailedCount}', AppTheme.negative),
     ];
     for (final (label, color) in cases) {
       final filter = find.text(label);
@@ -779,16 +733,4 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
-}
-
-double _contrastRatio(Color first, Color second) {
-  final firstLuminance = first.computeLuminance();
-  final secondLuminance = second.computeLuminance();
-  final lighter = firstLuminance > secondLuminance
-      ? firstLuminance
-      : secondLuminance;
-  final darker = firstLuminance > secondLuminance
-      ? secondLuminance
-      : firstLuminance;
-  return (lighter + 0.05) / (darker + 0.05);
 }
