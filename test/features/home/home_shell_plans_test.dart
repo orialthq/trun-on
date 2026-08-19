@@ -222,6 +222,12 @@ void main() {
 }
 
 Future<void> _openPlanActions(WidgetTester tester, String planId) async {
+  // A previous round may have left the plan's own page on top of the shell.
+  // The shell is what carries the tab bar, so come back to it first.
+  while (find.byType(NavigationBar).evaluate().isEmpty) {
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+  }
   final plansDestination = find.descendant(
     of: find.byType(NavigationBar),
     matching: find.text('계획함'),
@@ -236,6 +242,10 @@ Future<void> _openPlanActions(WidgetTester tester, String planId) async {
   final card = find.byKey(Key('plan-card-$planId'));
   await tester.ensureVisible(card);
   await tester.tap(card);
+  await tester.pumpAndSettle();
+  // Tapping a plan now opens its own page. The actions live behind the overflow
+  // button there rather than firing straight off the card.
+  await tester.tap(find.byKey(const Key('plan-detail-actions')));
   await tester.pumpAndSettle();
 }
 

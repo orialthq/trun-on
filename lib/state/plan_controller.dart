@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../data/plan_recommendation_service.dart';
 import '../data/trigger_plan_store.dart';
 import '../data/trigger_scheduler.dart';
 import '../domain/trigger_engine.dart';
@@ -198,7 +199,16 @@ final class PlanController extends ChangeNotifier {
     }
   }
 
-  Future<Plan> create(PlanDraft draft) {
+  /// Creates a plan, optionally carrying the to-dos a reader kept on the
+  /// suggestion screen.
+  ///
+  /// The to-dos ride in metadata rather than in their own store. They are what
+  /// the plan is *about* rather than something the scheduler acts on — one plan
+  /// still fires one notification — and metadata already persists and migrates.
+  Future<Plan> create(
+    PlanDraft draft, {
+    List<PlanTodoSuggestion> todos = const <PlanTodoSuggestion>[],
+  }) {
     _requireInitialized();
     return _exclusive(() async {
       final now = _clock();
@@ -216,6 +226,8 @@ final class PlanController extends ChangeNotifier {
           'sourceCaptureId': sourceCaptureId,
         if (locationQuery != null && locationQuery.isNotEmpty)
           'locationQuery': locationQuery,
+        if (todos.isNotEmpty)
+          'todos': todos.map((todo) => todo.toJson()).toList(growable: false),
         if (resolved != null) ...{
           'formattedAddress': resolved.formattedAddress,
           'resolvedLocation': <String, Object?>{
@@ -264,6 +276,38 @@ final class PlanController extends ChangeNotifier {
       await _persistAndNotify();
       await _scheduleAndRecord(plan, resetState: true);
       return planById(plan.id)!;
+    });
+  }
+
+  /// Ticks a plan's to-do off, or back on.
+  ///
+  /// Addressed by position because to-dos have no ids of their own: they are a
+  /// list inside one plan's metadata, and nothing outside that plan refers to
+  /// them. An index that no longer exists is ignored rather than thrown, since
+  /// the only caller is a screen that may be a frame behind.
+  Future<void> setTodoDone(String planId, int index, bool done) {
+    _requireInitialized();
+    return _exclusive(() async {
+      final recordIndex = _recordIndex(planId);
+      if (recordIndex < 0) return;
+      final record = _records[recordIndex];
+      final todos = _todosOf(record.plan);
+      if (index < 0 || index >= todos.length) return;
+      if (todos[index].done == done) return;
+
+      final updated = <PlanTodoSuggestion>[
+        for (var position = 0; position < todos.length; position += 1)
+          position == index ? todos[position].copyWith(done: done) : todos[position],
+      ];
+      _records[recordIndex] = record.copyWith(
+        plan: record.plan.copyWith(
+          metadata: <String, Object?>{
+            ...record.plan.metadata,
+            'todos': updated.map((todo) => todo.toJson()).toList(growable: false),
+          },
+        ),
+      );
+      await _persistAndNotify();
     });
   }
 
@@ -934,7 +978,19 @@ final class PlanController extends ChangeNotifier {
       sourceLabel: plan.metadata['sourceCaptureId'] is String
           ? '연결된 콘텐츠'
           : null,
+      todos: _todosOf(plan),
     );
+  }
+
+  static List<PlanTodoSuggestion> _todosOf(Plan plan) {
+    final raw = plan.metadata['todos'];
+    if (raw is! List) return const <PlanTodoSuggestion>[];
+    final todos = <PlanTodoSuggestion>[];
+    for (final entry in raw) {
+      final todo = PlanTodoSuggestion.fromJson(entry);
+      if (todo != null) todos.add(todo);
+    }
+    return List<PlanTodoSuggestion>.unmodifiable(todos);
   }
 
   PlanListStatus _listStatus(Plan plan) {

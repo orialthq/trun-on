@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/app_theme.dart';
+import 'plan_wizard_chrome.dart';
 
 /// Trigger shape selected in the manual plan editor.
 ///
@@ -174,6 +175,10 @@ final class _PlanEditorScreenState extends State<PlanEditorScreen> {
                     ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(22, 12, 22, 40),
                 children: [
+                  if (widget.initialDraft == null) ...[
+                    const PlanWizardSteps(activeStep: 1),
+                    const SizedBox(height: 4),
+                  ],
                   const _EditorIntroduction(),
                   const SizedBox(height: 28),
                   const _SectionTitle(

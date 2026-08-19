@@ -8,6 +8,8 @@ import '../../core/app_theme.dart';
 import '../../data/external_app_navigation_service.dart';
 import '../../data/incoming_share_service.dart';
 import '../../data/place_reminder_service.dart';
+import '../../data/plan_recommendation_service.dart';
+import '../../data/recommendation_candidates.dart';
 import '../../data/trigger_plan_store.dart';
 import '../../domain/models.dart';
 import '../../domain/trigger_models.dart';
@@ -17,8 +19,11 @@ import '../analysis/analysis_review_screen.dart';
 import '../analysis/structured_review_screen.dart';
 import '../common/content_folder_ui.dart';
 import '../inbox/inbox_screen.dart';
+import '../plans/plan_detail_screen.dart';
 import '../plans/plan_editor_screen.dart';
+import '../plans/plan_suggestion_screen.dart';
 import '../plans/plans_screen.dart';
+import '../product/product_detail_screen.dart';
 import '../products/products_screen.dart';
 import '../sharing/received_tip_sheet.dart';
 import 'trun_home_screen.dart';
@@ -424,7 +429,7 @@ final class _HomeShellState extends State<HomeShell>
               ? _planItems(planController)
               : const <PlanListItem>[],
           onCreatePlan: _openPlanEditor,
-          onOpenPlan: _openPlanActions,
+          onOpenPlan: _openPlanDetail,
         ),
     ];
 
@@ -596,6 +601,7 @@ final class _HomeShellState extends State<HomeShell>
             sourceLabel: capture == null
                 ? item.sourceLabel
                 : _captureTitle(capture),
+            todos: item.todos,
           );
         })
         .toList(growable: false);
@@ -631,6 +637,106 @@ final class _HomeShellState extends State<HomeShell>
     return '${capture.contentFolder.label} 콘텐츠';
   }
 
+  /// Step two of making a plan: break it into to-dos and let the reader keep
+  /// what they want.
+  ///
+  /// Returns the kept to-dos, an empty list when there was nothing to show, or
+  /// null when the reader backed out — which cancels the whole plan, since the
+  /// plan does not exist yet.
+  ///
+  /// A failure here never costs a plan. The server being down leaves the reader
+  /// with the plan they typed and nothing extra, which is worth saying out loud
+  /// rather than passing off as "no to-dos found".
+  Future<List<PlanTodoSuggestion>?> _suggestTodos(PlanDraft draft) async {
+    // Both halves of what the 정리함 tab shows. Analysed captures carry places;
+    // product groups carry things the reader confirmed and filed. A plan like
+    // "올리브영에서 뭐 사지" is entirely about the second half, and reading only
+    // the first is why an early build sent no candidates at all.
+    //
+    // An empty library is still not a reason to skip the call: the plan simply
+    // comes back filled in by the model, and the screen labels which is which.
+    final controller = widget.controller;
+    final candidates = <RecommendationCandidate>[
+      ...candidatesFromCaptures(controller.captures),
+      for (final group in controller.groups)
+        candidateFromGroup(
+          group,
+          folder: controller.folderForGroup(group.id),
+          subcategory: controller.subcategoryForGroup(group.id),
+        ),
+    ];
+
+    final planDate = draft.scheduledAt ?? DateTime.now();
+    final recommendation = await _withProgress(
+      () => const RemotePlanRecommendationService().recommend(
+        planTitle: draft.title,
+        planArea: draft.locationQuery,
+        scheduledAt: draft.scheduledAt,
+        candidates: candidates,
+      ),
+    );
+    if (!mounted) return const <PlanTodoSuggestion>[];
+
+    switch (recommendation.status) {
+      case PlanRecommendationStatus.ready:
+        return PlanSuggestionScreen.open(
+          context,
+          planTitle: draft.title,
+          planDate: planDate,
+          recommendation: recommendation,
+        );
+      case PlanRecommendationStatus.noMatch:
+        _showMessage('저장한 것 중에는 이 계획에 쓸 게 없었어요.');
+        return const <PlanTodoSuggestion>[];
+      case PlanRecommendationStatus.noCandidates:
+        return const <PlanTodoSuggestion>[];
+      case PlanRecommendationStatus.unavailable:
+        _showMessage('할 일을 찾지 못했어요. 계획은 그대로 만들어요.');
+        return const <PlanTodoSuggestion>[];
+    }
+  }
+
+  /// Runs [work] behind a modal barrier the reader cannot dismiss into a
+  /// half-made plan.
+  Future<T> _withProgress<T>(Future<T> Function() work) async {
+    final navigator = Navigator.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Theme(
+        data: AppTheme.plansTheme(Theme.of(dialogContext)),
+        child: const PopScope(
+          canPop: false,
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppTheme.planMauve),
+                  SizedBox(height: 18),
+                  Text(
+                    '저장한 것 중에서 할 일을 찾는 중',
+                    style: TextStyle(
+                      color: AppTheme.planInk,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    try {
+      return await work();
+    } finally {
+      if (navigator.canPop()) navigator.pop();
+    }
+  }
+
   Future<void> _openPlanEditor() async {
     final controller = widget.planController;
     if (controller == null) return;
@@ -656,8 +762,14 @@ final class _HomeShellState extends State<HomeShell>
       if (!mounted) return;
     }
 
+    final todos = await _suggestTodos(draft);
+    if (!mounted) return;
+    // Backing out of the suggestion screen backs out of the whole plan. The
+    // plan does not exist yet, so there is nothing half-made left behind.
+    if (todos == null) return;
+
     try {
-      final plan = await controller.create(draft);
+      final plan = await controller.create(draft, todos: todos);
       if (!mounted) return;
       setState(() => _selectedIndex = 3);
 
@@ -721,6 +833,90 @@ final class _HomeShellState extends State<HomeShell>
     if (openSettings == true && mounted) {
       await const PlaceReminderService().openBackgroundLocationSettings();
     }
+  }
+
+  /// Opens a plan's own page: its to-dos, and a way into the plan's actions.
+  ///
+  /// Rebuilt from the controller on every change rather than held as a
+  /// snapshot, so ticking a to-do updates the page it was ticked on.
+  Future<void> _openPlanDetail(PlanListItem item) async {
+    final controller = widget.planController;
+    if (controller == null) return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => AnimatedBuilder(
+          animation: controller,
+          builder: (_, _) {
+            final current = controller.items
+                .where((one) => one.id == item.id)
+                .firstOrNull;
+            // Deleted from the actions sheet while this page was open.
+            if (current == null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (Navigator.of(routeContext).canPop()) {
+                  Navigator.of(routeContext).pop();
+                }
+              });
+              return const SizedBox.shrink();
+            }
+            return PlanDetailScreen(
+              title: current.title,
+              triggerLabel: current.triggerLabel,
+              planDate: _planDateOf(current.id),
+              todos: current.todos,
+              onToggle: (index, done) => unawaited(
+                controller.setTodoDone(current.id, index, done),
+              ),
+              onOpenActions: () => unawaited(_openPlanActions(current)),
+              onOpenSaved: (saved) =>
+                  _openSavedFromPlan(routeContext, saved.id),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Opens whatever a plan's to-do points at.
+  ///
+  /// The 정리함 tab is two kinds of thing — analysed captures and confirmed
+  /// product groups — and a to-do can carry either. Looking only for a capture
+  /// is why an early build told the reader a product it had just named was not
+  /// in their library.
+  void _openSavedFromPlan(BuildContext routeContext, String savedId) {
+    final controller = widget.controller;
+    final capture = controller.captureById(savedId);
+    if (capture != null) {
+      Navigator.of(routeContext).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StructuredReviewScreen(
+            controller: controller,
+            captureId: savedId,
+          ),
+        ),
+      );
+      return;
+    }
+    final group = controller.groupById(savedId);
+    if (group != null) {
+      Navigator.of(routeContext).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              ProductDetailScreen(controller: controller, groupId: savedId),
+        ),
+      );
+      return;
+    }
+    // Deleted since the plan was made. The library moving on without the plan
+    // is not an error, but staying silent would read as a dead tap.
+    _showMessage('정리함에서 지워진 것 같아요.');
+  }
+
+  DateTime? _planDateOf(String planId) {
+    final plan = widget.planController?.planById(planId);
+    final condition = plan?.rule.condition;
+    return condition is TimeCondition ? condition.notBefore : null;
   }
 
   Future<void> _openPlanActions(PlanListItem item) async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
+import '../../data/plan_recommendation_service.dart';
 
 /// Presentation-only lifecycle used by [PlansScreen].
 ///
@@ -21,6 +22,7 @@ final class PlanListItem {
     required this.triggerLabel,
     this.recurrenceLabel,
     this.sourceLabel,
+    this.todos = const <PlanTodoSuggestion>[],
   });
 
   final String id;
@@ -29,6 +31,10 @@ final class PlanListItem {
   final String triggerLabel;
   final String? recurrenceLabel;
   final String? sourceLabel;
+
+  /// What this plan turned into. Empty for plans made before the suggestion
+  /// step existed, which simply show nothing extra.
+  final List<PlanTodoSuggestion> todos;
 }
 
 /// Plan inbox grouped by lifecycle state.
@@ -431,6 +437,7 @@ final class _PlanRow extends StatelessWidget {
                     ],
                   ),
                 ],
+                if (plan.todos.isNotEmpty) _TodoSummary(todos: plan.todos),
               ],
             ),
           ),
@@ -474,6 +481,84 @@ final class _PlanRow extends StatelessWidget {
       if (plan.sourceLabel case final source?) '연결 콘텐츠 $source',
     ];
     return details.join(', ');
+  }
+}
+
+/// The first few things this plan turned into.
+///
+/// A count alone says a plan has work in it; the titles say what kind. Two rows
+/// is what fits before a card stops being a card.
+final class _TodoSummary extends StatelessWidget {
+  const _TodoSummary({required this.todos});
+
+  final List<PlanTodoSuggestion> todos;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = todos.take(2).toList(growable: false);
+    final rest = todos.length - shown.length;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+        decoration: BoxDecoration(
+          color: AppTheme.planCanvas,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: AppTheme.planBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.checklist_rounded,
+                  color: AppTheme.planMauve,
+                  size: 15,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '할 일 ${todos.length}개',
+                  style: const TextStyle(
+                    color: AppTheme.planInk,
+                    fontSize: 12.5,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            for (final todo in shown) ...[
+              const SizedBox(height: 5),
+              Text(
+                todo.daysBefore == 0
+                    ? '· ${todo.title} · 당일'
+                    : '· ${todo.title} · D-${todo.daysBefore}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.planMuted,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ],
+            if (rest > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                '외 $rest개',
+                style: const TextStyle(
+                  color: AppTheme.planSubtle,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
