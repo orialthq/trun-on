@@ -26,42 +26,48 @@ abstract final class AppTheme {
   static const caution = Color(0xFFFFB84D);
   static const negative = Color(0xFFFF6B67);
 
-  // A quiet, editorial palette used by the planning flow only. Keeping these
-  // tokens separate lets the new surface feel calm and paper-like without
-  // changing the established dark archive/inbox experience.
-  static const planCanvas = Color(0xFFF5F2ED);
-  static const planSurface = Color(0xFFFCFAF7);
-  static const planInk = Color(0xFF302C2A);
-  static const planMuted = Color(0xFF7D7470);
-  static const planSubtle = Color(0xFFA49A95);
-  static const planBorder = Color(0xFFE4DDD6);
-  static const planMauve = Color(0xFF947986);
-  static const planMauveSoft = Color(0xFFEDE3E7);
-  static const planSage = Color(0xFF708071);
-  static const planSageSoft = Color(0xFFE5EBE4);
-  static const planSand = Color(0xFF9B765D);
-  static const planSandSoft = Color(0xFFF0E5DB);
-  static const planNegative = Color(0xFF9E5E5C);
+  // The planning flow keeps its own token names so its screens can be restyled
+  // without touching the rest of the app, but the colors are the app's own.
+  // They started as a paper-like light palette, which made the plan tab read as
+  // a different app dropped inside a near-black one.
+  static const planCanvas = background;
+  static const planSurface = surface;
+  static const planInk = ink;
+  static const planMuted = muted;
+  static const planSubtle = subtle;
+  static const planBorder = border;
+  static const planNegative = negative;
+
+  // The three hues that tell a plan's states apart — 활성, 예정, 완료 — mapped
+  // onto the accents the rest of the app already reads as "now", "waiting", and
+  // "done". Each pairs with a darkened container of the same hue, the recipe
+  // primarySoft and accentSoft already follow.
+  static const planMauve = primary;
+  static const planMauveSoft = primarySoft;
+  static const planSand = caution;
+  static const planSandSoft = Color(0xFF3A2A12);
+  static const planSage = positive;
+  static const planSageSoft = Color(0xFF0E332F);
 
   /// Local theme for the plan inbox/editor.
   ///
   /// This is intentionally opt-in. Feature screens wrap themselves with this
   /// theme so legacy surfaces keep the original high-contrast dark palette.
   static ThemeData plansTheme(ThemeData base) {
-    const scheme = ColorScheme.light(
+    const scheme = ColorScheme.dark(
       primary: planMauve,
-      onPrimary: Colors.white,
+      onPrimary: Color(0xFF101208),
       primaryContainer: planMauveSoft,
-      onPrimaryContainer: planInk,
+      onPrimaryContainer: planMauve,
       secondary: planSage,
-      onSecondary: Colors.white,
+      onSecondary: Color(0xFF06201C),
       secondaryContainer: planSageSoft,
-      onSecondaryContainer: planInk,
+      onSecondaryContainer: planSage,
       surface: planSurface,
       onSurface: planInk,
       error: planNegative,
       outline: planBorder,
-      outlineVariant: Color(0xFFEDE7E1),
+      outlineVariant: fill,
     );
 
     final textTheme = base.textTheme
@@ -113,7 +119,7 @@ abstract final class AppTheme {
 
     return base.copyWith(
       colorScheme: scheme,
-      brightness: Brightness.light,
+      brightness: Brightness.dark,
       scaffoldBackgroundColor: planCanvas,
       canvasColor: planCanvas,
       textTheme: textTheme,
@@ -152,7 +158,7 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,
-        fillColor: planSurface,
+        fillColor: fill,
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 17),
         labelStyle: TextStyle(color: planMuted, fontWeight: FontWeight.w500),
         floatingLabelStyle: TextStyle(
@@ -187,8 +193,8 @@ abstract final class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 54),
-          backgroundColor: planInk,
-          foregroundColor: Colors.white,
+          backgroundColor: planMauve,
+          foregroundColor: const Color(0xFF101208),
           disabledBackgroundColor: planBorder,
           disabledForegroundColor: planSubtle,
           elevation: 0,
