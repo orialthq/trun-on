@@ -54,12 +54,38 @@ final class PlanSuggestionScreen extends StatefulWidget {
 class _PlanSuggestionScreenState extends State<PlanSuggestionScreen> {
   final _kept = <PlanTodoSuggestion>{};
 
+  /// Saved things the reader is keeping, by id.
+  ///
+  /// One flat set rather than one per to-do: the server already guarantees a
+  /// saved thing lands on exactly one to-do, so an id names a single row.
+  final _keptSaved = <String>{};
+
   @override
   void initState() {
     super.initState();
     for (final item in widget.recommendation.allItems) {
       if (item.selected) _kept.add(item);
+      // Everything the model attached starts kept. The reader is here to take
+      // things out, not to opt into what they already asked for.
+      for (final saved in item.saved) {
+        _keptSaved.add(saved.id);
+      }
     }
+  }
+
+  /// The kept to-dos, each carrying only the saved things still ticked.
+  List<PlanTodoSuggestion> _result() {
+    return <PlanTodoSuggestion>[
+      for (final item in widget.recommendation.allItems)
+        if (_kept.contains(item))
+          item.saved.every((one) => _keptSaved.contains(one.id))
+              ? item
+              : item.copyWith(
+                  saved: List<PlanTodoSavedItem>.unmodifiable(
+                    item.saved.where((one) => _keptSaved.contains(one.id)),
+                  ),
+                ),
+    ];
   }
 
   @override
@@ -89,9 +115,7 @@ class _PlanSuggestionScreenState extends State<PlanSuggestionScreen> {
                     for (final group in recommendation.groups) ...[
                       _GroupHeader(
                         group: group,
-                        keptCount: group.items
-                            .where(_kept.contains)
-                            .length,
+                        keptCount: group.items.where(_kept.contains).length,
                       ),
                       const SizedBox(height: 10),
                       for (final item in group.items) ...[
@@ -99,11 +123,19 @@ class _PlanSuggestionScreenState extends State<PlanSuggestionScreen> {
                           item: item,
                           planDate: widget.planDate,
                           checked: _kept.contains(item),
+                          keptSaved: _keptSaved,
                           onChanged: (keep) => setState(() {
                             if (keep) {
                               _kept.add(item);
                             } else {
                               _kept.remove(item);
+                            }
+                          }),
+                          onKeepSaved: (id, keep) => setState(() {
+                            if (keep) {
+                              _keptSaved.add(id);
+                            } else {
+                              _keptSaved.remove(id);
                             }
                           }),
                         ),
@@ -116,15 +148,11 @@ class _PlanSuggestionScreenState extends State<PlanSuggestionScreen> {
               ),
               _CreateBar(
                 count: _kept.length,
+                // Back in the order the model grouped them, not the order the
+                // reader happened to tap.
                 onCreate: _kept.isEmpty
                     ? null
-                    : () => Navigator.of(context).pop(
-                        // Back in the order the model grouped them, not the
-                        // order the reader happened to tap.
-                        recommendation.allItems
-                            .where(_kept.contains)
-                            .toList(growable: false),
-                      ),
+                    : () => Navigator.of(context).pop(_result()),
               ),
             ],
           ),
@@ -251,13 +279,17 @@ final class _TodoRow extends StatelessWidget {
     required this.item,
     required this.planDate,
     required this.checked,
+    required this.keptSaved,
     required this.onChanged,
+    required this.onKeepSaved,
   });
 
   final PlanTodoSuggestion item;
   final DateTime planDate;
   final bool checked;
+  final Set<String> keptSaved;
   final ValueChanged<bool> onChanged;
+  final void Function(String id, bool keep) onKeepSaved;
 
   @override
   Widget build(BuildContext context) {
@@ -308,7 +340,15 @@ final class _TodoRow extends StatelessWidget {
                     ],
                     if (item.saved.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      SavedInsideTodo(saved: item.saved),
+                      SavedInsideTodo(
+                        saved: item.saved,
+                        keptIds: keptSaved,
+                        onKeep: onKeepSaved,
+                        // Open here, unlike everywhere else. This is the screen
+                        // where these are being chosen, and a checkbox folded
+                        // out of sight is one nobody finds.
+                        initiallyOpen: true,
+                      ),
                     ],
                   ],
                 ),
@@ -361,11 +401,7 @@ final class _Check extends StatelessWidget {
         ),
       ),
       child: checked
-          ? const Icon(
-              Icons.check_rounded,
-              size: 17,
-              color: Color(0xFF101208),
-            )
+          ? const Icon(Icons.check_rounded, size: 17, color: Color(0xFF101208))
           : null,
     );
   }
@@ -417,6 +453,7 @@ final class _CreateBar extends StatelessWidget {
         border: Border(top: BorderSide(color: AppTheme.planBorder)),
       ),
       child: FilledButton(
+        key: const Key('plan-suggestion-create'),
         onPressed: onCreate,
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(56),

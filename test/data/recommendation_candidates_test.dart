@@ -157,44 +157,43 @@ void main() {
     expect(candidates.single.labels, ['닭발', '술집', '예약 가능']);
   });
 
-  test('the same shop saved three times becomes one candidate that says so', () {
-    final candidates = candidatesFromCaptures([
-      _capture(
-        id: 'first',
-        placeName: '화육계',
-        searchArea: '을지로',
-        receivedAt: DateTime.utc(2026, 6, 1),
-      ),
-      _capture(
-        id: 'second',
-        placeName: '화 육계',
-        receivedAt: DateTime.utc(2026, 7, 1),
-      ),
-      _capture(
-        id: 'newest',
-        placeName: '화육계',
-        searchArea: '을지로3가',
-        subcategory: '닭발',
-        receivedAt: DateTime.utc(2026, 8, 1),
-      ),
-    ]);
+  test(
+    'the same shop saved three times becomes one candidate that says so',
+    () {
+      final candidates = candidatesFromCaptures([
+        _capture(
+          id: 'first',
+          placeName: '화육계',
+          searchArea: '을지로',
+          receivedAt: DateTime.utc(2026, 6, 1),
+        ),
+        _capture(
+          id: 'second',
+          placeName: '화 육계',
+          receivedAt: DateTime.utc(2026, 7, 1),
+        ),
+        _capture(
+          id: 'newest',
+          placeName: '화육계',
+          searchArea: '을지로3가',
+          subcategory: '닭발',
+          receivedAt: DateTime.utc(2026, 8, 1),
+        ),
+      ]);
 
-    expect(candidates.length, 1);
-    expect(candidates.single.saveCount, 3);
-    // The newest screenshot speaks for the group.
-    expect(candidates.single.id, 'newest');
-    expect(candidates.single.area, '을지로3가');
-    expect(candidates.single.lastSavedAt, DateTime.utc(2026, 8, 1));
-  });
+      expect(candidates.length, 1);
+      expect(candidates.single.saveCount, 3);
+      // The newest screenshot speaks for the group.
+      expect(candidates.single.id, 'newest');
+      expect(candidates.single.area, '을지로3가');
+      expect(candidates.single.lastSavedAt, DateTime.utc(2026, 8, 1));
+    },
+  );
 
   test('the same name in a different folder is a different thing', () {
     final candidates = candidatesFromCaptures([
       _capture(id: 'shop', placeName: '연남 소금집'),
-      _capture(
-        id: 'recipe',
-        title: '연남 소금집',
-        folder: ContentFolder.recipe,
-      ),
+      _capture(id: 'recipe', title: '연남 소금집', folder: ContentFolder.recipe),
     ]);
 
     expect(candidates.length, 2);

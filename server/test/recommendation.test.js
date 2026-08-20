@@ -98,6 +98,36 @@ test("one saved thing lands on one to-do, not on every to-do it suits", async ()
   assert.deepEqual(result.groups[0].items[1].saved, []);
 });
 
+test("a saved thing carries the folder it came out of", async () => {
+  const service = createRecommendationService({
+    transport: transportAnswering(
+      groups([task({ saved: [{ id: "a", why: "시술 후기를 참고합니다" }] })]),
+    ),
+  });
+
+  const result = await service.recommend({ plan, candidates: shelf });
+
+  // Echoed from what was sent rather than asked of the model, so a plan card
+  // can say which parts of the library it draws on.
+  assert.equal(result.groups[0].items[0].saved[0].folder, "beauty");
+});
+
+test("a candidate with no folder simply carries none", async () => {
+  const service = createRecommendationService({
+    transport: transportAnswering(
+      groups([task({ saved: [{ id: "a", why: "참고합니다" }] })]),
+    ),
+  });
+
+  const result = await service.recommend({
+    plan,
+    candidates: [{ id: "a", name: "리쥬란 후기" }],
+  });
+
+  assert.equal(result.groups[0].items[0].saved[0].folder, undefined);
+  assert.equal(result.groups[0].items[0].saved[0].name, "리쥬란 후기");
+});
+
 test("a to-do with nothing saved against it is still a to-do", async () => {
   const service = createRecommendationService({
     transport: transportAnswering(groups([task()])),

@@ -80,7 +80,9 @@ RecommendationCandidate candidateFromGroup(
     folder: folder,
     labels: List<String>.unmodifiable(labels),
     // Every capture filed under this product is the reader saving it again.
-    saveCount: group.sourceCaptureIds.isEmpty ? 1 : group.sourceCaptureIds.length,
+    saveCount: group.sourceCaptureIds.isEmpty
+        ? 1
+        : group.sourceCaptureIds.length,
     lastSavedAt: group.updatedAt,
   );
 }
