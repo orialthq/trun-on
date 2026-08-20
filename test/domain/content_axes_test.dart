@@ -33,12 +33,7 @@ Map<String, Object?> _analysis({
   'place': place,
   'summary': '성수의 파스타집이에요.',
   'evidence': [
-    {
-      'id': 'e1',
-      'text': '리스토란테 오늘',
-      'region': 'image_text',
-      'confidence': 0.9,
-    },
+    {'id': 'e1', 'text': '리스토란테 오늘', 'region': 'image_text', 'confidence': 0.9},
   ],
   'ingredientGroups': const [],
   'steps': const [],
@@ -61,10 +56,10 @@ void main() {
     );
 
     // The same place is reachable from both the 파스타 card and the 와인바 card.
-    expect(
-      analysis.axes[ContentAxis.kind].map((label) => label.value),
-      ['파스타', '와인바'],
-    );
+    expect(analysis.axes[ContentAxis.kind].map((label) => label.value), [
+      '파스타',
+      '와인바',
+    ]);
     expect(analysis.axes[ContentAxis.location].single.value, '성수');
     expect(analysis.axes[ContentAxis.access].single.value, '예약 필수');
     expect(analysis.axes.isEmpty, isFalse);
@@ -93,7 +88,7 @@ void main() {
             'kind': [_label('파스타 #맛집 🍝')],
             'location': const <Map<String, Object?>>[],
             'access': const <Map<String, Object?>>[],
-              'savedReason': const <Map<String, Object?>>[],
+            'savedReason': const <Map<String, Object?>>[],
           },
         ),
       ),
@@ -109,7 +104,7 @@ void main() {
             'kind': [_label('파스타')],
             'location': const <Map<String, Object?>>[],
             'access': const <Map<String, Object?>>[],
-              'mood': const <Map<String, Object?>>[],
+            'mood': const <Map<String, Object?>>[],
           },
         ),
       ),
@@ -186,10 +181,10 @@ void main() {
 
     final restored = StructuredContentAnalysis.fromJson(original.toJson());
 
-    expect(
-      restored.axes[ContentAxis.kind].map((label) => label.value),
-      ['파스타', '와인바'],
-    );
+    expect(restored.axes[ContentAxis.kind].map((label) => label.value), [
+      '파스타',
+      '와인바',
+    ]);
     expect(
       restored.axes[ContentAxis.kind].first.source,
       AxisLabelSource.screen,

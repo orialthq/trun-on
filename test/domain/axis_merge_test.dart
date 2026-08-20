@@ -23,7 +23,7 @@ void main() {
     final web = ContentAxes(
       labels: {
         ContentAxis.access: [_web('예약 필수')],
-              },
+      },
     );
 
     final merged = screen.mergedWith(web);
@@ -49,10 +49,10 @@ void main() {
     final merged = screen.mergedWith(web);
 
     // The point of overlapping axes: the shop reaches the reader from both.
-    expect(
-      merged[ContentAxis.kind].map((label) => label.value),
-      ['파스타', '와인바'],
-    );
+    expect(merged[ContentAxis.kind].map((label) => label.value), [
+      '파스타',
+      '와인바',
+    ]);
     expect(merged[ContentAxis.kind].first.source, AxisLabelSource.screen);
   });
 

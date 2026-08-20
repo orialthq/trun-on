@@ -111,31 +111,25 @@ void main() {
     );
   });
 
-  test(
-    'reduces a detailed address to the neighbourhood it implies',
-    () async {
-      MethodCall? recordedCall;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            recordedCall = call;
-            return <Object?, Object?>{
-              'provider': 'naver',
-              'openedInApp': false,
-            };
-          });
+  test('reduces a detailed address to the neighbourhood it implies', () async {
+    MethodCall? recordedCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          recordedCall = call;
+          return <Object?, Object?>{'provider': 'naver', 'openedInApp': false};
+        });
 
-      await service.openMapWithProvider(
-        provider: MapProvider.naver,
-        name: '동묘집',
-        address: '서울 종로구 종로52길 43-9 (창신동) 지하 1층 101호',
-      );
+    await service.openMapWithProvider(
+      provider: MapProvider.naver,
+      name: '동묘집',
+      address: '서울 종로구 종로52길 43-9 (창신동) 지하 1층 101호',
+    );
 
-      expect(
-        (recordedCall?.arguments as Map<Object?, Object?>)['query'],
-        '동묘집 창신',
-      );
-    },
-  );
+    expect(
+      (recordedCall?.arguments as Map<Object?, Object?>)['query'],
+      '동묘집 창신',
+    );
+  });
 
   test(
     'uses the place name for Naver only when the address is blank',
