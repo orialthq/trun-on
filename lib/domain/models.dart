@@ -906,18 +906,22 @@ final class ContentAxes {
   const ContentAxes.empty() : labels = const {};
 
   factory ContentAxes.fromJson(Map<String, Object?> json) {
-    _requireExactKeys(
-      json,
-      const {'kind', 'location', 'access', 'savedReason'},
-      'axes',
-    );
+    _requireExactKeys(json, const {
+      'kind',
+      'location',
+      'access',
+      'savedReason',
+    }, 'axes');
     final labels = <ContentAxis, List<AxisLabel>>{};
     for (final axis in ContentAxis.values) {
       final raw = _strictMapList(json[axis.name], 'axes.${axis.name}');
       final seen = <String>{};
       final parsed = <AxisLabel>[];
       for (var index = 0; index < raw.length; index++) {
-        final label = AxisLabel.fromJson(raw[index], 'axes.${axis.name}[$index]');
+        final label = AxisLabel.fromJson(
+          raw[index],
+          'axes.${axis.name}[$index]',
+        );
         // A repeated label would show the same capture twice on one card.
         if (!seen.add(label.value)) continue;
         parsed.add(label);
@@ -1038,7 +1042,14 @@ final class StructuredContentAnalysis {
       'analysis.schemaVersion',
     );
     final model = _requiredString(normalizedJson['model'], 'analysis.model');
-    if (!const {'1.0', '1.1', '1.2', '1.3', '1.4', '1.5'}.contains(schemaVersion) ||
+    if (!const {
+          '1.0',
+          '1.1',
+          '1.2',
+          '1.3',
+          '1.4',
+          '1.5',
+        }.contains(schemaVersion) ||
         !const {'gpt-5.6-luna', 'portable-tip-v1'}.contains(model)) {
       throw const FormatException(
         'Structured analysis version or model is unsupported.',
@@ -1428,7 +1439,9 @@ Map<String, Object?> _legacyAxes(Map<String, Object?> json) {
   final place = json['place'];
   final area = place is Map<String, Object?> ? place['searchArea'] : null;
   if (area is String && isValidContentSubcategory(area)) {
-    location.add(label(area, place is Map<String, Object?> ? place['confidence'] : 0));
+    location.add(
+      label(area, place is Map<String, Object?> ? place['confidence'] : 0),
+    );
   }
 
   return {
@@ -1463,7 +1476,8 @@ Map<String, Object?> _migratedAxes(Object? stored) {
     };
   }
   return {
-    for (final axis in ContentAxis.values) axis.name: stored[axis.name] ?? empty,
+    for (final axis in ContentAxis.values)
+      axis.name: stored[axis.name] ?? empty,
   };
 }
 

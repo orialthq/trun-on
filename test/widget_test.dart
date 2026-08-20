@@ -42,14 +42,15 @@ void main() {
     expect(find.text('최근 들어온 것'), findsNothing);
     expect(find.text('정리함 보기'), findsNothing);
     expect(find.text('최근 콘텐츠'), findsOneWidget);
-    expect(find.text('콘텐츠'), findsOneWidget);
+    // 콘텐츠 left the tab bar; 공유함 took the place it barely earned.
+    expect(find.text('콘텐츠'), findsNothing);
+    expect(find.text('공유함'), findsOneWidget);
     expect(find.text('INPUT → 정리'), findsNothing);
     expect(find.byIcon(Icons.auto_awesome_outlined), findsNothing);
     expect(find.text('비교'), findsNothing);
     expect(find.text('내 기준'), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
-    await tester.pumpAndSettle();
+    await _openContentList(tester);
     expect(
       find.text(
         '전체 ${controller.captures.length}개  ·  '
@@ -59,6 +60,10 @@ void main() {
       findsNothing,
     );
 
+    // The list is pushed over the shell now, so come back out before reaching
+    // for the tab bar underneath it.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
     await tester.pumpAndSettle();
 
@@ -207,8 +212,7 @@ void main() {
     await tester.pumpWidget(OriBeautyApp(controller: controller));
     await controller.initialize();
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
-    await tester.pumpAndSettle();
+    await _openContentList(tester);
 
     final cases = <(String, Color)>[
       ('전체 ${controller.captures.length}', AppTheme.primary),
@@ -243,8 +247,7 @@ void main() {
     await tester.pumpWidget(OriBeautyApp(controller: controller));
     await controller.initialize();
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
-    await tester.pumpAndSettle();
+    await _openContentList(tester);
 
     await tester.longPress(find.text('데이라이트 에어리 선 플루이드'));
     await tester.pumpAndSettle();
@@ -388,8 +391,7 @@ void main() {
     await controller.initialize();
     final captureId = controller.addManualInput('오늘 다시 보고 싶은 짧은 메모');
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
-    await tester.pumpAndSettle();
+    await _openContentList(tester);
 
     await tester.tap(find.text('제품을 특정하지 못했어요').first);
     await tester.pumpAndSettle();
@@ -417,8 +419,7 @@ void main() {
     await controller.initialize();
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
-    await tester.pumpAndSettle();
+    await _openContentList(tester);
 
     await tester.tap(find.text('데이라이트 에어리 선 플루이드'));
     await tester.pumpAndSettle();
@@ -491,6 +492,8 @@ void main() {
     await controller.initialize();
     await tester.pumpAndSettle();
 
+    // A share is announced on home now, and the list is a tap away.
+    await _openContentList(tester);
     expect(find.text('리프온 카밍 앰플 40ml가 촉촉하다고 했어요.'), findsOneWidget);
     final capture = controller.captures.firstWhere(
       (item) => item.raw.transportEventId == 'share-android',
@@ -523,6 +526,7 @@ void main() {
 
     await tester.tap(find.byTooltip('닫기'));
     await tester.pumpAndSettle();
+    await _openContentList(tester);
     await tester.tap(find.text('링크를 저장했어요').first);
     await tester.pumpAndSettle();
 
@@ -531,7 +535,7 @@ void main() {
     expect(find.textContaining('캡처 미리보기의 공유 버튼'), findsOneWidget);
   });
 
-  testWidgets('incoming screenshot returns to the content tab', (tester) async {
+  testWidgets('an incoming screenshot is announced on home', (tester) async {
     final service = InMemoryIncomingShareService();
     final controller = AppController(service);
     addTearDown(controller.dispose);
@@ -554,17 +558,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('콘텐츠'), findsWidgets);
-    expect(find.text('방금 연 스크린샷'), findsNothing);
-    final compactSummary = find.text('저장한 내용의 세부 정보를 확인해 주세요.');
-    expect(compactSummary, findsOneWidget);
-    expect(tester.widget<Text>(compactSummary).maxLines, 2);
+    // A share used to yank the reader to the 콘텐츠 tab. There is no such tab
+    // now, so it lands on home and the banner announces it there.
+    expect(find.text('TRUN ON'), findsWidgets);
     expect(find.text('정리가 준비됐어요'), findsOneWidget);
     expect(find.text('탭해서 내용을 확인해 주세요'), findsOneWidget);
 
     await tester.tap(find.byTooltip('닫기'));
     await tester.pumpAndSettle();
     expect(find.text('정리가 준비됐어요'), findsNothing);
+
+    // The row itself lives in the list, which is a tap away rather than a tab.
+    await _openContentList(tester);
+    expect(find.text('방금 연 스크린샷'), findsNothing);
+    final compactSummary = find.text('저장한 내용의 세부 정보를 확인해 주세요.');
+    expect(compactSummary, findsOneWidget);
+    expect(tester.widget<Text>(compactSummary).maxLines, 2);
   });
 
   testWidgets('gallery source choice clears the Android system inset', (
@@ -694,9 +703,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.text('TRUN ON'), findsOneWidget);
+      // The share lands on home already, so one back is the whole journey
+      // out — it used to take two because a tab sat in between.
+      expect(find.text('TRUN ON'), findsWidgets);
 
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
@@ -725,12 +734,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byIcon(Icons.inbox_outlined).last);
-    await tester.pumpAndSettle();
+    await _openContentList(tester);
     expect(tester.takeException(), isNull);
 
+    // Back out of the pushed list before reaching for the tab bar under it.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.bookmark_border_rounded).last);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+}
+
+/// 콘텐츠 is no longer a tab; home's 전체 보기 is the door.
+Future<void> _openContentList(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('전체 보기'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('전체 보기'));
+  await tester.pumpAndSettle();
 }

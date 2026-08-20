@@ -54,17 +54,9 @@ final class PlanWizardSteps extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              _StepChip(
-                index: 1,
-                label: '무슨 일 · 언제',
-                active: activeStep == 1,
-              ),
+              _StepChip(index: 1, label: '무슨 일 · 언제', active: activeStep == 1),
               const SizedBox(width: 8),
-              _StepChip(
-                index: 2,
-                label: 'AI 추천 · 마감',
-                active: activeStep == 2,
-              ),
+              _StepChip(index: 2, label: 'AI 추천 · 마감', active: activeStep == 2),
             ],
           ),
         ],

@@ -226,6 +226,29 @@ final class PlanController extends ChangeNotifier {
           'sourceCaptureId': sourceCaptureId,
         if (locationQuery != null && locationQuery.isNotEmpty)
           'locationQuery': locationQuery,
+        // Metadata rather than the rule: the scheduler still fires once, at
+        // `scheduledAt`. How many days the plan covers is something only a card
+        // reads.
+        // When the plan happens, as against when it fires. The trigger carries
+        // the notification time, so reading the plan's own time back out of the
+        // condition would be short by the lead — every countdown and every
+        // to-do deadline off by the same amount, quietly.
+        if (draft.scheduledAt case final scheduledAt?) ...{
+          'scheduledAt': scheduledAt.toIso8601String(),
+          'leadTime': draft.leadTime.name,
+        },
+        // Kept so editing a plan reopens on the folder it was made against, and
+        // so a later re-run of the recommendation searches the same place.
+        if (draft.scopes.isNotEmpty)
+          'contentScopes': draft.scopes
+              .map((scope) => scope.toJson())
+              .toList(growable: false),
+        if (draft.endsAt case final endsAt?)
+          'endsAt': DateTime(
+            endsAt.year,
+            endsAt.month,
+            endsAt.day,
+          ).toIso8601String(),
         if (todos.isNotEmpty)
           'todos': todos.map((todo) => todo.toJson()).toList(growable: false),
         if (resolved != null) ...{
@@ -297,13 +320,17 @@ final class PlanController extends ChangeNotifier {
 
       final updated = <PlanTodoSuggestion>[
         for (var position = 0; position < todos.length; position += 1)
-          position == index ? todos[position].copyWith(done: done) : todos[position],
+          position == index
+              ? todos[position].copyWith(done: done)
+              : todos[position],
       ];
       _records[recordIndex] = record.copyWith(
         plan: record.plan.copyWith(
           metadata: <String, Object?>{
             ...record.plan.metadata,
-            'todos': updated.map((todo) => todo.toJson()).toList(growable: false),
+            'todos': updated
+                .map((todo) => todo.toJson())
+                .toList(growable: false),
           },
         ),
       );
@@ -868,8 +895,14 @@ final class PlanController extends ChangeNotifier {
     return AndCondition(conditions: conditions);
   }
 
+  /// The condition fires at the *notification* time, not the plan's own time.
+  ///
+  /// Those parted company when the lead time arrived. Everything the reader
+  /// reads — the countdown, a to-do's deadline — is measured from the plan's
+  /// time, which is why it is written to metadata rather than being read back
+  /// out of this condition.
   TimeCondition _timeConditionFromDraft(PlanDraft draft) {
-    final scheduledAt = draft.scheduledAt;
+    final scheduledAt = draft.notifyAt;
     if (scheduledAt == null) {
       throw StateError('A time plan requires scheduledAt.');
     }
@@ -893,10 +926,26 @@ final class PlanController extends ChangeNotifier {
     );
   }
 
+  /// When the plan stops being live.
+  ///
+  /// Measured from the plan's own time, not the notification's. A dinner
+  /// tonight whose reminder fired at five is still tonight's dinner at six, and
+  /// expiring it the moment the alarm went off would file it under 지난 계획
+  /// while the reader is on their way.
+  ///
+  /// A plan that spans days lives to the end of its last one. Without this a
+  /// five-day trip expired on the afternoon of day one.
   DateTime? _expiryFromDraft(PlanDraft draft) {
     if (draft.recurrence != PlanDraftRecurrence.once) return null;
     final scheduledAt = draft.scheduledAt;
-    return scheduledAt?.add(const Duration(hours: 1));
+    if (scheduledAt == null) return null;
+    if (draft.endsAt case final endsAt?) {
+      final lastDay = DateTime(endsAt.year, endsAt.month, endsAt.day);
+      if (lastDay.isAfter(scheduledAt)) {
+        return lastDay.add(const Duration(days: 1));
+      }
+    }
+    return scheduledAt.add(const Duration(hours: 1));
   }
 
   String _notificationBody(PlanDraft draft, ResolvedTriggerLocation? resolved) {
@@ -978,8 +1027,20 @@ final class PlanController extends ChangeNotifier {
       sourceLabel: plan.metadata['sourceCaptureId'] is String
           ? '연결된 콘텐츠'
           : null,
+      // Metadata first, condition second. The condition holds when the alarm
+      // goes off, which is the plan's own time only when there is no lead. The
+      // fallback is for plans made before the two parted.
+      startsAt:
+          _dateMetadata(plan.metadata['scheduledAt']) ??
+          _timeCondition(plan.rule.condition)?.notBefore,
+      endsAt: _dateMetadata(plan.metadata['endsAt']),
       todos: _todosOf(plan),
     );
+  }
+
+  static DateTime? _dateMetadata(Object? value) {
+    if (value is! String) return null;
+    return DateTime.tryParse(value);
   }
 
   static List<PlanTodoSuggestion> _todosOf(Plan plan) {

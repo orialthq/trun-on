@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ori_beauty/data/plan_recommendation_service.dart';
 import 'package:ori_beauty/data/trigger_plan_store.dart';
 import 'package:ori_beauty/data/trigger_scheduler.dart';
 import 'package:ori_beauty/domain/trigger_models.dart';
@@ -875,6 +876,153 @@ void main() {
       );
     },
   );
+
+  test('ticking a to-do reaches the list card and survives a reload', () async {
+    final store = InMemoryTriggerPlanStore();
+    final scheduler = _FakeTriggerScheduler();
+    final controller = PlanController(
+      store: store,
+      scheduler: scheduler,
+      clock: () => now,
+      idFactory: (_) => 'plan-todos',
+      closeSchedulerOnDispose: false,
+    );
+    await controller.initialize();
+
+    await controller.create(
+      PlanDraft(
+        title: '베트남 다낭',
+        triggerKind: PlanDraftTriggerKind.time,
+        recurrence: PlanDraftRecurrence.once,
+        scheduledAt: now.add(const Duration(days: 14)),
+        endsAt: now.add(const Duration(days: 18)),
+      ),
+      todos: const <PlanTodoSuggestion>[
+        PlanTodoSuggestion(
+          title: '숙소 예약하기',
+          action: '예약',
+          daysBefore: 20,
+          note: '',
+          selected: true,
+        ),
+        PlanTodoSuggestion(
+          title: '먹을 곳 정하기',
+          action: '보기',
+          daysBefore: 5,
+          note: '',
+          selected: true,
+        ),
+      ],
+    );
+
+    expect(controller.items.single.todos.length, 2);
+    expect(controller.items.single.doneCount, 0);
+    expect(controller.items.single.nextTodo?.title, '숙소 예약하기');
+    expect(controller.items.single.endsAt, isNotNull);
+    expect(controller.items.single.dayCount, 5);
+
+    await controller.setTodoDone('plan-todos', 0, true);
+
+    // The list card reads the same records the detail screen ticked.
+    expect(controller.items.single.doneCount, 1);
+    expect(controller.items.single.nextTodo?.title, '먹을 곳 정하기');
+
+    // And it is durable: a fresh controller over the same store agrees.
+    final reloaded = PlanController(
+      store: store,
+      scheduler: _FakeTriggerScheduler(),
+      clock: () => now,
+      closeSchedulerOnDispose: false,
+    );
+    await reloaded.initialize();
+    expect(reloaded.items.single.doneCount, 1);
+    expect(reloaded.items.single.endsAt, isNotNull);
+  });
+
+  test('a lead time moves the alarm without moving the plan', () async {
+    final store = InMemoryTriggerPlanStore();
+    final scheduler = _FakeTriggerScheduler();
+    final controller = PlanController(
+      store: store,
+      scheduler: scheduler,
+      clock: () => now,
+      idFactory: (_) => 'plan-lead',
+      closeSchedulerOnDispose: false,
+    );
+    await controller.initialize();
+
+    final happensAt = DateTime(2026, 8, 31, 19);
+    final plan = await controller.create(
+      PlanDraft(
+        title: '성수 저녁 약속',
+        triggerKind: PlanDraftTriggerKind.time,
+        recurrence: PlanDraftRecurrence.once,
+        scheduledAt: happensAt,
+        leadTime: PlanLeadTime.twoHours,
+      ),
+      todos: const <PlanTodoSuggestion>[
+        PlanTodoSuggestion(
+          title: '자리 예약하기',
+          action: '예약',
+          daysBefore: 3,
+          note: '',
+          selected: true,
+        ),
+      ],
+    );
+
+    // The trigger fires two hours early...
+    final condition = plan.rule.condition as TimeCondition;
+    expect(condition.notBefore, DateTime(2026, 8, 31, 17));
+
+    // ...but everything the reader reads is still measured from seven.
+    final item = controller.items.single;
+    expect(item.startsAt, happensAt, reason: 'D-day가 리드타임만큼 밀렸습니다');
+    expect(item.daysUntil(now), 14);
+    expect(item.todos.single.dueDate(item.startsAt!), DateTime(2026, 8, 28));
+
+    // And it survives the trip through the store.
+    final reloaded = PlanController(
+      store: store,
+      scheduler: _FakeTriggerScheduler(),
+      clock: () => now,
+      closeSchedulerOnDispose: false,
+    );
+    await reloaded.initialize();
+    expect(reloaded.items.single.startsAt, happensAt);
+  });
+
+  test('a plan that spans days lives until its last one', () async {
+    final store = InMemoryTriggerPlanStore();
+    final scheduler = _FakeTriggerScheduler();
+    final controller = PlanController(
+      store: store,
+      scheduler: scheduler,
+      clock: () => now,
+      idFactory: (_) => 'plan-trip',
+      closeSchedulerOnDispose: false,
+    );
+    await controller.initialize();
+
+    final plan = await controller.create(
+      PlanDraft(
+        title: '베트남 다낭',
+        triggerKind: PlanDraftTriggerKind.time,
+        recurrence: PlanDraftRecurrence.once,
+        scheduledAt: DateTime(2026, 8, 31, 9),
+        endsAt: DateTime(2026, 9, 4),
+        leadTime: PlanLeadTime.oneDay,
+      ),
+    );
+
+    // Without this a five-day trip expired on the afternoon of day one.
+    expect(plan.expiresAt, DateTime(2026, 9, 5));
+    // The lead counts from the day it starts, never from the last day.
+    expect(
+      (plan.rule.condition as TimeCondition).notBefore,
+      DateTime(2026, 8, 30, 9),
+    );
+  });
 }
 
 Future<void> _flushController(PlanController controller) async {

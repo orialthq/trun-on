@@ -118,6 +118,58 @@ void main() {
     await controller.acceptPortableTip(receivedIds.single);
     expect(await inbox.pending(), isEmpty);
   });
+
+  test('a received tip waits in 공유함 instead of joining the library', () async {
+    final shares = InMemoryIncomingShareService();
+    final inbox = InMemoryPortableTipInbox();
+    final controller = AppController(
+      shares,
+      const BaselineContentAnalysisService(),
+      InMemoryAppSnapshotStore(),
+      inbox,
+    );
+    addTearDown(controller.dispose);
+    inbox.add(
+      PortableTipPackageCodec.encode(_tip('tip-inbox-0001')),
+      transportId: 'transport-inbox-0001',
+    );
+    inbox.add(
+      PortableTipPackageCodec.encode(_older('tip-inbox-0002')),
+      transportId: 'transport-inbox-0002',
+    );
+    final received = <String>[];
+    controller.portableTipReceived.listen(received.add);
+
+    await controller.initialize();
+    await Future<void>.delayed(Duration.zero);
+
+    // The claim the tab makes: arriving is not the same as being kept.
+    expect(controller.sharedInbox.length, 2);
+    expect(
+      controller.captures.where(
+        (capture) => capture.raw.origin == CaptureOrigin.portableTip,
+      ),
+      isEmpty,
+    );
+    // Newest first, by when the sender exported it.
+    expect(controller.sharedInbox.first.tip.packageId, 'tip-inbox-0001');
+    expect(controller.sharedInbox.last.tip.packageId, 'tip-inbox-0002');
+
+    // Anything still undecided stays in the native inbox, which is what hands
+    // it back after a restart without any of this being written down.
+    expect(await inbox.pending(), hasLength(2));
+
+    final entry = controller.sharedInbox.first;
+    await controller.acceptPortableTip(entry.transportId);
+    expect(controller.sharedInbox.length, 1);
+    expect(controller.sharedInbox.single.tip.packageId, 'tip-inbox-0002');
+
+    await controller.discardPortableTip(
+      controller.sharedInbox.single.transportId,
+    );
+    expect(controller.sharedInbox, isEmpty);
+    expect(await inbox.pending(), isEmpty);
+  });
 }
 
 PortableTipPackage _tip(String id) {
@@ -131,5 +183,16 @@ PortableTipPackage _tip(String id) {
     facts: [PortableTipFact(label: '대표 메뉴', value: '철판쭈꾸미')],
     place: PortableTipPlace(name: '동묘집', address: '서울 종로구 종로52길'),
     message: '이번 주말에 같이 갈래?',
+  );
+}
+
+PortableTipPackage _older(String id) {
+  return PortableTipPackage.create(
+    packageId: id,
+    exportedAt: DateTime.utc(2026, 8, 1),
+    title: '겨울 코트',
+    summary: '아우터 후보',
+    category: ContentFolder.shopping,
+    subcategory: '아우터',
   );
 }

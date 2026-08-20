@@ -67,10 +67,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('이미 삭제된 콘텐츠예요. 정리함으로 이동했어요.'), findsOneWidget);
+    // By label rather than by number: 콘텐츠 left the bar and 정리함 moved up,
+    // and a hard-coded index is exactly what would not have noticed.
     final navigationBar = tester.widget<NavigationBar>(
       find.byType(NavigationBar),
     );
-    expect(navigationBar.selectedIndex, 2);
+    final selected = navigationBar.destinations[navigationBar.selectedIndex];
+    expect((selected as NavigationDestination).label, '정리함');
     expect(inbox.acknowledged, contains('capture-already-deleted'));
   });
 }

@@ -26,6 +26,7 @@ import '../plans/plans_screen.dart';
 import '../product/product_detail_screen.dart';
 import '../products/products_screen.dart';
 import '../sharing/received_tip_sheet.dart';
+import '../sharing/shared_inbox_screen.dart';
 import 'trun_home_screen.dart';
 
 final class HomeShell extends StatefulWidget {
@@ -48,7 +49,7 @@ final class _HomeShellState extends State<HomeShell>
     with WidgetsBindingObserver {
   static const _exitConfirmationWindow = Duration(seconds: 2);
 
-  var _selectedIndex = 0;
+  var _tab = _HomeTab.home;
   String? _incomingCaptureId;
   var _exitArmed = false;
   var _canReturnToSourceApp = false;
@@ -171,7 +172,7 @@ final class _HomeShellState extends State<HomeShell>
           ? null
           : widget.controller.captureById(captureId);
       setState(() {
-        _selectedIndex = capture == null ? 3 : 2;
+        _tab = capture == null ? _HomeTab.plans : _HomeTab.library;
         _exitArmed = false;
         _canReturnToSourceApp = false;
       });
@@ -193,13 +194,24 @@ final class _HomeShellState extends State<HomeShell>
     }
   }
 
+  /// An arrival lands in 공유함 rather than in a sheet over whatever the reader
+  /// was doing.
+  ///
+  /// Deciding on the spot was the only option while nothing held a received tip;
+  /// dismissing the sheet lost it. Now it waits, which is what the tab is for.
   void _listenForPortableTips() {
     _portableTipSubscription = widget.controller.portableTipReceived.listen((
-      transportId,
+      _,
     ) {
-      _portableTipChoiceTail = _portableTipChoiceTail.then(
-        (_) => _showPortableTip(transportId),
-      );
+      if (!mounted) return;
+      setState(() {
+        _tab = _HomeTab.shared;
+        _exitArmed = false;
+        _canReturnToSourceApp = true;
+        _returningToSourceApp = false;
+      });
+      _exitConfirmationTimer?.cancel();
+      Navigator.of(context).popUntil((route) => route.isFirst);
     });
   }
 
@@ -234,7 +246,7 @@ final class _HomeShellState extends State<HomeShell>
     Navigator.of(context).popUntil((route) => route.isFirst);
     final capture = widget.controller.captureById(captureId);
     setState(() {
-      _selectedIndex = 2;
+      _tab = _HomeTab.library;
       _exitArmed = false;
       _canReturnToSourceApp = false;
     });
@@ -246,6 +258,26 @@ final class _HomeShellState extends State<HomeShell>
       _openCapture(capture);
     }
     await _placeReminderOpenInbox.acknowledge([captureId]);
+  }
+
+  /// The 콘텐츠 list, pushed rather than switched to.
+  ///
+  /// It stopped being a tab; this is the door home opens for it.
+  void _openContentList() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('콘텐츠')),
+          body: InboxScreen(controller: widget.controller),
+        ),
+      ),
+    );
+  }
+
+  void _openSharedTip(SharedTipEntry entry) {
+    _portableTipChoiceTail = _portableTipChoiceTail.then(
+      (_) => _showPortableTip(entry.transportId),
+    );
   }
 
   Future<void> _showPortableTip(String transportId) async {
@@ -268,7 +300,7 @@ final class _HomeShellState extends State<HomeShell>
     final capture = widget.controller.captureById(captureId);
     if (capture == null) return;
     setState(() {
-      _selectedIndex = 2;
+      _tab = _HomeTab.library;
       _canReturnToSourceApp = true;
       _exitArmed = false;
     });
@@ -283,7 +315,9 @@ final class _HomeShellState extends State<HomeShell>
               return;
             }
             setState(() {
-              _selectedIndex = 1;
+              // 콘텐츠 is no longer a tab. Home is where a just-arrived
+              // capture is announced, and its top action opens the list.
+              _tab = _HomeTab.home;
               _incomingCaptureId = captureId;
               _exitArmed = false;
               _canReturnToSourceApp = true;
@@ -338,7 +372,28 @@ final class _HomeShellState extends State<HomeShell>
   bool get _handlesSystemBack =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
+  /// The tabs on show, in order.
+  ///
+  /// 계획함 only exists when a plan controller was handed in, so a position in
+  /// this list is not a fixed number. Everything addresses tabs by name and
+  /// converts here, which is what stopped a reordering from silently sending
+  /// notifications to the wrong screen.
+  List<_HomeTab> get _tabs => <_HomeTab>[
+    _HomeTab.home,
+    _HomeTab.shared,
+    _HomeTab.library,
+    if (widget.planController != null) _HomeTab.plans,
+  ];
+
+  int get _selectedIndex {
+    final index = _tabs.indexOf(_tab);
+    return index < 0 ? 0 : index;
+  }
+
+  void _selectTab(_HomeTab tab) => _selectDestination(_tabs.indexOf(tab));
+
   void _selectDestination(int index) {
+    if (index < 0 || index >= _tabs.length) return;
     if (_selectedIndex == index) {
       if (_exitArmed) {
         _exitConfirmationTimer?.cancel();
@@ -348,7 +403,7 @@ final class _HomeShellState extends State<HomeShell>
       return;
     }
     setState(() {
-      _selectedIndex = index;
+      _tab = _tabs[index];
       _exitArmed = false;
     });
     _exitConfirmationTimer?.cancel();
@@ -356,10 +411,10 @@ final class _HomeShellState extends State<HomeShell>
   }
 
   Future<void> _handleSystemBack() async {
-    if (_selectedIndex != 0) {
+    if (_tab != _HomeTab.home) {
       _exitConfirmationTimer?.cancel();
       setState(() {
-        _selectedIndex = 0;
+        _tab = _HomeTab.home;
         _exitArmed = false;
       });
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -413,50 +468,70 @@ final class _HomeShellState extends State<HomeShell>
   @override
   Widget build(BuildContext context) {
     final planController = widget.planController;
+    final sharedCount = widget.controller.sharedInbox.length;
+    // 콘텐츠 is not here any more. It is the workshop — raw captures and their
+    // processing state — and home already leads with the one action it exists
+    // for. A tab it barely earned went to 공유함, which has nowhere else to be.
     final screens = <Widget>[
-      TrunHomeScreen(
-        controller: widget.controller,
-        onAdd: () => InboxScreen.openManualInput(context, widget.controller),
-        onOpenInbox: () => _selectDestination(1),
-        onOpenLibrary: () => _selectDestination(2),
-        onOpenCapture: _openCapture,
-      ),
-      InboxScreen(controller: widget.controller),
-      ProductsScreen(controller: widget.controller),
-      if (planController != null)
-        PlansScreen(
-          plans: planController.isInitialized
-              ? _planItems(planController)
-              : const <PlanListItem>[],
-          onCreatePlan: _openPlanEditor,
-          onOpenPlan: _openPlanDetail,
-        ),
+      for (final tab in _tabs)
+        switch (tab) {
+          _HomeTab.home => TrunHomeScreen(
+            controller: widget.controller,
+            onAdd: () =>
+                InboxScreen.openManualInput(context, widget.controller),
+            onOpenInbox: _openContentList,
+            onOpenLibrary: () => _selectTab(_HomeTab.library),
+            onOpenCapture: _openCapture,
+          ),
+          _HomeTab.library => ProductsScreen(controller: widget.controller),
+          _HomeTab.shared => SharedInboxScreen(
+            entries: widget.controller.sharedInbox,
+            onOpen: _openSharedTip,
+          ),
+          _HomeTab.plans => PlansScreen(
+            plans: planController != null && planController.isInitialized
+                ? _planItems(planController)
+                : const <PlanListItem>[],
+            onCreatePlan: _openPlanEditor,
+            onOpenPlan: _openPlanDetail,
+          ),
+        },
     ];
 
     final destinations = <NavigationDestination>[
-      const NavigationDestination(
-        icon: Icon(Icons.home_outlined),
-        selectedIcon: Icon(Icons.home_rounded),
-        label: '홈',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.inbox_outlined),
-        selectedIcon: Icon(Icons.inbox),
-        label: '콘텐츠',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.bookmark_border_rounded),
-        selectedIcon: Icon(Icons.bookmark_rounded),
-        label: '정리함',
-      ),
-      if (planController != null)
-        const NavigationDestination(
-          icon: Icon(Icons.notifications_none_rounded),
-          selectedIcon: Icon(Icons.notifications_rounded),
-          label: '계획함',
-        ),
+      for (final tab in _tabs)
+        switch (tab) {
+          _HomeTab.home => const NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: '홈',
+          ),
+          _HomeTab.library => const NavigationDestination(
+            icon: Icon(Icons.bookmark_border_rounded),
+            selectedIcon: Icon(Icons.bookmark_rounded),
+            label: '정리함',
+          ),
+          _HomeTab.shared => NavigationDestination(
+            icon: Badge.count(
+              count: sharedCount,
+              isLabelVisible: sharedCount > 0,
+              child: const Icon(Icons.move_to_inbox_outlined),
+            ),
+            selectedIcon: Badge.count(
+              count: sharedCount,
+              isLabelVisible: sharedCount > 0,
+              child: const Icon(Icons.move_to_inbox_rounded),
+            ),
+            label: '공유함',
+          ),
+          _HomeTab.plans => const NavigationDestination(
+            icon: Icon(Icons.notifications_none_rounded),
+            selectedIcon: Icon(Icons.notifications_rounded),
+            label: '계획함',
+          ),
+        },
     ];
-    final showingPlans = planController != null && _selectedIndex == 3;
+    final showingPlans = planController != null && _tab == _HomeTab.plans;
     final navigationBackground = showingPlans
         ? AppTheme.planSurface
         : AppTheme.surface;
@@ -601,6 +676,8 @@ final class _HomeShellState extends State<HomeShell>
             sourceLabel: capture == null
                 ? item.sourceLabel
                 : _captureTitle(capture),
+            startsAt: item.startsAt,
+            endsAt: item.endsAt,
             todos: item.todos,
           );
         })
@@ -613,6 +690,8 @@ final class _HomeShellState extends State<HomeShell>
           (capture) => PlanSourceOption(
             captureId: capture.raw.id,
             title: _captureTitle(capture),
+            folder: capture.contentFolder,
+            subcategory: capture.contentSubcategory,
             subtitle: capture.contentFolder.label,
           ),
         )
@@ -655,15 +734,34 @@ final class _HomeShellState extends State<HomeShell>
     //
     // An empty library is still not a reason to skip the call: the plan simply
     // comes back filled in by the model, and the screen labels which is which.
+    //
+    // The reader's chosen scope fences this off before the call. Sending the
+    // whole library made the answer worse and dearer as the library grew, and
+    // which folder a thing is in is something they know and the model guesses.
+    // Reducing is the app's job; choosing inside what is left is the model's.
     final controller = widget.controller;
+    final scopes = draft.scopes;
     final candidates = <RecommendationCandidate>[
-      ...candidatesFromCaptures(controller.captures),
-      for (final group in controller.groups)
-        candidateFromGroup(
-          group,
-          folder: controller.folderForGroup(group.id),
-          subcategory: controller.subcategoryForGroup(group.id),
+      ...candidatesFromCaptures(
+        controller.captures.where(
+          (capture) => planScopesMatch(
+            scopes,
+            capture.contentFolder,
+            capture.contentSubcategory,
+          ),
         ),
+      ),
+      for (final group in controller.groups)
+        if (planScopesMatch(
+          scopes,
+          controller.folderForGroup(group.id),
+          controller.subcategoryForGroup(group.id),
+        ))
+          candidateFromGroup(
+            group,
+            folder: controller.folderForGroup(group.id),
+            subcategory: controller.subcategoryForGroup(group.id),
+          ),
     ];
 
     final planDate = draft.scheduledAt ?? DateTime.now();
@@ -691,9 +789,26 @@ final class _HomeShellState extends State<HomeShell>
       case PlanRecommendationStatus.noCandidates:
         return const <PlanTodoSuggestion>[];
       case PlanRecommendationStatus.unavailable:
-        _showMessage('할 일을 찾지 못했어요. 계획은 그대로 만들어요.');
+        _showMessage(_unavailableMessage(recommendation.failureCode));
         return const <PlanTodoSuggestion>[];
     }
+  }
+
+  /// Why the to-dos could not be fetched, in words a reader can act on.
+  ///
+  /// The codes were already being carried and thrown away. "할 일을 찾지 못했어요"
+  /// reads the same whether the Mac moved to a new address or the server
+  /// returned a 500, and only one of those is worth checking the Wi-Fi over.
+  static String _unavailableMessage(String? failureCode) {
+    const tail = ' 계획은 그대로 만들어요.';
+    return switch (failureCode) {
+      'unreachable' || 'invalid_server_url' =>
+        '분석 서버에 연결하지 못했어요. 서버가 켜져 있고 같은 Wi-Fi인지 확인해 주세요.$tail',
+      'malformed_response' => '서버 응답을 읽지 못했어요.$tail',
+      final code? when code.startsWith('http_') =>
+        '서버가 오류를 돌려줬어요 (${code.substring(5)}).$tail',
+      _ => '할 일을 찾지 못했어요.$tail',
+    };
   }
 
   /// Runs [work] behind a modal barrier the reader cannot dismiss into a
@@ -705,29 +820,7 @@ final class _HomeShellState extends State<HomeShell>
       barrierDismissible: false,
       builder: (dialogContext) => Theme(
         data: AppTheme.plansTheme(Theme.of(dialogContext)),
-        child: const PopScope(
-          canPop: false,
-          child: Center(
-            child: Padding(
-              padding: EdgeInsets.all(28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(color: AppTheme.planMauve),
-                  SizedBox(height: 18),
-                  Text(
-                    '저장한 것 중에서 할 일을 찾는 중',
-                    style: TextStyle(
-                      color: AppTheme.planInk,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        child: const PopScope(canPop: false, child: _PlanProgress()),
       ),
     );
     try {
@@ -771,7 +864,7 @@ final class _HomeShellState extends State<HomeShell>
     try {
       final plan = await controller.create(draft, todos: todos);
       if (!mounted) return;
-      setState(() => _selectedIndex = 3);
+      setState(() => _tab = _HomeTab.plans);
 
       if (isAndroid && usesLocation) {
         final permissionState = await const PlaceReminderService().getState(
@@ -865,9 +958,8 @@ final class _HomeShellState extends State<HomeShell>
               triggerLabel: current.triggerLabel,
               planDate: _planDateOf(current.id),
               todos: current.todos,
-              onToggle: (index, done) => unawaited(
-                controller.setTodoDone(current.id, index, done),
-              ),
+              onToggle: (index, done) =>
+                  unawaited(controller.setTodoDone(current.id, index, done)),
               onOpenActions: () => unawaited(_openPlanActions(current)),
               onOpenSaved: (saved) =>
                   _openSavedFromPlan(routeContext, saved.id),
@@ -948,7 +1040,7 @@ final class _HomeShellState extends State<HomeShell>
           if (capture == null) {
             _showMessage('연결된 콘텐츠를 찾지 못했어요.');
           } else {
-            setState(() => _selectedIndex = 2);
+            setState(() => _tab = _HomeTab.library);
             _openCapture(
               capture,
               planContext: _PlanCaptureOpenContext(
@@ -1683,3 +1775,77 @@ final class _SourceImageChoiceSheet extends StatelessWidget {
     );
   }
 }
+
+/// The wait while a plan is being broken into to-dos.
+///
+/// The words change as it goes. A spinner that says the same thing for twenty
+/// seconds is indistinguishable from one that has stopped, and this call sits
+/// between a reader tapping save and seeing anything at all.
+final class _PlanProgress extends StatefulWidget {
+  const _PlanProgress();
+
+  @override
+  State<_PlanProgress> createState() => _PlanProgressState();
+}
+
+final class _PlanProgressState extends State<_PlanProgress> {
+  static const _steps = <(Duration, String)>[
+    (Duration.zero, '저장한 것 중에서 할 일을 찾는 중'),
+    (Duration(seconds: 9), '거의 다 됐어요'),
+    (Duration(seconds: 20), '조금 더 걸리고 있어요'),
+  ];
+
+  final _timers = <Timer>[];
+  var _step = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    for (var index = 1; index < _steps.length; index += 1) {
+      _timers.add(
+        Timer(_steps[index].$1, () {
+          if (mounted) setState(() => _step = index);
+        }),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final timer in _timers) {
+      timer.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: AppTheme.planMauve),
+            const SizedBox(height: 18),
+            Text(
+              _steps[_step].$2,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppTheme.planInk,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The tabs, by name.
+///
+/// Positions move — 계획함 is only there with a plan controller, and 콘텐츠 left
+/// the bar entirely — so nothing addresses a tab by number.
+enum _HomeTab { home, library, shared, plans }

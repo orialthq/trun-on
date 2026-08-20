@@ -26,12 +26,7 @@ void main() {
     scheduler: MethodChannelTriggerScheduler(),
   );
 
-  runApp(
-    OriBeautyApp(
-      controller: controller,
-      planController: planController,
-    ),
-  );
+  runApp(OriBeautyApp(controller: controller, planController: planController));
   controller.initialize();
   planController.initialize();
 }

@@ -62,6 +62,26 @@ final class AppController extends ChangeNotifier {
   PortableTipPackage? pendingPortableTip(String transportId) =>
       _pendingPortableTips[transportId]?.tip;
 
+  /// What other people sent that is still waiting to be decided on.
+  ///
+  /// Newest first, by when the sender exported it — the only time these carry.
+  /// Nothing here has touched 정리함 yet, which is the whole point of the tab:
+  /// receiving something is not the same as keeping it.
+  ///
+  /// This survives a restart without being written anywhere. The native inbox
+  /// holds an envelope until it is accepted or discarded, so anything still
+  /// undecided is handed over again on the next launch.
+  List<SharedTipEntry> get sharedInbox {
+    final entries = <SharedTipEntry>[
+      for (final entry in _pendingPortableTips.entries)
+        SharedTipEntry(transportId: entry.key, tip: entry.value.tip),
+    ];
+    entries.sort(
+      (first, second) => second.tip.exportedAt.compareTo(first.tip.exportedAt),
+    );
+    return List<SharedTipEntry>.unmodifiable(entries);
+  }
+
   List<CaptureRecord> get filteredCaptures {
     return _captures
         .where((capture) {
@@ -1434,6 +1454,14 @@ final class AppController extends ChangeNotifier {
     unawaited(_portableTipController.close());
     super.dispose();
   }
+}
+
+/// One thing waiting in 공유함, with the handle needed to accept or drop it.
+final class SharedTipEntry {
+  const SharedTipEntry({required this.transportId, required this.tip});
+
+  final String transportId;
+  final PortableTipPackage tip;
 }
 
 final class _PendingPortableTip {

@@ -124,9 +124,7 @@ final class _Progress extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            complete
-                ? Icons.check_circle_rounded
-                : Icons.checklist_rtl_rounded,
+            complete ? Icons.check_circle_rounded : Icons.checklist_rtl_rounded,
             color: complete ? AppTheme.planSage : AppTheme.planMauve,
             size: 22,
           ),
@@ -282,11 +280,7 @@ final class _Check extends StatelessWidget {
         ),
       ),
       child: checked
-          ? const Icon(
-              Icons.check_rounded,
-              size: 17,
-              color: Color(0xFF06201C),
-            )
+          ? const Icon(Icons.check_rounded, size: 17, color: Color(0xFF06201C))
           : null,
     );
   }
