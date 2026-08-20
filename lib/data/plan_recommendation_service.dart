@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../domain/models.dart';
 import 'analysis_server.dart';
 import 'recommendation_candidates.dart';
 
@@ -22,6 +23,7 @@ final class PlanTodoSavedItem {
     required this.id,
     required this.name,
     required this.why,
+    this.folder,
   });
 
   /// The capture or product group in the reader's library. Checked against what
@@ -32,12 +34,20 @@ final class PlanTodoSavedItem {
   /// library that may have changed.
   final String name;
 
+  /// Which of the eight folders this came out of.
+  ///
+  /// Echoed back by the server from the candidate that was sent, never asked of
+  /// the model. Null for plans made before this was carried, and for a name the
+  /// server could not match to a folder — a card simply shows one dot fewer.
+  final ContentFolder? folder;
+
   /// Why it serves this particular to-do, in one sentence.
   final String why;
 
   Map<String, Object?> toJson() => <String, Object?>{
     'id': id,
     'name': name,
+    if (folder != null) 'folder': folder!.name,
     if (why.isNotEmpty) 'why': why,
   };
 
@@ -51,8 +61,21 @@ final class PlanTodoSavedItem {
     return PlanTodoSavedItem(
       id: id,
       name: name,
+      folder: _folderNamed(raw['folder']),
       why: raw['why'] is String ? (raw['why']! as String).trim() : '',
     );
+  }
+
+  /// The enum name as [RecommendationCandidate.toJson] wrote it.
+  ///
+  /// Anything unrecognised comes back null rather than throwing: a saved thing
+  /// with no folder still belongs on its to-do.
+  static ContentFolder? _folderNamed(Object? value) {
+    if (value is! String) return null;
+    for (final folder in ContentFolder.values) {
+      if (folder.name == value) return folder;
+    }
+    return null;
   }
 }
 
@@ -97,20 +120,23 @@ final class PlanTodoSuggestion {
   /// all.
   final bool done;
 
-  PlanTodoSuggestion copyWith({bool? done}) => PlanTodoSuggestion(
-    title: title,
-    action: action,
-    daysBefore: daysBefore,
-    note: note,
-    selected: selected,
-    saved: saved,
-    done: done ?? this.done,
-  );
+  PlanTodoSuggestion copyWith({bool? done, List<PlanTodoSavedItem>? saved}) =>
+      PlanTodoSuggestion(
+        title: title,
+        action: action,
+        daysBefore: daysBefore,
+        note: note,
+        selected: selected,
+        saved: saved ?? this.saved,
+        done: done ?? this.done,
+      );
 
   /// The day this is due, given the day the plan itself falls on.
-  DateTime dueDate(DateTime planDate) =>
-      DateTime(planDate.year, planDate.month, planDate.day)
-          .subtract(Duration(days: daysBefore));
+  DateTime dueDate(DateTime planDate) => DateTime(
+    planDate.year,
+    planDate.month,
+    planDate.day,
+  ).subtract(Duration(days: daysBefore));
 
   Map<String, Object?> toJson() => <String, Object?>{
     'title': title,
@@ -127,7 +153,8 @@ final class PlanTodoSuggestion {
     final title = raw['title'];
     if (title is! String || title.trim().isEmpty) return null;
     final saved = <PlanTodoSavedItem>[];
-    for (final entry in raw['saved'] is List ? raw['saved']! as List : const []) {
+    for (final entry
+        in raw['saved'] is List ? raw['saved']! as List : const []) {
       final item = PlanTodoSavedItem.fromJson(entry);
       if (item != null) saved.add(item);
     }
@@ -199,18 +226,25 @@ abstract interface class PlanRecommendationService {
   });
 }
 
-final class RemotePlanRecommendationService implements PlanRecommendationService {
+final class RemotePlanRecommendationService
+    implements PlanRecommendationService {
   const RemotePlanRecommendationService({
     this.baseUrl,
-    // Breaking a plan apart takes longer than picking one thing out of it: a
-    // wedding took ten seconds and a birthday twenty-five when this was
-    // measured.
-    this.timeout = const Duration(seconds: 60),
+    // Measured at six to eight seconds for a plan the size of a wedding.
+    // Thirty leaves room for a slow answer without leaving a reader watching a
+    // spinner for a minute.
+    this.timeout = const Duration(seconds: 30),
+    // Separate on purpose. A server that cannot be reached at all fails here,
+    // and that is the common failure while developing — the Mac's address
+    // changed, the phone is on another network, the server is not running.
+    // Waiting the full timeout for it made a dead path look like a slow one.
+    this.connectTimeout = const Duration(seconds: 8),
   });
 
   /// Null until a build names one, which leaves the platform default to stand.
   final String? baseUrl;
   final Duration timeout;
+  final Duration connectTimeout;
 
   String get _serverUrl => baseUrl ?? defaultAnalysisBaseUrl();
 
@@ -221,16 +255,18 @@ final class RemotePlanRecommendationService implements PlanRecommendationService
     DateTime? scheduledAt,
     required List<RecommendationCandidate> candidates,
   }) async {
-    final endpoint = Uri.tryParse(_serverUrl)?.resolve('/v1/plan-recommendation');
+    final endpoint = Uri.tryParse(
+      _serverUrl,
+    )?.resolve('/v1/plan-recommendation');
     if (endpoint == null ||
         !const {'http', 'https'}.contains(endpoint.scheme) ||
         endpoint.host.isEmpty) {
       return const PlanRecommendation.unavailable('invalid_server_url');
     }
 
-    final client = HttpClient()..connectionTimeout = timeout;
+    final client = HttpClient()..connectionTimeout = connectTimeout;
     try {
-      final request = await client.postUrl(endpoint).timeout(timeout);
+      final request = await client.postUrl(endpoint).timeout(connectTimeout);
       request.headers.contentType = ContentType.json;
       request.write(
         jsonEncode(<String, Object?>{
@@ -287,14 +323,14 @@ final class RemotePlanRecommendationService implements PlanRecommendationService
         );
       case 'ready':
         final groups = <PlanTodoGroup>[];
-        for (final raw in decoded['groups'] is List
-            ? decoded['groups']! as List
-            : const []) {
+        for (final raw
+            in decoded['groups'] is List
+                ? decoded['groups']! as List
+                : const []) {
           if (raw is! Map<String, Object?>) continue;
           final items = <PlanTodoSuggestion>[];
-          for (final entry in raw['items'] is List
-              ? raw['items']! as List
-              : const []) {
+          for (final entry
+              in raw['items'] is List ? raw['items']! as List : const []) {
             final item = PlanTodoSuggestion.fromJson(entry);
             if (item != null) items.add(item);
           }
@@ -304,7 +340,9 @@ final class RemotePlanRecommendationService implements PlanRecommendationService
               title: raw['title'] is String
                   ? (raw['title']! as String).trim()
                   : '할 일',
-              note: raw['note'] is String ? (raw['note']! as String).trim() : '',
+              note: raw['note'] is String
+                  ? (raw['note']! as String).trim()
+                  : '',
               items: List<PlanTodoSuggestion>.unmodifiable(items),
             ),
           );

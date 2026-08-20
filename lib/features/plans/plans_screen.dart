@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
 import '../../data/plan_recommendation_service.dart';
+import '../../domain/models.dart';
+import '../common/content_folder_ui.dart';
 
 /// Presentation-only lifecycle used by [PlansScreen].
 ///
@@ -22,6 +24,8 @@ final class PlanListItem {
     required this.triggerLabel,
     this.recurrenceLabel,
     this.sourceLabel,
+    this.startsAt,
+    this.endsAt,
     this.todos = const <PlanTodoSuggestion>[],
   });
 
@@ -32,21 +36,100 @@ final class PlanListItem {
   final String? recurrenceLabel;
   final String? sourceLabel;
 
+  /// The day the plan is for. Null for a plan with no time condition at all —
+  /// a place-only plan waits for a place, not a date, and shows no countdown.
+  final DateTime? startsAt;
+
+  /// The last day of a plan that runs longer than one. Null for the rest.
+  final DateTime? endsAt;
+
   /// What this plan turned into. Empty for plans made before the suggestion
   /// step existed, which simply show nothing extra.
   final List<PlanTodoSuggestion> todos;
+
+  int get doneCount => todos.where((todo) => todo.done).length;
+
+  /// How many days the plan covers, counting both ends. One when it is a day.
+  int get dayCount {
+    final start = startsAt;
+    final end = endsAt;
+    if (start == null || end == null) return 1;
+    final days = DateUtils.dateOnly(
+      end,
+    ).difference(DateUtils.dateOnly(start)).inDays;
+    return days < 1 ? 1 : days + 1;
+  }
+
+  /// Days until the plan's day, from [today]. Negative once it has passed.
+  int? daysUntil(DateTime today) {
+    final start = startsAt;
+    if (start == null) return null;
+    return DateUtils.dateOnly(
+      start,
+    ).difference(DateUtils.dateOnly(today)).inDays;
+  }
+
+  /// The next thing left to do, or null when everything is ticked off.
+  PlanTodoSuggestion? get nextTodo {
+    for (final todo in todos) {
+      if (!todo.done) return todo;
+    }
+    return null;
+  }
+
+  /// The day this plan next needs attention.
+  ///
+  /// The soonest unticked to-do rather than the plan's own day, because that is
+  /// what a reader has to act on. A wedding a month out with a dress to choose
+  /// today comes before a trip in two weeks with nothing due yet.
+  ///
+  /// A plan with nothing left to do falls back to its own day — it is still
+  /// coming, and once it is the nearest thing left it belongs at the top. Null
+  /// for a plan with no date at all, which waits on a place, not a clock.
+  DateTime? get nextDueAt {
+    final start = startsAt;
+    if (start == null) return null;
+    DateTime? earliest;
+    for (final todo in todos) {
+      if (todo.done) continue;
+      final due = todo.dueDate(start);
+      if (earliest == null || due.isBefore(earliest)) earliest = due;
+    }
+    return earliest ?? DateUtils.dateOnly(start);
+  }
+
+  /// One dot per folder this plan draws on, in the order the folders are shown
+  /// in 정리함 so the same plan always reads the same way.
+  List<ContentFolder> get folders {
+    final seen = <ContentFolder>{};
+    for (final todo in todos) {
+      for (final saved in todo.saved) {
+        if (saved.folder case final folder?) seen.add(folder);
+      }
+    }
+    return <ContentFolder>[
+      for (final folder in ContentFolder.values)
+        if (seen.contains(folder)) folder,
+    ];
+  }
 }
 
-/// Plan inbox grouped by lifecycle state.
+/// Plan inbox, nearest first.
 ///
 /// This widget intentionally does not own a controller. Integrators can map
 /// domain plans to [PlanListItem] and rebuild this screen whenever the source
 /// of truth changes.
+///
+/// Two sections rather than three. 활성 and 예정 were a distinction the screen
+/// made and a reader did not: both are plans that have not happened yet, and
+/// the countdown already says which is sooner. What is actually worth splitting
+/// is what still needs doing from what is over.
 final class PlansScreen extends StatelessWidget {
   const PlansScreen({
     required this.plans,
     required this.onCreatePlan,
     this.onOpenPlan,
+    this.today,
     super.key,
   });
 
@@ -54,11 +137,16 @@ final class PlansScreen extends StatelessWidget {
   final VoidCallback onCreatePlan;
   final ValueChanged<PlanListItem>? onOpenPlan;
 
+  /// The day countdowns are measured against. Defaults to now; tests pin it so
+  /// a D-day does not change under them overnight.
+  final DateTime? today;
+
   @override
   Widget build(BuildContext context) {
-    final active = _plansWithStatus(PlanListStatus.active);
-    final upcoming = _plansWithStatus(PlanListStatus.upcoming);
-    final completed = _plansWithStatus(PlanListStatus.completed);
+    final now = today ?? DateTime.now();
+    final ongoing = _ongoing(now);
+    final past = _plansWithStatus(PlanListStatus.completed);
+    final dueCount = _dueByTodayCount(ongoing, now);
 
     return Theme(
       data: AppTheme.plansTheme(Theme.of(context)),
@@ -66,40 +154,44 @@ final class PlansScreen extends StatelessWidget {
         color: AppTheme.planCanvas,
         child: SafeArea(
           bottom: false,
-          child: ListView(
+          child: CustomScrollView(
             key: const PageStorageKey('plans-screen'),
-            padding: const EdgeInsets.fromLTRB(22, 28, 22, 44),
-            children: [
-              _PlansHeader(onCreatePlan: onCreatePlan),
-              const SizedBox(height: 26),
-              _PlanSummary(
-                activeCount: active.length,
-                upcomingCount: upcoming.length,
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
+                sliver: SliverToBoxAdapter(
+                  child: _PlansHeader(onCreatePlan: onCreatePlan),
+                ),
               ),
-              const SizedBox(height: 34),
-              _PlanSection(
-                key: const Key('plans-active-section'),
-                title: '활성 계획',
-                emptyLabel: '지금 조건을 기다리는 계획이 없어요.',
-                plans: active,
-                onOpenPlan: onOpenPlan,
+              if (_alertLabel(ongoing.length, dueCount) case final label?)
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _AlertHeaderDelegate(
+                    label: label,
+                    urgent: dueCount > 0,
+                  ),
+                ),
+              if (plans.isEmpty)
+                const SliverPadding(
+                  padding: EdgeInsets.fromLTRB(22, 20, 22, 0),
+                  sliver: SliverToBoxAdapter(child: _FirstPlanNotice()),
+                ),
+              ..._section(
+                key: const Key('plans-ongoing-section'),
+                title: '진행 중',
+                plans: ongoing,
+                now: now,
+                // Only the nearest plan is filled in. Two filled cards next to
+                // each other stop meaning "this one".
+                heroIndex: 0,
               ),
-              const SizedBox(height: 34),
-              _PlanSection(
-                key: const Key('plans-upcoming-section'),
-                title: '예정된 계획',
-                emptyLabel: '다가오는 계획이 없어요.',
-                plans: upcoming,
-                onOpenPlan: onOpenPlan,
+              ..._section(
+                key: const Key('plans-past-section'),
+                title: '지난 계획',
+                plans: past,
+                now: now,
               ),
-              const SizedBox(height: 34),
-              _PlanSection(
-                key: const Key('plans-completed-section'),
-                title: '완료한 계획',
-                emptyLabel: '완료한 계획이 여기에 쌓여요.',
-                plans: completed,
-                onOpenPlan: onOpenPlan,
-              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 44)),
             ],
           ),
         ),
@@ -107,8 +199,89 @@ final class PlansScreen extends StatelessWidget {
     );
   }
 
+  List<Widget> _section({
+    required Key key,
+    required String title,
+    required List<PlanListItem> plans,
+    required DateTime now,
+    int? heroIndex,
+  }) {
+    if (plans.isEmpty) return const <Widget>[];
+    return <Widget>[
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(22, 26, 22, 0),
+        sliver: SliverToBoxAdapter(
+          child: _SectionHeader(key: key, title: title, count: plans.length),
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
+        sliver: SliverList.separated(
+          itemCount: plans.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (context, index) => _PlanCard(
+            plan: plans[index],
+            today: now,
+            hero: index == heroIndex,
+            onTap: onOpenPlan == null ? null : () => onOpenPlan!(plans[index]),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// Everything not finished, ordered by what needs doing soonest.
+  ///
+  /// By [PlanListItem.nextDueAt] rather than by the plan's own day, so the plan
+  /// with work due today sits above one that merely happens sooner. Ties fall
+  /// back to the plan's day, and a plan with no date at all — it waits on a
+  /// place, not a clock — sits after every plan that has one.
+  List<PlanListItem> _ongoing(DateTime now) {
+    final result = plans
+        .where((plan) => plan.status != PlanListStatus.completed)
+        .toList();
+    result.sort((first, second) {
+      final firstDue = first.nextDueAt;
+      final secondDue = second.nextDueAt;
+      if (firstDue == null || secondDue == null) {
+        if (firstDue == null && secondDue == null) return 0;
+        return firstDue == null ? 1 : -1;
+      }
+      final byDue = firstDue.compareTo(secondDue);
+      if (byDue != 0) return byDue;
+      final firstDays = first.daysUntil(now) ?? 1 << 30;
+      final secondDays = second.daysUntil(now) ?? 1 << 30;
+      return firstDays.compareTo(secondDays);
+    });
+    return List<PlanListItem>.unmodifiable(result);
+  }
+
   List<PlanListItem> _plansWithStatus(PlanListStatus status) {
     return plans.where((plan) => plan.status == status).toList(growable: false);
+  }
+
+  /// To-dos that were due today or earlier and are still unticked.
+  ///
+  /// Overdue counts as due: a reader who missed yesterday needs it in the same
+  /// number, not filed away as no longer relevant.
+  static int _dueByTodayCount(List<PlanListItem> plans, DateTime now) {
+    final today = DateUtils.dateOnly(now);
+    var count = 0;
+    for (final plan in plans) {
+      final startsAt = plan.startsAt;
+      if (startsAt == null) continue;
+      for (final todo in plan.todos) {
+        if (todo.done) continue;
+        if (!todo.dueDate(startsAt).isAfter(today)) count += 1;
+      }
+    }
+    return count;
+  }
+
+  static String? _alertLabel(int ongoingCount, int dueCount) {
+    if (ongoingCount == 0) return null;
+    final running = '계획 $ongoingCount개 진행 중';
+    return dueCount == 0 ? running : '$dueCount개가 오늘까지 · $running';
   }
 }
 
@@ -120,111 +293,207 @@ final class _PlansHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('계획함', style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 7),
-              const Text(
-                '저장한 정보를 필요한 순간에 꺼내요.',
-                style: TextStyle(
-                  color: AppTheme.planMuted,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        FilledButton.icon(
-          key: const Key('plans-create-button'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(86, 44),
-            padding: const EdgeInsets.symmetric(horizontal: 15),
-            backgroundColor: AppTheme.planMauveSoft,
-            foregroundColor: AppTheme.planInk,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: AppTheme.planBorder),
+        const Expanded(
+          child: Text(
+            '계획함',
+            style: TextStyle(
+              color: AppTheme.planInk,
+              fontSize: 34,
+              height: 1.1,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -1.2,
             ),
           ),
-          onPressed: onCreatePlan,
-          icon: const Icon(Icons.add_rounded, size: 19),
-          label: const Text('추가'),
+        ),
+        const SizedBox(width: 12),
+        // Compact next to a title this large. The label moved into the
+        // semantics rather than sitting beside a heading it would compete with.
+        Semantics(
+          button: true,
+          label: '계획 추가',
+          child: Material(
+            key: const Key('plans-create-button'),
+            color: AppTheme.planSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppTheme.planBorder),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onCreatePlan,
+              child: const SizedBox(
+                width: 48,
+                height: 48,
+                child: Icon(
+                  Icons.add_rounded,
+                  color: AppTheme.planInk,
+                  size: 24,
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
-final class _PlanSummary extends StatelessWidget {
-  const _PlanSummary({required this.activeCount, required this.upcomingCount});
+/// The one line that says what needs attention, kept in view while the list
+/// scrolls under it.
+///
+/// Pinned because it is the only part of this screen that is about *today*.
+/// Scrolled away it would be a header a reader has to go back up for.
+final class _AlertHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _AlertHeaderDelegate({required this.label, required this.urgent});
 
-  final int activeCount;
-  final int upcomingCount;
+  final String label;
+  final bool urgent;
+
+  static const _height = 82.0;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    // A pinned header takes its paint extent from the child's own height, so
+    // the child has to be exactly [_height] or the sliver reports a geometry
+    // it cannot paint.
+    return SizedBox(
+      height: _height,
+      child: ColoredBox(
+        color: AppTheme.planCanvas,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: urgent ? AppTheme.planAlertSurface : AppTheme.planSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: urgent ? AppTheme.planAlertBorder : AppTheme.planBorder,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: urgent ? AppTheme.planAlert : AppTheme.planSubtle,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: urgent ? AppTheme.planAlert : AppTheme.planMuted,
+                        fontSize: 14,
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(_AlertHeaderDelegate oldDelegate) =>
+      label != oldDelegate.label || urgent != oldDelegate.urgent;
+}
+
+/// A spaced label, a rule to the edge, and a count.
+final class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.count, super.key});
+
+  final String title;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    final hasPlans = activeCount > 0 || upcomingCount > 0;
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppTheme.planSubtle,
+            fontSize: 11,
+            height: 1.2,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 3,
+          ),
+        ),
+        const SizedBox(width: 14),
+        const Expanded(child: Divider(height: 1, color: AppTheme.planBorder)),
+        const SizedBox(width: 14),
+        Text(
+          '$count',
+          style: const TextStyle(
+            color: AppTheme.planSubtle,
+            fontSize: 13,
+            height: 1.2,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Shown only when there is not a single plan yet.
+final class _FirstPlanNotice extends StatelessWidget {
+  const _FirstPlanNotice();
+
+  @override
+  Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppTheme.planSurface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.planBorder),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
-        child: Row(
+      child: const Padding(
+        padding: EdgeInsets.fromLTRB(20, 22, 20, 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: hasPlans ? AppTheme.planMauveSoft : AppTheme.planCanvas,
-                borderRadius: BorderRadius.circular(13),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                hasPlans
-                    ? Icons.auto_awesome_motion_rounded
-                    : Icons.note_add_outlined,
-                color: hasPlans ? AppTheme.planMauve : AppTheme.planSubtle,
-                size: 21,
+            Text(
+              '첫 계획을 만들어 보세요',
+              style: TextStyle(
+                color: AppTheme.planInk,
+                fontSize: 17,
+                height: 1.35,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hasPlans
-                        ? '활성 $activeCount개 · 예정 $upcomingCount개'
-                        : '첫 계획을 만들어 보세요',
-                    style: const TextStyle(
-                      color: AppTheme.planInk,
-                      fontSize: 16,
-                      height: 1.4,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    hasPlans
-                        ? '조건이 맞으면 Trun On이 알려드릴게요.'
-                        : '시간이나 장소를 정하면 잊지 않게 알려드려요.',
-                    style: const TextStyle(
-                      color: AppTheme.planMuted,
-                      fontSize: 13,
-                      height: 1.45,
-                    ),
-                  ),
-                ],
+            SizedBox(height: 6),
+            Text(
+              '언제 어디서 할지 정하면, 저장해둔 것 중에 쓸 만한 걸 골라 담아 드려요.',
+              style: TextStyle(
+                color: AppTheme.planMuted,
+                fontSize: 14,
+                height: 1.5,
               ),
             ),
           ],
@@ -234,221 +503,135 @@ final class _PlanSummary extends StatelessWidget {
   }
 }
 
-final class _PlanSection extends StatelessWidget {
-  const _PlanSection({
-    required this.title,
-    required this.emptyLabel,
-    required this.plans,
-    required this.onOpenPlan,
-    super.key,
+/// One plan, as a card.
+///
+/// The nearest one is [hero]: filled with the accent gradient rather than
+/// outlined, so a reader's eye lands on the plan that is actually next before
+/// reading a single word.
+final class _PlanCard extends StatelessWidget {
+  const _PlanCard({
+    required this.plan,
+    required this.today,
+    required this.hero,
+    this.onTap,
   });
 
-  final String title;
-  final String emptyLabel;
-  final List<PlanListItem> plans;
-  final ValueChanged<PlanListItem>? onOpenPlan;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-            ),
-            Text(
-              '${plans.length}',
-              style: const TextStyle(
-                color: AppTheme.planSubtle,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 13),
-        if (plans.isEmpty)
-          _EmptySection(label: emptyLabel)
-        else
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppTheme.planSurface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.planBorder),
-            ),
-            child: Column(
-              children: [
-                for (var index = 0; index < plans.length; index++) ...[
-                  _PlanRow(
-                    plan: plans[index],
-                    onTap: onOpenPlan == null
-                        ? null
-                        : () => onOpenPlan!(plans[index]),
-                  ),
-                  if (index != plans.length - 1)
-                    const Divider(indent: 70, endIndent: 16),
-                ],
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-final class _EmptySection extends StatelessWidget {
-  const _EmptySection({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppTheme.planSurface.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.planBorder),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.horizontal_rule_rounded,
-              color: AppTheme.planSubtle,
-              size: 19,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: AppTheme.planSubtle,
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _PlanRow extends StatelessWidget {
-  const _PlanRow({required this.plan, this.onTap});
-
   final PlanListItem plan;
+  final DateTime today;
+  final bool hero;
   final VoidCallback? onTap;
 
+  bool get _past => plan.status == PlanListStatus.completed;
+
+  Color get _ink => hero
+      ? AppTheme.planHeroInk
+      : (_past ? AppTheme.planMuted : AppTheme.planInk);
+
+  Color get _muted => hero
+      ? AppTheme.planHeroMuted
+      : (_past ? AppTheme.planSubtle : AppTheme.planMuted);
+
   @override
   Widget build(BuildContext context) {
-    final appearance = _PlanStatusAppearance.from(plan.status);
+    final folders = plan.folders;
+    final nextTodo = plan.nextTodo;
+
     final content = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 17, 10, 17),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: appearance.background,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            alignment: Alignment.center,
-            child: Icon(appearance.icon, color: appearance.color, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        plan.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: plan.status == PlanListStatus.completed
-                              ? AppTheme.planMuted
-                              : AppTheme.planInk,
-                          fontSize: 15,
-                          height: 1.35,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _StatusBadge(appearance: appearance),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  plan.triggerLabel,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  plan.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.planMuted,
-                    fontSize: 13,
-                    height: 1.4,
-                    fontWeight: FontWeight.w500,
+                  style: TextStyle(
+                    color: _ink,
+                    fontSize: 24,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.7,
                   ),
                 ),
-                if (plan.recurrenceLabel case final recurrence?) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    recurrence,
-                    style: const TextStyle(
-                      color: AppTheme.planSubtle,
-                      fontSize: 12,
-                      height: 1.35,
+              ),
+              if (_countdownLabel() case final countdown?) ...[
+                const SizedBox(width: 14),
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Text(
+                    countdown,
+                    style: TextStyle(
+                      color: _ink,
+                      fontSize: 27,
+                      height: 1.05,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2,
                     ),
                   ),
-                ],
-                if (plan.sourceLabel case final source?) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.link_rounded,
-                        color: AppTheme.planSubtle,
-                        size: 15,
-                      ),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          source,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppTheme.planSubtle,
-                            fontSize: 12,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (plan.todos.isNotEmpty) _TodoSummary(todos: plan.todos),
+                ),
               ],
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            _subtitle(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _muted,
+              fontSize: 14,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          if (onTap != null) ...[
-            const SizedBox(width: 2),
-            const Padding(
-              padding: EdgeInsets.only(top: 10),
-              child: Icon(
-                Icons.chevron_right_rounded,
-                color: AppTheme.planSubtle,
-                size: 22,
+          if (plan.todos.isNotEmpty) ...[
+            const SizedBox(height: 17),
+            _ProgressSegments(
+              total: plan.todos.length,
+              done: plan.doneCount,
+              hero: hero,
+            ),
+            const SizedBox(height: 11),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${plan.doneCount} / ${plan.todos.length} 완료',
+                    style: TextStyle(
+                      color: _muted,
+                      fontSize: 13,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (folders.isNotEmpty) _FolderDots(folders: folders),
+              ],
+            ),
+          ],
+          if (nextTodo != null) ...[
+            const SizedBox(height: 15),
+            Divider(
+              height: 1,
+              color: hero
+                  ? AppTheme.planProgressTrackOnHero
+                  : AppTheme.planBorder,
+            ),
+            const SizedBox(height: 13),
+            Text(
+              '다음 · ${nextTodo.title}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _ink,
+                fontSize: 14,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
               ),
             ),
           ],
@@ -458,171 +641,147 @@ final class _PlanRow extends StatelessWidget {
 
     return Material(
       key: Key('plan-card-${plan.id}'),
-      color: Colors.transparent,
-      child: onTap == null
-          ? Semantics(label: _semanticsLabel(appearance.label), child: content)
-          : InkWell(
-              onTap: onTap,
-              child: Semantics(
-                button: true,
-                label: _semanticsLabel(appearance.label),
-                child: ExcludeSemantics(child: content),
+      color: hero ? Colors.transparent : AppTheme.planSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: hero
+            ? BorderSide.none
+            : const BorderSide(color: AppTheme.planBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: DecoratedBox(
+        decoration: hero
+            ? const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppTheme.planHeroStart, AppTheme.planHeroEnd],
+                ),
+              )
+            : const BoxDecoration(),
+        child: onTap == null
+            ? Semantics(label: _semanticsLabel(), child: content)
+            : InkWell(
+                onTap: onTap,
+                child: Semantics(
+                  button: true,
+                  label: _semanticsLabel(),
+                  child: ExcludeSemantics(child: content),
+                ),
               ),
-            ),
+      ),
     );
   }
 
-  String _semanticsLabel(String statusLabel) {
-    final details = [
-      statusLabel,
+  /// `완료` for a plan that is over, a countdown for one with a date, and
+  /// nothing at all for a plan waiting on a place — there is no day to count to.
+  String? _countdownLabel() {
+    if (_past) return '완료';
+    final days = plan.daysUntil(today);
+    if (days == null) return null;
+    if (days == 0) return 'D-DAY';
+    return days > 0 ? 'D-$days' : 'D+${-days}';
+  }
+
+  /// The span when there is one, and otherwise whatever the domain already
+  /// worked out about when or where this fires.
+  String _subtitle() {
+    final start = plan.startsAt;
+    final end = plan.endsAt;
+    if (start != null && end != null && plan.dayCount > 1) {
+      return '${_shortDate(start)} – ${_shortDate(end)} · ${plan.dayCount}일간';
+    }
+    return plan.triggerLabel;
+  }
+
+  String _semanticsLabel() {
+    return <String>[
       plan.title,
-      plan.triggerLabel,
-      ?plan.recurrenceLabel,
-      if (plan.sourceLabel case final source?) '연결 콘텐츠 $source',
-    ];
-    return details.join(', ');
+      ?_countdownLabel(),
+      _subtitle(),
+      if (plan.todos.isNotEmpty)
+        '할 일 ${plan.todos.length}개 중 ${plan.doneCount}개 완료',
+      if (plan.nextTodo case final next?) '다음 ${next.title}',
+    ].join(', ');
   }
+
+  static String _shortDate(DateTime value) => '${value.month}.${value.day}';
 }
 
-/// The first few things this plan turned into.
+/// One segment per to-do, filled left to right.
 ///
-/// A count alone says a plan has work in it; the titles say what kind. Two rows
-/// is what fits before a card stops being a card.
-final class _TodoSummary extends StatelessWidget {
-  const _TodoSummary({required this.todos});
-
-  final List<PlanTodoSuggestion> todos;
-
-  @override
-  Widget build(BuildContext context) {
-    final shown = todos.take(2).toList(growable: false);
-    final rest = todos.length - shown.length;
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
-        decoration: BoxDecoration(
-          color: AppTheme.planCanvas,
-          borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: AppTheme.planBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.checklist_rounded,
-                  color: AppTheme.planMauve,
-                  size: 15,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '할 일 ${todos.length}개',
-                  style: const TextStyle(
-                    color: AppTheme.planInk,
-                    fontSize: 12.5,
-                    height: 1.35,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-            for (final todo in shown) ...[
-              const SizedBox(height: 5),
-              Text(
-                todo.daysBefore == 0
-                    ? '· ${todo.title} · 당일'
-                    : '· ${todo.title} · D-${todo.daysBefore}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppTheme.planMuted,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-            ],
-            if (rest > 0) ...[
-              const SizedBox(height: 4),
-              Text(
-                '외 $rest개',
-                style: const TextStyle(
-                  color: AppTheme.planSubtle,
-                  fontSize: 12,
-                  height: 1.35,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.appearance});
-
-  final _PlanStatusAppearance appearance;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: appearance.background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Text(
-          appearance.label,
-          style: TextStyle(
-            color: appearance.color,
-            fontSize: 11,
-            height: 1.2,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-final class _PlanStatusAppearance {
-  const _PlanStatusAppearance({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.background,
+/// A single bar would say how far along a plan is; segments also say how many
+/// pieces it is in, which is what tells a fourteen-step trip apart from a
+/// two-step errand at a glance.
+final class _ProgressSegments extends StatelessWidget {
+  const _ProgressSegments({
+    required this.total,
+    required this.done,
+    required this.hero,
   });
 
-  factory _PlanStatusAppearance.from(PlanListStatus status) {
-    return switch (status) {
-      PlanListStatus.active => const _PlanStatusAppearance(
-        label: '활성',
-        icon: Icons.notifications_none_rounded,
-        color: AppTheme.planMauve,
-        background: AppTheme.planMauveSoft,
-      ),
-      PlanListStatus.upcoming => const _PlanStatusAppearance(
-        label: '예정',
-        icon: Icons.schedule_rounded,
-        color: AppTheme.planSand,
-        background: AppTheme.planSandSoft,
-      ),
-      PlanListStatus.completed => const _PlanStatusAppearance(
-        label: '완료',
-        icon: Icons.check_rounded,
-        color: AppTheme.planSage,
-        background: AppTheme.planSageSoft,
-      ),
-    };
-  }
+  final int total;
+  final int done;
+  final bool hero;
 
-  final String label;
-  final IconData icon;
-  final Color color;
-  final Color background;
+  @override
+  Widget build(BuildContext context) {
+    final filled = hero
+        ? AppTheme.planProgressDoneOnHero
+        : AppTheme.planProgressDone;
+    final track = hero
+        ? AppTheme.planProgressTrackOnHero
+        : AppTheme.planProgressTrack;
+
+    return SizedBox(
+      height: 5,
+      child: Row(
+        // Stretch, not the default centre. A childless DecoratedBox under a
+        // loose cross-axis constraint takes the smallest height allowed, which
+        // is zero — the segments were laid out and coloured correctly and drew
+        // nothing at all.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var index = 0; index < total; index += 1) ...[
+            Expanded(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: index < done ? filled : track,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            if (index != total - 1) const SizedBox(width: 4),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Which of the eight folders this plan reaches into.
+final class _FolderDots extends StatelessWidget {
+  const _FolderDots({required this.folders});
+
+  final List<ContentFolder> folders;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var index = 0; index < folders.length; index += 1) ...[
+          Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(
+              color: folders[index].color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          if (index != folders.length - 1) const SizedBox(width: 5),
+        ],
+      ],
+    );
+  }
 }

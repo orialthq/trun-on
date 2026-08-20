@@ -49,6 +49,30 @@ abstract final class AppTheme {
   static const planSage = positive;
   static const planSageSoft = Color(0xFF0E332F);
 
+  // The nearest plan is filled rather than outlined, so one card carries the
+  // whole list's urgency and the rest can stay quiet. Both ends sit in the same
+  // family as `accent`, which is the app's own "now" color.
+  static const planHeroStart = Color(0xFFEF564A);
+  static const planHeroEnd = Color(0xFFF4836A);
+
+  /// Ink for the filled card. Near-black rather than white: the gradient is
+  /// light enough that white type on it fails contrast at small sizes.
+  static const planHeroInk = Color(0xFF1A0B08);
+  static const planHeroMuted = Color(0xCC2A0F0A);
+
+  /// Segments already ticked off, on the filled card and off it. The lime is
+  /// `primary` — the same green the rest of the app spends on done-ness.
+  static const planProgressDone = primary;
+  static const planProgressDoneOnHero = Color(0xFF7E2018);
+  static const planProgressTrack = Color(0xFF2A2A30);
+  static const planProgressTrackOnHero = Color(0x33330D08);
+
+  // The one banner that counts what is due. Warm rather than red: it is a nudge
+  // about today, not an error.
+  static const planAlert = Color(0xFFFF7A4D);
+  static const planAlertSurface = Color(0xFF241310);
+  static const planAlertBorder = Color(0xFF6B3220);
+
   /// Local theme for the plan inbox/editor.
   ///
   /// This is intentionally opt-in. Feature screens wrap themselves with this
