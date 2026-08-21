@@ -1005,10 +1005,14 @@ final class _HomeShellState extends State<HomeShell>
     _showMessage('정리함에서 지워진 것 같아요.');
   }
 
+  /// The day the plan is about, which every to-do's deadline counts back from.
+  ///
+  /// Not the condition: that holds when the alarm goes off, and a lead of a day
+  /// or more would put every deadline on this screen a day or more ahead of the
+  /// same deadline on the card that opened it.
   DateTime? _planDateOf(String planId) {
     final plan = widget.planController?.planById(planId);
-    final condition = plan?.rule.condition;
-    return condition is TimeCondition ? condition.notBefore : null;
+    return plan == null ? null : PlanController.planStartsAt(plan);
   }
 
   Future<void> _openPlanActions(PlanListItem item) async {

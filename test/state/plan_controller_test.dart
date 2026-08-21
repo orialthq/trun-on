@@ -992,6 +992,91 @@ void main() {
     expect(reloaded.items.single.startsAt, happensAt);
   });
 
+  test(
+    'a lead that crosses a day still leaves the plan on its own day',
+    () async {
+      // The two-hour lead above lands on the same date, so every reader that
+      // asked the condition instead of the plan happened to agree with the ones
+      // that did not. A day's lead is where they part.
+      final store = InMemoryTriggerPlanStore();
+      final controller = PlanController(
+        store: store,
+        scheduler: _FakeTriggerScheduler(),
+        clock: () => now,
+        idFactory: (_) => 'plan-day-lead',
+        closeSchedulerOnDispose: false,
+      );
+      await controller.initialize();
+
+      final happensAt = DateTime(2026, 8, 31, 19);
+      final plan = await controller.create(
+        PlanDraft(
+          title: '성수 저녁 약속',
+          triggerKind: PlanDraftTriggerKind.time,
+          recurrence: PlanDraftRecurrence.once,
+          scheduledAt: happensAt,
+          leadTime: PlanLeadTime.oneDay,
+        ),
+        todos: const <PlanTodoSuggestion>[
+          PlanTodoSuggestion(
+            title: '자리 예약하기',
+            action: '예약',
+            daysBefore: 3,
+            note: '',
+            selected: true,
+          ),
+        ],
+      );
+
+      expect(
+        (plan.rule.condition as TimeCondition).notBefore,
+        DateTime(2026, 8, 30, 19),
+      );
+
+      // What the card reads, what the screen behind it reads, and what the label
+      // prints all come from one place now, so they cannot drift apart.
+      expect(PlanController.planStartsAt(plan), happensAt);
+
+      final item = controller.items.single;
+      expect(item.todos.single.dueDate(item.startsAt!), DateTime(2026, 8, 28));
+      expect(
+        item.triggerLabel,
+        contains('8월 31일'),
+        reason: '카드가 알림 날짜를 계획 날짜인 것처럼 적었습니다',
+      );
+      expect(item.status, PlanListStatus.upcoming);
+    },
+  );
+
+  test('a repeating plan names its own hour and weekday', () async {
+    // The window and the weekday are cut from the alarm's clock. An hour's lead
+    // on a nine o'clock Monday makes that eight o'clock, and a day's lead makes
+    // it Sunday.
+    final controller = PlanController(
+      store: InMemoryTriggerPlanStore(),
+      scheduler: _FakeTriggerScheduler(),
+      clock: () => now,
+      idFactory: (_) => 'plan-weekly',
+      closeSchedulerOnDispose: false,
+    );
+    await controller.initialize();
+
+    await controller.create(
+      PlanDraft(
+        title: '주간 장보기',
+        triggerKind: PlanDraftTriggerKind.time,
+        recurrence: PlanDraftRecurrence.weekly,
+        // A Monday.
+        scheduledAt: DateTime(2026, 8, 31, 9),
+        leadTime: PlanLeadTime.oneDay,
+      ),
+    );
+
+    final label = controller.items.single.triggerLabel;
+    expect(label, contains('월요일'));
+    expect(label, contains('09:00'));
+  });
+
   test('a plan that spans days lives until its last one', () async {
     final store = InMemoryTriggerPlanStore();
     final scheduler = _FakeTriggerScheduler();

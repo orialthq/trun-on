@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ori_beauty/core/app_theme.dart';
 import 'package:ori_beauty/data/incoming_share_service.dart';
+import 'package:ori_beauty/data/plan_recommendation_service.dart';
 import 'package:ori_beauty/data/place_reminder_service.dart';
 import 'package:ori_beauty/data/trigger_plan_store.dart';
 import 'package:ori_beauty/data/trigger_scheduler.dart';
@@ -50,6 +51,50 @@ void main() {
       );
     },
   );
+
+  testWidgets('a to-do falls on the same day on the card and behind it', (
+    tester,
+  ) async {
+    // The shell hands the detail screen the day every deadline counts back
+    // from. Taking it off the trigger put this screen a whole day ahead of the
+    // card that opened it, for any lead long enough to cross midnight.
+    final fixture = await _HomeShellPlansFixture.create();
+    addTearDown(fixture.dispose);
+    await fixture.planController.create(
+      PlanDraft(
+        title: '성수 저녁 약속',
+        triggerKind: PlanDraftTriggerKind.time,
+        recurrence: PlanDraftRecurrence.once,
+        scheduledAt: DateTime.utc(2026, 8, 31, 19),
+        leadTime: PlanLeadTime.oneDay,
+      ),
+      todos: const <PlanTodoSuggestion>[
+        PlanTodoSuggestion(
+          title: '자리 예약하기',
+          action: '예약',
+          daysBefore: 3,
+          note: '',
+          selected: true,
+        ),
+      ],
+    );
+
+    await _pumpHomeShell(tester, fixture);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('계획함'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The card counts back from the 31st, so the plan itself must too.
+    expect(find.text('8/28'), findsNothing);
+    await tester.tap(find.byKey(const Key('plan-card-plan-ui')));
+    await tester.pumpAndSettle();
+    expect(find.text('8/28'), findsOneWidget);
+    expect(find.text('8/27'), findsNothing);
+  });
 
   testWidgets('opens the plan creation flow from the HomeShell plans tab', (
     tester,

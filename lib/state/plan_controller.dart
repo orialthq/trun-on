@@ -226,23 +226,29 @@ final class PlanController extends ChangeNotifier {
           'sourceCaptureId': sourceCaptureId,
         if (locationQuery != null && locationQuery.isNotEmpty)
           'locationQuery': locationQuery,
-        // Metadata rather than the rule: the scheduler still fires once, at
-        // `scheduledAt`. How many days the plan covers is something only a card
-        // reads.
         // When the plan happens, as against when it fires. The trigger carries
         // the notification time, so reading the plan's own time back out of the
         // condition would be short by the lead — every countdown and every
-        // to-do deadline off by the same amount, quietly.
+        // to-do deadline off by the same amount, quietly. Read it through
+        // [planStartsAt] and nowhere else.
+        //
+        // `leadTime` is written for an edit screen that does not exist yet:
+        // nothing reads it today, and reopening a plan is not a thing the app
+        // can do. It costs a string, and rebuilding it later from the gap
+        // between the two times would only ever be a guess.
         if (draft.scheduledAt case final scheduledAt?) ...{
           'scheduledAt': scheduledAt.toIso8601String(),
           'leadTime': draft.leadTime.name,
         },
-        // Kept so editing a plan reopens on the folder it was made against, and
-        // so a later re-run of the recommendation searches the same place.
+        // Written for that same editor, and for a re-run of the recommendation
+        // that should search where the first one did. Also unread today.
         if (draft.scopes.isNotEmpty)
           'contentScopes': draft.scopes
               .map((scope) => scope.toJson())
               .toList(growable: false),
+        // Metadata rather than the rule: the scheduler still fires once, at
+        // `scheduledAt`. How many days the plan covers is something only a card
+        // reads — and the expiry, so a trip does not end on its first evening.
         if (draft.endsAt case final endsAt?)
           'endsAt': DateTime(
             endsAt.year,
@@ -1027,16 +1033,25 @@ final class PlanController extends ChangeNotifier {
       sourceLabel: plan.metadata['sourceCaptureId'] is String
           ? '연결된 콘텐츠'
           : null,
-      // Metadata first, condition second. The condition holds when the alarm
-      // goes off, which is the plan's own time only when there is no lead. The
-      // fallback is for plans made before the two parted.
-      startsAt:
-          _dateMetadata(plan.metadata['scheduledAt']) ??
-          _timeCondition(plan.rule.condition)?.notBefore,
+      startsAt: planStartsAt(plan),
       endsAt: _dateMetadata(plan.metadata['endsAt']),
       todos: _todosOf(plan),
     );
   }
+
+  /// When the plan happens, as against when its notification fires.
+  ///
+  /// Metadata first, condition second. The condition holds when the alarm goes
+  /// off, which is the plan's own time only when there is no lead. The fallback
+  /// is for plans made before the two parted.
+  ///
+  /// Every reader of the plan's own time goes through here. Asking the
+  /// condition directly is how a card and the screen behind it came to print
+  /// different deadlines for the same to-do: a day's lead moved one of them and
+  /// not the other, and both looked right on their own.
+  static DateTime? planStartsAt(Plan plan) =>
+      _dateMetadata(plan.metadata['scheduledAt']) ??
+      _timeCondition(plan.rule.condition)?.notBefore;
 
   static DateTime? _dateMetadata(Object? value) {
     if (value is! String) return null;
@@ -1063,8 +1078,10 @@ final class PlanController extends ChangeNotifier {
         plan.lifecycle == PlanLifecycle.paused) {
       return PlanListStatus.upcoming;
     }
-    final notBefore = _timeCondition(plan.rule.condition)?.notBefore;
-    if (notBefore != null && notBefore.isAfter(_clock())) {
+    // The plan's own time, not the alarm's. A week's lead would otherwise make
+    // a plan 활성 a week before the day it is about.
+    final startsAt = planStartsAt(plan);
+    if (startsAt != null && startsAt.isAfter(_clock())) {
       return PlanListStatus.upcoming;
     }
     return PlanListStatus.active;
@@ -1082,23 +1099,33 @@ final class PlanController extends ChangeNotifier {
             : '${location.radiusMeters.round()}m 안에 들어오면',
       );
     }
-    if (time != null) parts.add(_timeLabel(time, plan.rule.recurrence));
+    if (time != null) {
+      parts.add(_timeLabel(time, plan.rule.recurrence, planStartsAt(plan)));
+    }
     return parts.isEmpty ? '조건을 확인하고 있어요' : parts.join(' · ');
   }
 
-  String _timeLabel(TimeCondition time, TriggerRecurrence recurrence) {
-    final clock = time.windowStart;
+  /// [startsAt] is when the plan happens; [time] is when it fires. A card says
+  /// when the dinner is, not when it will be mentioned.
+  String _timeLabel(
+    TimeCondition time,
+    TriggerRecurrence recurrence,
+    DateTime? startsAt,
+  ) {
+    // The window and the weekday are both cut from the alarm's clock, so a
+    // repeating plan with a lead would announce the wrong hour — and, once the
+    // lead crosses midnight, the wrong day of the week along with it.
+    final clock = startsAt == null
+        ? time.windowStart
+        : ClockTime(hour: startsAt.hour, minute: startsAt.minute);
     final clockLabel = clock == null ? null : _clockLabel(clock);
+    final weekday = startsAt?.weekday ?? time.weekdays.firstOrNull;
     return switch (recurrence) {
       TriggerRecurrence.once =>
-        time.notBefore == null
-            ? (clockLabel ?? '한 번만')
-            : _dateTimeLabel(time.notBefore!),
+        startsAt == null ? (clockLabel ?? '한 번만') : _dateTimeLabel(startsAt),
       TriggerRecurrence.daily => '매일 ${clockLabel ?? ''}'.trim(),
       TriggerRecurrence.weekly =>
-        '매주 ${_weekdayLabel(time.weekdays.firstOrNull)} '
-                '${clockLabel ?? ''}'
-            .trim(),
+        '매주 ${_weekdayLabel(weekday)} ${clockLabel ?? ''}'.trim(),
       TriggerRecurrence.onReentry =>
         clockLabel == null ? '다시 방문할 때' : '$clockLabel 무렵 다시 방문할 때',
     };
