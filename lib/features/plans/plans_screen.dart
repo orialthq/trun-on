@@ -145,7 +145,6 @@ final class PlansScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = today ?? DateTime.now();
     final ongoing = _ongoing(now);
-    final past = _plansWithStatus(PlanListStatus.completed);
     final dueCount = _dueByTodayCount(ongoing, now);
 
     return Theme(
@@ -176,20 +175,15 @@ final class PlansScreen extends StatelessWidget {
                   padding: EdgeInsets.fromLTRB(22, 20, 22, 0),
                   sliver: SliverToBoxAdapter(child: _FirstPlanNotice()),
                 ),
+              // No heading over it any more. 지난 계획 moved to its own tab, and
+              // a lone 진행 중 was naming the only thing on the screen.
               ..._section(
                 key: const Key('plans-ongoing-section'),
-                title: '진행 중',
                 plans: ongoing,
                 now: now,
                 // Only the nearest plan is filled in. Two filled cards next to
                 // each other stop meaning "this one".
                 heroIndex: 0,
-              ),
-              ..._section(
-                key: const Key('plans-past-section'),
-                title: '지난 계획',
-                plans: past,
-                now: now,
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 44)),
             ],
@@ -201,7 +195,6 @@ final class PlansScreen extends StatelessWidget {
 
   List<Widget> _section({
     required Key key,
-    required String title,
     required List<PlanListItem> plans,
     required DateTime now,
     int? heroIndex,
@@ -209,13 +202,8 @@ final class PlansScreen extends StatelessWidget {
     if (plans.isEmpty) return const <Widget>[];
     return <Widget>[
       SliverPadding(
-        padding: const EdgeInsets.fromLTRB(22, 26, 22, 0),
-        sliver: SliverToBoxAdapter(
-          child: _SectionHeader(key: key, title: title, count: plans.length),
-        ),
-      ),
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
+        key: key,
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
         sliver: SliverList.separated(
           itemCount: plans.length,
           separatorBuilder: (_, _) => const SizedBox(height: 12),
@@ -254,10 +242,6 @@ final class PlansScreen extends StatelessWidget {
       return firstDays.compareTo(secondDays);
     });
     return List<PlanListItem>.unmodifiable(result);
-  }
-
-  List<PlanListItem> _plansWithStatus(PlanListStatus status) {
-    return plans.where((plan) => plan.status == status).toList(growable: false);
   }
 
   /// To-dos that were due today or earlier and are still unticked.
@@ -420,44 +404,6 @@ final class _AlertHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(_AlertHeaderDelegate oldDelegate) =>
       label != oldDelegate.label || urgent != oldDelegate.urgent;
-}
-
-/// A spaced label, a rule to the edge, and a count.
-final class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.count, super.key});
-
-  final String title;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppTheme.planSubtle,
-            fontSize: 11,
-            height: 1.2,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 3,
-          ),
-        ),
-        const SizedBox(width: 14),
-        const Expanded(child: Divider(height: 1, color: AppTheme.planBorder)),
-        const SizedBox(width: 14),
-        Text(
-          '$count',
-          style: const TextStyle(
-            color: AppTheme.planSubtle,
-            fontSize: 13,
-            height: 1.2,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// Shown only when there is not a single plan yet.

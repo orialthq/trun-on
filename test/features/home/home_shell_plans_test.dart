@@ -13,44 +13,53 @@ import 'package:ori_beauty/domain/trigger_models.dart';
 import 'package:ori_beauty/features/analysis/analysis_review_screen.dart';
 import 'package:ori_beauty/features/analysis/structured_review_screen.dart';
 import 'package:ori_beauty/features/home/home_shell.dart';
+import 'package:ori_beauty/features/plans/past_plans_screen.dart';
 import 'package:ori_beauty/features/plans/plan_editor_screen.dart';
 import 'package:ori_beauty/features/plans/plans_screen.dart';
 import 'package:ori_beauty/state/app_controller.dart';
 import 'package:ori_beauty/state/plan_controller.dart';
 
 void main() {
-  testWidgets(
-    'shows an injected plan controller as the fourth HomeShell destination',
-    (tester) async {
-      final fixture = await _HomeShellPlansFixture.create();
-      addTearDown(fixture.dispose);
+  testWidgets('a plan controller brings both 계획함 and 지난함 with it', (
+    tester,
+  ) async {
+    // The two arrive together and leave together: 지난함 holds what 계획함
+    // finished, so neither is reachable without the controller behind them.
+    final fixture = await _HomeShellPlansFixture.create();
+    addTearDown(fixture.dispose);
 
-      await _pumpHomeShell(tester, fixture);
+    await _pumpHomeShell(tester, fixture);
 
-      final navigationBarFinder = find.byType(NavigationBar);
-      final navigationBar = tester.widget<NavigationBar>(navigationBarFinder);
-      final plansDestination = find.descendant(
-        of: navigationBarFinder,
-        matching: find.text('계획함'),
-      );
+    final navigationBarFinder = find.byType(NavigationBar);
+    final navigationBar = tester.widget<NavigationBar>(navigationBarFinder);
+    final plansDestination = find.descendant(
+      of: navigationBarFinder,
+      matching: find.text('계획함'),
+    );
 
-      expect(navigationBar.destinations, hasLength(4));
-      expect(plansDestination, findsOneWidget);
+    expect(navigationBar.destinations, hasLength(5));
+    expect(plansDestination, findsOneWidget);
+    expect(
+      find.descendant(of: navigationBarFinder, matching: find.text('지난함')),
+      findsOneWidget,
+    );
 
-      await tester.tap(plansDestination);
-      await tester.pumpAndSettle();
+    await tester.tap(plansDestination);
+    await tester.pumpAndSettle();
 
-      expect(
-        tester.widget<NavigationBar>(navigationBarFinder).selectedIndex,
-        3,
-      );
-      expect(find.byType(PlansScreen), findsOneWidget);
-      expect(
-        find.byKey(const PageStorageKey<String>('plans-screen')),
-        findsOneWidget,
-      );
-    },
-  );
+    expect(find.byType(PlansScreen), findsOneWidget);
+    expect(
+      find.byKey(const PageStorageKey<String>('plans-screen')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(of: navigationBarFinder, matching: find.text('지난함')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PastPlansScreen), findsOneWidget);
+  });
 
   testWidgets('a to-do falls on the same day on the card and behind it', (
     tester,
@@ -277,10 +286,9 @@ Future<void> _openPlanActions(WidgetTester tester, String planId) async {
     of: find.byType(NavigationBar),
     matching: find.text('계획함'),
   );
-  final navigationBar = tester.widget<NavigationBar>(
-    find.byType(NavigationBar),
-  );
-  if (navigationBar.selectedIndex != 3) {
+  // By what is on screen rather than by which index is lit: 계획함 has moved
+  // along the bar twice now, and a number here would have to move with it.
+  if (find.byType(PlansScreen).evaluate().isEmpty) {
     await tester.tap(plansDestination);
     await tester.pumpAndSettle();
   }

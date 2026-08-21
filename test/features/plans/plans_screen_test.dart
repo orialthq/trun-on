@@ -114,14 +114,15 @@ void main() {
 
     expect(find.text('계획함'), findsOneWidget);
     expect(find.byKey(const Key('plans-ongoing-section')), findsOneWidget);
-    expect(find.byKey(const Key('plans-past-section')), findsOneWidget);
-    expect(find.text('진행 중'), findsOneWidget);
-    expect(find.text('지난 계획'), findsOneWidget);
+    // What is over lives in 지난함 now, and with one section left there is
+    // nothing for a heading to tell apart.
+    expect(find.text('진행 중'), findsNothing);
+    expect(find.text('지난 계획'), findsNothing);
+    expect(find.byKey(const Key('plan-card-jeju')), findsNothing);
 
-    // 다낭 is 14 days out and 도쿄 is 51; 제주 already happened.
+    // 다낭 is 14 days out and 도쿄 is 51.
     expect(find.text('D-14'), findsOneWidget);
     expect(find.text('D-51'), findsOneWidget);
-    expect(find.text('완료'), findsOneWidget);
 
     // A plan that spans days says so; the rest keep the domain's own label.
     expect(find.text('9.3 – 9.7 · 5일간'), findsOneWidget);
@@ -339,6 +340,5 @@ void main() {
 
     expect(find.text('첫 계획을 만들어 보세요'), findsOneWidget);
     expect(find.byKey(const Key('plans-ongoing-section')), findsNothing);
-    expect(find.byKey(const Key('plans-past-section')), findsNothing);
   });
 }
