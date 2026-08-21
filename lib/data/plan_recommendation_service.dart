@@ -92,11 +92,24 @@ final class PlanTodoSuggestion {
     required this.daysBefore,
     required this.note,
     required this.selected,
+    this.group = '',
     this.saved = const <PlanTodoSavedItem>[],
     this.done = false,
   });
 
   final String title;
+
+  /// The name of the group this came in, and the only part of [PlanTodoGroup]
+  /// that outlives the choosing.
+  ///
+  /// Carried on the to-do rather than kept as a structure around it: ticking
+  /// one off addresses it by its position in a flat list, and so do the
+  /// progress bar, the countdown, and the next-thing-to-do line. A nesting
+  /// would have to be flattened again at every one of them.
+  ///
+  /// Empty for a plan made before to-dos knew what they belonged to, and for
+  /// one written by hand.
+  final String group;
 
   /// What the reader has to do: 예약, 구매, 보기, 준비.
   final String action;
@@ -120,16 +133,20 @@ final class PlanTodoSuggestion {
   /// all.
   final bool done;
 
-  PlanTodoSuggestion copyWith({bool? done, List<PlanTodoSavedItem>? saved}) =>
-      PlanTodoSuggestion(
-        title: title,
-        action: action,
-        daysBefore: daysBefore,
-        note: note,
-        selected: selected,
-        saved: saved ?? this.saved,
-        done: done ?? this.done,
-      );
+  PlanTodoSuggestion copyWith({
+    bool? done,
+    List<PlanTodoSavedItem>? saved,
+    String? group,
+  }) => PlanTodoSuggestion(
+    title: title,
+    action: action,
+    daysBefore: daysBefore,
+    note: note,
+    selected: selected,
+    group: group ?? this.group,
+    saved: saved ?? this.saved,
+    done: done ?? this.done,
+  );
 
   /// The day this is due, given the day the plan itself falls on.
   DateTime dueDate(DateTime planDate) => DateTime(
@@ -143,6 +160,7 @@ final class PlanTodoSuggestion {
     'action': action,
     'daysBefore': daysBefore,
     if (note.isNotEmpty) 'note': note,
+    if (group.isNotEmpty) 'group': group,
     if (saved.isNotEmpty)
       'saved': saved.map((one) => one.toJson()).toList(growable: false),
     if (done) 'done': true,
@@ -164,6 +182,7 @@ final class PlanTodoSuggestion {
       daysBefore: raw['daysBefore'] is int ? raw['daysBefore']! as int : 0,
       note: raw['note'] is String ? (raw['note']! as String).trim() : '',
       selected: raw['selected'] != false,
+      group: raw['group'] is String ? (raw['group']! as String).trim() : '',
       saved: List<PlanTodoSavedItem>.unmodifiable(saved),
       done: raw['done'] == true,
     );
@@ -328,18 +347,22 @@ final class RemotePlanRecommendationService
                 ? decoded['groups']! as List
                 : const []) {
           if (raw is! Map<String, Object?>) continue;
+          final title = raw['title'] is String
+              ? (raw['title']! as String).trim()
+              : '할 일';
           final items = <PlanTodoSuggestion>[];
           for (final entry
               in raw['items'] is List ? raw['items']! as List : const []) {
             final item = PlanTodoSuggestion.fromJson(entry);
-            if (item != null) items.add(item);
+            // Stamped here so the name survives being chosen. What reaches the
+            // plan is a flat list of to-dos, and the group it came in is not
+            // written anywhere else on the way.
+            if (item != null) items.add(item.copyWith(group: title));
           }
           if (items.isEmpty) continue;
           groups.add(
             PlanTodoGroup(
-              title: raw['title'] is String
-                  ? (raw['title']! as String).trim()
-                  : '할 일',
+              title: title,
               note: raw['note'] is String
                   ? (raw['note']! as String).trim()
                   : '',

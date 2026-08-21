@@ -623,7 +623,11 @@ final class _PlanCard extends StatelessWidget {
             ),
             const SizedBox(height: 13),
             Text(
-              '다음 · ${nextTodo.title}',
+              // The group first when there is one. A to-do out of its group
+              // reads as a fragment — 원피스 정하기 is a different errand under
+              // 하객룩 than under 이사 준비, and the card has no other way to
+              // say which.
+              '다음 · ${_nextLabel(nextTodo)}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -701,9 +705,12 @@ final class _PlanCard extends StatelessWidget {
       _subtitle(),
       if (plan.todos.isNotEmpty)
         '할 일 ${plan.todos.length}개 중 ${plan.doneCount}개 완료',
-      if (plan.nextTodo case final next?) '다음 ${next.title}',
+      if (plan.nextTodo case final next?) '다음 ${_nextLabel(next)}',
     ].join(', ');
   }
+
+  static String _nextLabel(PlanTodoSuggestion todo) =>
+      todo.group.isEmpty ? todo.title : '${todo.group} · ${todo.title}';
 
   static String _shortDate(DateTime value) => '${value.month}.${value.day}';
 }

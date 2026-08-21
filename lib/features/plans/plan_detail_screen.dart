@@ -88,6 +88,19 @@ final class PlanDetailScreen extends StatelessWidget {
                 _Progress(doneCount: doneCount, total: todos.length),
                 const SizedBox(height: 16),
                 for (var index = 0; index < todos.length; index += 1) ...[
+                  // A header wherever the group changes, which is wherever one
+                  // ends: the to-dos arrive in the order the groups came in and
+                  // are kept that way. Deriving it from the list rather than
+                  // storing a structure means a group whose to-dos were all
+                  // dropped has nothing left to draw a header for.
+                  if (_startsGroup(todos, index)) ...[
+                    if (index != 0) const SizedBox(height: 14),
+                    _GroupHeader(
+                      title: todos[index].group,
+                      todos: _groupAt(todos, index),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   _TodoTile(
                     todo: todos[index],
                     planDate: planDate,
@@ -101,6 +114,70 @@ final class PlanDetailScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Whether the to-do at [index] opens a group the one before it was not in.
+///
+/// An unnamed group never opens one: a plan written by hand, or made before
+/// to-dos knew what they belonged to, reads as the plain list it always was.
+bool _startsGroup(List<PlanTodoSuggestion> todos, int index) {
+  final group = todos[index].group;
+  if (group.isEmpty) return false;
+  return index == 0 || todos[index - 1].group != group;
+}
+
+/// The run of to-dos sharing the group that starts at [index].
+List<PlanTodoSuggestion> _groupAt(List<PlanTodoSuggestion> todos, int index) {
+  final group = todos[index].group;
+  final run = <PlanTodoSuggestion>[];
+  for (var at = index; at < todos.length && todos[at].group == group; at += 1) {
+    run.add(todos[at]);
+  }
+  return run;
+}
+
+/// Names a run of to-dos and says how far through it the reader is.
+///
+/// The count is the group's own, not the plan's. The bar above already says
+/// how much of the whole is left; what this answers is which part is holding
+/// the rest up.
+final class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.title, required this.todos});
+
+  final String title;
+  final List<PlanTodoSuggestion> todos;
+
+  @override
+  Widget build(BuildContext context) {
+    final done = todos.where((todo) => todo.done).length;
+    final complete = done == todos.length;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: complete ? AppTheme.planMuted : AppTheme.planInk,
+              fontSize: 15,
+              height: 1.3,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '$done/${todos.length}',
+          style: TextStyle(
+            color: complete ? AppTheme.planSage : AppTheme.planSubtle,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }
