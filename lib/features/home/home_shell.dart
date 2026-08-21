@@ -381,9 +381,6 @@ final class _HomeShellState extends State<HomeShell>
   /// notifications to the wrong screen.
   List<_HomeTab> get _tabs => <_HomeTab>[
     _HomeTab.home,
-    // 지난함 rides with 계획함: it is where that tab's finished plans went, and
-    // with no plan controller there is neither one nor the other.
-    if (widget.planController != null) _HomeTab.past,
     _HomeTab.shared,
     _HomeTab.library,
     if (widget.planController != null) _HomeTab.plans,
@@ -487,12 +484,6 @@ final class _HomeShellState extends State<HomeShell>
             onOpenLibrary: () => _selectTab(_HomeTab.library),
             onOpenCapture: _openCapture,
           ),
-          _HomeTab.past => PastPlansScreen(
-            plans: planController != null && planController.isInitialized
-                ? _planItems(planController)
-                : const <PlanListItem>[],
-            onOpenPlan: _openPlanDetail,
-          ),
           _HomeTab.library => ProductsScreen(controller: widget.controller),
           _HomeTab.shared => SharedInboxScreen(
             entries: widget.controller.sharedInbox,
@@ -504,6 +495,7 @@ final class _HomeShellState extends State<HomeShell>
                 : const <PlanListItem>[],
             onCreatePlan: _openPlanEditor,
             onOpenPlan: _openPlanDetail,
+            onOpenPast: _openPastPlans,
           ),
         },
     ];
@@ -515,11 +507,6 @@ final class _HomeShellState extends State<HomeShell>
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded),
             label: '홈',
-          ),
-          _HomeTab.past => const NavigationDestination(
-            icon: Icon(Icons.history_rounded),
-            selectedIcon: Icon(Icons.history_toggle_off_rounded),
-            label: '지난함',
           ),
           _HomeTab.library => const NavigationDestination(
             icon: Icon(Icons.bookmark_border_rounded),
@@ -546,12 +533,7 @@ final class _HomeShellState extends State<HomeShell>
           ),
         },
     ];
-    // 지난함 is dressed in the same palette as 계획함, so the bar under it takes
-    // the same chrome. Anything else and the tab bar changes colour halfway
-    // through what reads as one place.
-    final showingPlans =
-        planController != null &&
-        const {_HomeTab.plans, _HomeTab.past}.contains(_tab);
+    final showingPlans = planController != null && _tab == _HomeTab.plans;
     final navigationBackground = showingPlans
         ? AppTheme.planSurface
         : AppTheme.surface;
@@ -946,6 +928,33 @@ final class _HomeShellState extends State<HomeShell>
     if (openSettings == true && mounted) {
       await const PlaceReminderService().openBackgroundLocationSettings();
     }
+  }
+
+  /// Opens 지난함 over 계획함 rather than beside it in the tab bar.
+  ///
+  /// A tab is for somewhere a reader goes daily. Looking back is deliberate and
+  /// occasional, and it is reached from the tab whose finished plans it holds —
+  /// the same push 콘텐츠 takes from home.
+  ///
+  /// Rebuilt from the controller like the plan page, so finishing a plan while
+  /// this is open puts it on the calendar without a trip back out.
+  Future<void> _openPastPlans() async {
+    final controller = widget.planController;
+    if (controller == null) return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AnimatedBuilder(
+          animation: controller,
+          builder: (_, _) => PastPlansScreen(
+            plans: controller.isInitialized
+                ? _planItems(controller)
+                : const <PlanListItem>[],
+            onOpenPlan: _openPlanDetail,
+          ),
+        ),
+      ),
+    );
   }
 
   /// Opens a plan's own page: its to-dos, and a way into the plan's actions.
@@ -1872,4 +1881,4 @@ final class _PlanProgressState extends State<_PlanProgress> {
 ///
 /// Positions move — 계획함 is only there with a plan controller, and 콘텐츠 left
 /// the bar entirely — so nothing addresses a tab by number.
-enum _HomeTab { home, past, library, shared, plans }
+enum _HomeTab { home, library, shared, plans }

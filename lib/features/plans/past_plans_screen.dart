@@ -72,10 +72,11 @@ List<PlanListItem> _newestFirst(List<PlanListItem> plans) {
 
 /// What is already over, laid out on the month it happened in.
 ///
-/// Its own tab rather than a second section under 계획함. The two are read for
-/// opposite reasons — one to see what still needs doing, the other to look
+/// A page over 계획함 rather than a second section inside it. The two are read
+/// for opposite reasons — one to see what still needs doing, the other to look
 /// back — and finished plans piling up under the live ones pushed the live ones
-/// off the screen.
+/// off the screen. Not a tab either: the bar is for where a reader goes daily,
+/// and looking back is deliberate and occasional.
 ///
 /// The calendar answers "what did I do that month", which is the question a
 /// reader actually arrives with. It cannot answer every question on its own,
@@ -147,13 +148,20 @@ final class _PastPlansScreenState extends State<PastPlansScreen> {
 
     return Theme(
       data: AppTheme.plansTheme(Theme.of(context)),
-      child: ColoredBox(
-        color: AppTheme.planCanvas,
-        child: SafeArea(
+      child: Scaffold(
+        backgroundColor: AppTheme.planCanvas,
+        appBar: AppBar(
+          backgroundColor: AppTheme.planCanvas,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: AppTheme.planInk,
+        ),
+        body: SafeArea(
+          top: false,
           bottom: false,
           child: ListView(
             key: const PageStorageKey('past-plans-screen'),
-            padding: const EdgeInsets.fromLTRB(22, 24, 22, 44),
+            padding: const EdgeInsets.fromLTRB(22, 4, 22, 44),
             children: [
               const _Header(),
               const SizedBox(height: 18),

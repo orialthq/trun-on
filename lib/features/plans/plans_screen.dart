@@ -120,15 +120,16 @@ final class PlanListItem {
 /// domain plans to [PlanListItem] and rebuild this screen whenever the source
 /// of truth changes.
 ///
-/// Two sections rather than three. 활성 and 예정 were a distinction the screen
-/// made and a reader did not: both are plans that have not happened yet, and
-/// the countdown already says which is sooner. What is actually worth splitting
-/// is what still needs doing from what is over.
+/// One list, not sections. 활성 and 예정 were a distinction the screen made and
+/// a reader did not — both are plans that have not happened yet, and the
+/// countdown already says which is sooner. What is over left for 지난함, which
+/// the header opens.
 final class PlansScreen extends StatelessWidget {
   const PlansScreen({
     required this.plans,
     required this.onCreatePlan,
     this.onOpenPlan,
+    this.onOpenPast,
     this.today,
     super.key,
   });
@@ -136,6 +137,9 @@ final class PlansScreen extends StatelessWidget {
   final List<PlanListItem> plans;
   final VoidCallback onCreatePlan;
   final ValueChanged<PlanListItem>? onOpenPlan;
+
+  /// Opens 지난함. The header offers it only once something is in there.
+  final VoidCallback? onOpenPast;
 
   /// The day countdowns are measured against. Defaults to now; tests pin it so
   /// a D-day does not change under them overnight.
@@ -146,6 +150,7 @@ final class PlansScreen extends StatelessWidget {
     final now = today ?? DateTime.now();
     final ongoing = _ongoing(now);
     final dueCount = _dueByTodayCount(ongoing, now);
+    final pastCount = plans.length - ongoing.length;
 
     return Theme(
       data: AppTheme.plansTheme(Theme.of(context)),
@@ -159,7 +164,11 @@ final class PlansScreen extends StatelessWidget {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
                 sliver: SliverToBoxAdapter(
-                  child: _PlansHeader(onCreatePlan: onCreatePlan),
+                  child: _PlansHeader(
+                    onCreatePlan: onCreatePlan,
+                    pastCount: pastCount,
+                    onOpenPast: onOpenPast,
+                  ),
                 ),
               ),
               if (_alertLabel(ongoing.length, dueCount) case final label?)
@@ -270,9 +279,15 @@ final class PlansScreen extends StatelessWidget {
 }
 
 final class _PlansHeader extends StatelessWidget {
-  const _PlansHeader({required this.onCreatePlan});
+  const _PlansHeader({
+    required this.onCreatePlan,
+    required this.pastCount,
+    required this.onOpenPast,
+  });
 
   final VoidCallback onCreatePlan;
+  final int pastCount;
+  final VoidCallback? onOpenPast;
 
   @override
   Widget build(BuildContext context) {
@@ -291,6 +306,57 @@ final class _PlansHeader extends StatelessWidget {
             ),
           ),
         ),
+        // Beside the title rather than under it, where it costs no height at
+        // all and stays put however far the list is scrolled. A door to what is
+        // over does not deserve a row above what is due today.
+        //
+        // Only once there is something behind it: a clock face means little on
+        // its own, and the count is what says what the button is for. With
+        // nothing there it would open an empty screen and explain nothing.
+        if (pastCount > 0 && onOpenPast != null) ...[
+          const SizedBox(width: 10),
+          Semantics(
+            button: true,
+            label: '지난함, 지난 계획 $pastCount개',
+            child: Material(
+              key: const Key('plans-past-button'),
+              color: AppTheme.planSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppTheme.planBorder),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onOpenPast,
+                child: SizedBox(
+                  height: 48,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.history_rounded,
+                          color: AppTheme.planMuted,
+                          size: 19,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$pastCount',
+                          style: const TextStyle(
+                            color: AppTheme.planInk,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(width: 12),
         // Compact next to a title this large. The label moved into the
         // semantics rather than sitting beside a heading it would compete with.

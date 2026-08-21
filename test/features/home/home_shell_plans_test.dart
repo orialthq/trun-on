@@ -20,45 +20,82 @@ import 'package:ori_beauty/state/app_controller.dart';
 import 'package:ori_beauty/state/plan_controller.dart';
 
 void main() {
-  testWidgets('a plan controller brings both 계획함 and 지난함 with it', (
+  testWidgets(
+    'shows an injected plan controller as the fourth HomeShell destination',
+    (tester) async {
+      // 지난함 is not among these. It is a page 계획함 pushes, not a place the
+      // bar goes — the bar is for where a reader goes daily.
+      final fixture = await _HomeShellPlansFixture.create();
+      addTearDown(fixture.dispose);
+
+      await _pumpHomeShell(tester, fixture);
+
+      final navigationBarFinder = find.byType(NavigationBar);
+      final navigationBar = tester.widget<NavigationBar>(navigationBarFinder);
+      final plansDestination = find.descendant(
+        of: navigationBarFinder,
+        matching: find.text('계획함'),
+      );
+
+      expect(navigationBar.destinations, hasLength(4));
+      expect(plansDestination, findsOneWidget);
+      expect(
+        find.descendant(of: navigationBarFinder, matching: find.text('지난함')),
+        findsNothing,
+      );
+
+      await tester.tap(plansDestination);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PlansScreen), findsOneWidget);
+      expect(
+        find.byKey(const PageStorageKey<String>('plans-screen')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('finishing a plan opens the door to 지난함 and puts it behind it', (
     tester,
   ) async {
-    // The two arrive together and leave together: 지난함 holds what 계획함
-    // finished, so neither is reachable without the controller behind them.
     final fixture = await _HomeShellPlansFixture.create();
     addTearDown(fixture.dispose);
+    final plan = await fixture.createPlan();
 
     await _pumpHomeShell(tester, fixture);
-
-    final navigationBarFinder = find.byType(NavigationBar);
-    final navigationBar = tester.widget<NavigationBar>(navigationBarFinder);
-    final plansDestination = find.descendant(
-      of: navigationBarFinder,
-      matching: find.text('계획함'),
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('계획함'),
+      ),
     );
-
-    expect(navigationBar.destinations, hasLength(5));
-    expect(plansDestination, findsOneWidget);
-    expect(
-      find.descendant(of: navigationBarFinder, matching: find.text('지난함')),
-      findsOneWidget,
-    );
-
-    await tester.tap(plansDestination);
     await tester.pumpAndSettle();
 
-    expect(find.byType(PlansScreen), findsOneWidget);
-    expect(
-      find.byKey(const PageStorageKey<String>('plans-screen')),
-      findsOneWidget,
-    );
+    // Nothing is over yet, so there is no door to a screen with nothing on it.
+    expect(find.byKey(const Key('plans-past-button')), findsNothing);
 
-    await tester.tap(
-      find.descendant(of: navigationBarFinder, matching: find.text('지난함')),
-    );
+    fixture.scheduler.emitOutcomes(<NativeTriggerOutcome>[
+      NativeTriggerOutcome(
+        eventId: 'done-1',
+        ruleId: plan.id,
+        kind: NativeTriggerOutcomeKind.done,
+        occurredAt: DateTime.utc(2026, 8, 19, 18),
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    final door = find.byKey(const Key('plans-past-button'));
+    expect(door, findsOneWidget);
+    // The count is what says what the button is for.
+    expect(find.descendant(of: door, matching: find.text('1')), findsOneWidget);
+    // And it left 계획함 on its way there.
+    expect(find.byKey(Key('plan-card-${plan.id}')), findsNothing);
+
+    await tester.tap(door);
     await tester.pumpAndSettle();
 
     expect(find.byType(PastPlansScreen), findsOneWidget);
+    expect(find.text('저장한 맛집 방문하기'), findsOneWidget);
   });
 
   testWidgets('a to-do falls on the same day on the card and behind it', (

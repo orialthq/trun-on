@@ -29,6 +29,7 @@ Widget _screen(
   List<PlanListItem> plans, {
   VoidCallback? onCreatePlan,
   ValueChanged<PlanListItem>? onOpenPlan,
+  VoidCallback? onOpenPast,
 }) {
   return MaterialApp(
     theme: AppTheme.dark,
@@ -38,6 +39,7 @@ Widget _screen(
         today: _today,
         onCreatePlan: onCreatePlan ?? () {},
         onOpenPlan: onOpenPlan,
+        onOpenPast: onOpenPast ?? () {},
       ),
     ),
   );
@@ -326,6 +328,48 @@ void main() {
     }
 
     expect(segments, 6, reason: '할 일 하나에 칸 하나');
+  });
+
+  testWidgets('the door to 지난함 counts what is behind it, or is not there', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final live = PlanListItem(
+      id: 'live',
+      title: '성수 저녁 약속',
+      status: PlanListStatus.upcoming,
+      triggerLabel: '8월 25일 오후 07:00',
+      startsAt: DateTime(2026, 8, 25, 19),
+    );
+    final over = PlanListItem(
+      id: 'jeju',
+      title: '제주 가족여행',
+      status: PlanListStatus.completed,
+      triggerLabel: '7월 4일 다녀옴',
+      startsAt: DateTime(2026, 7, 4, 10),
+    );
+
+    // Nothing is over, so the header does not offer a way to an empty screen.
+    await tester.pumpWidget(_screen(<PlanListItem>[live]));
+    expect(find.byKey(const Key('plans-past-button')), findsNothing);
+
+    var openedPast = false;
+    await tester.pumpWidget(
+      _screen(<PlanListItem>[live, over], onOpenPast: () => openedPast = true),
+    );
+
+    final door = find.byKey(const Key('plans-past-button'));
+    expect(door, findsOneWidget);
+    expect(find.descendant(of: door, matching: find.text('1')), findsOneWidget);
+    // It stays a door: what is over is not on this screen.
+    expect(find.text('제주 가족여행'), findsNothing);
+
+    await tester.tap(door);
+    expect(openedPast, isTrue);
   });
 
   testWidgets('shows a useful empty state without requiring a controller', (
